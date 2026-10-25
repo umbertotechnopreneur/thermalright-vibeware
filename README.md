@@ -1,5 +1,11 @@
 # Thermalright VibeWare
 
+**[Quick Start (PDF)](docs/quick-start.pdf)** · [Read it online](docs/quick-start.md)
+
+[![CI status](https://github.com/umbertotechnopreneur/thermalright-vibeware/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/umbertotechnopreneur/thermalright-vibeware/actions/workflows/ci.yml)
+![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2EA44F)](LICENSE)
+
 I made this free, open-source app for my Thermalright Trofeo Vision LCD. It puts music, artwork and PC sensor readings on the screen. I'm [Umberto Giacobbi](https://umbertogiacobbi.biz).
 
 *Real app captures, not AI-generated images. Captured before the rename.*

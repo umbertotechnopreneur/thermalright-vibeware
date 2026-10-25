@@ -40,7 +40,7 @@ create its driver again on a later owner-requested sensor read.
 Publish with `scripts/Publish.ps1`, then pass its staging folder to:
 
 ```powershell
-./scripts/Build-Msi.ps1 -PayloadPath artifacts/staging/<published-folder> -Architecture x64
+./scripts/build/Build-Msi.ps1 -PayloadPath artifacts/staging/<published-folder> -Architecture x64
 ```
 
 Build from the current repository source with the existing Visual Studio C++
@@ -49,10 +49,10 @@ app, an older MSI or a release binary as the app payload.
 
 Before first use, stage and explicitly scan each new dependency archive and its
 extracted files. The pinned native source/SDK and Python inputs support separate
-preparation with `Build-PhotinoNative.ps1 -PrepareImports` and
-`Bundle-Python.ps1 -PrepareImports -Destination artifacts/dependency-stage`.
+preparation with `scripts/build/Build-PhotinoNative.ps1 -PrepareImports` and
+`scripts/build/Bundle-Python.ps1 -PrepareImports -Destination artifacts/dependency-stage`.
 Both need `-Architecture x64` or `ARM64`. For restored NuGet packages and the
-WiX 4.0.6/UI extension tree, use `Assert-DefenderClean.ps1 -ScanNewImport` with
+WiX 4.0.6/UI extension tree, use `scripts/maintenance/Assert-DefenderClean.ps1 -ScanNewImport` with
 their staged path and official `-Source`. This fails on missing Defender or an
 unfinished, failed or detected scan. No installed SDK/runtime tree is scanned.
 
@@ -63,7 +63,7 @@ repository output cleanup. Generated app files and the MSI are not imports.
 
 The build restores WiX 4.0.6 and its matching UI extension locally when needed.
 It runs no tests, cleanup helper or MSI validation. After delivery, run
-`scripts/Clean-BuildOutputs.ps1 -KeepMsiPath`
+`scripts/maintenance/Clean-BuildOutputs.ps1 -KeepMsiPath`
 with the final file under `artifacts/packages/`. This removes generated output,
 including the local build tool, while preserving that MSI.
 

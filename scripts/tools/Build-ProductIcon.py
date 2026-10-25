@@ -4,7 +4,7 @@ from pathlib import Path
 import struct
 import skia
 
-root = Path(__file__).resolve().parents[1]
+root = Path(__file__).resolve().parents[2]
 assets = root / 'src/ThermalrightVibeWare.App/Assets'
 images = []
 for size in (16, 24, 32, 48, 64, 128, 256):

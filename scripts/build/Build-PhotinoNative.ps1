@@ -7,7 +7,7 @@
 param([ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64', [switch]$PreviewCapture, [switch]$PrepareImports)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $commit = 'd790e5be3127ec628d0a9f1f9fac68e14f339c2a'
 $archiveHash = '5C6546959017509B80A1884EADCD963FDDCE23A58D5043FE02F42A962E0B6A17'
 $root = Join-Path $repo 'artifacts/native/photino-memory'
@@ -30,12 +30,12 @@ if (-not (Test-Path -LiteralPath $archive)) {
     Invoke-WebRequest -Uri "https://api.github.com/repos/tryphotino/photino.Native/zipball/$commit" -Headers @{ 'User-Agent' = 'ThermalrightVibeWare-build' } -OutFile $archive
 }
 if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $archiveHash) { throw 'Photino source archive checksum mismatch.' }
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $archive -Source "https://github.com/tryphotino/photino.Native/commit/$commit" -ScanNewImport:$PrepareImports
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $archive -Source "https://github.com/tryphotino/photino.Native/commit/$commit" -ScanNewImport:$PrepareImports
 # Legacy native NuGet imports use path checks that fail in a long runner checkout.
 # Keep extracted sources short even when the repository name is long.
 $work = Join-Path $repo ('artifacts/pn/' + [Guid]::NewGuid().ToString('N').Substring(0, 12))
 [IO.Compression.ZipFile]::ExtractToDirectory($archive, $work)
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $work -Source "Photino.Native source $commit" -ScanNewImport:$PrepareImports
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $work -Source "Photino.Native source $commit" -ScanNewImport:$PrepareImports
 $sourceRoots = @(Get-ChildItem -LiteralPath $work -Directory)
 if ($sourceRoots.Count -ne 1) { throw 'Unexpected Photino source layout.' }
 $source = $sourceRoots[0].FullName
@@ -143,10 +143,10 @@ foreach ($package in @(
     if (-not (Test-Path -LiteralPath $packageArchive)) { Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg" -OutFile $packageArchive }
     $actual = [Convert]::ToBase64String([Convert]::FromHexString((Get-FileHash -LiteralPath $packageArchive -Algorithm SHA512).Hash))
     if ($actual -ne $package.Sha512) { throw "Native SDK checksum mismatch: $id" }
-    & "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $packageArchive -Source "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg" -ScanNewImport:$PrepareImports
+    & "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $packageArchive -Source "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg" -ScanNewImport:$PrepareImports
     [IO.Compression.ZipFile]::ExtractToDirectory($packageArchive, (Join-Path $packages ($package.Id + '.' + $version)))
 }
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $packages -Source 'Official NuGet: Microsoft.Web.WebView2 1.0.1462.37; Microsoft.Windows.ImplementationLibrary 1.0.220914.1' -ScanNewImport:$PrepareImports
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $packages -Source 'Official NuGet: Microsoft.Web.WebView2 1.0.1462.37; Microsoft.Windows.ImplementationLibrary 1.0.220914.1' -ScanNewImport:$PrepareImports
 if ($PrepareImports) { Write-Host 'Photino source and SDK imports prepared. No native compilation ran.'; return }
 $msbuild = $null
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'

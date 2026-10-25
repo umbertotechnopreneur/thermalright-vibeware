@@ -24,8 +24,8 @@ try {
     if (@($installer.RelatedProducts($upgradeCode)).Count -ne 0) { throw 'A previous MSI is still registered.' }
 }
 finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($installer) }
-& "$PSScriptRoot/Uninstall-Local.ps1"
-& "$PSScriptRoot/Clean-BuildOutputs.ps1"
+& "$PSScriptRoot/install/Uninstall-Local.ps1"
+& "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1"
 if ($previous.Build -ge 65535) { throw 'MSI build version limit reached. Update major/minor explicitly.' }
 $version = '{0}.{1}.{2}' -f $previous.Major, $previous.Minor, ($previous.Build + 1)
 # Reserve the version before building. Retries never reuse an installed version.
@@ -35,7 +35,7 @@ Write-Host "Building Thermalright VibeWare $version from clean output folders."
 $payloads = @(Get-ChildItem -LiteralPath (Join-Path $repo 'artifacts/staging') -Directory)
 if ($payloads.Count -ne 1) { throw 'Expected exactly one fresh payload.' }
 $payload = $payloads[0].FullName
-& "$PSScriptRoot/Build-Msi.ps1" -PayloadPath $payload -Architecture $Architecture -Version $version
+& "$PSScriptRoot/build/Build-Msi.ps1" -PayloadPath $payload -Architecture $Architecture -Version $version
 $msi = Join-Path $repo "artifacts/packages/ThermalrightVibeWare-win-$($Architecture.ToLowerInvariant())-$version.msi"
 $process = Start-Process msiexec.exe -ArgumentList @('/i', ('"' + $msi + '"'), '/norestart') -PassThru -Wait
 if ($process.ExitCode -ne 0) { throw "Install failed or cancelled (exit $($process.ExitCode)). MSI retained." }
@@ -64,5 +64,5 @@ try {
 finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($installer) }
 Write-Host "Installed $version; $checked installed files match the fresh payload."
 Get-FileHash -LiteralPath $msi -Algorithm SHA256 | Format-List
-& "$PSScriptRoot/Clean-BuildOutputs.ps1" -KeepMsiPath $msi
+& "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1" -KeepMsiPath $msi
 Write-Host "Finished. Kept only $msi. Installer completion choices control app launch and release news. No tests or USB commands executed by this script."

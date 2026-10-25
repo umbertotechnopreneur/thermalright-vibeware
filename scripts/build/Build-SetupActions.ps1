@@ -7,7 +7,7 @@
 param([ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $destination = Join-Path $repo ('artifacts/native/msi/' + $Architecture.ToLowerInvariant())
 $msbuild = $null
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'

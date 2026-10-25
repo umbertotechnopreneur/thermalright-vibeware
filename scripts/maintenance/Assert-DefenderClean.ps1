@@ -7,7 +7,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $target = (Resolve-Path -LiteralPath $Path).Path
-$repo = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))
+$repo = [IO.Path]::GetFullPath((Split-Path (Split-Path $PSScriptRoot -Parent) -Parent))
 $artifacts = Join-Path $repo 'artifacts'
 if (-not $target.StartsWith($artifacts + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'First-import checks accept only staged dependencies under this repository artifacts folder.'

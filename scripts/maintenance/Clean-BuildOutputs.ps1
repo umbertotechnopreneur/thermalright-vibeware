@@ -7,7 +7,7 @@
 param([string]$KeepMsiPath)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent)).TrimEnd('\', '/')
+$repo = [IO.Path]::GetFullPath((Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)).TrimEnd('\', '/')
 $prefix = $repo + [IO.Path]::DirectorySeparatorChar
 $artifacts = Join-Path $repo 'artifacts'
 $packages = Join-Path $artifacts 'packages'
