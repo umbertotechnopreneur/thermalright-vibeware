@@ -31,7 +31,7 @@ jobs:
       - run: dotnet restore ThermalrightVibeWare.slnx -p:Platform=${{ matrix.arch }}
       - name: Verify restored dependency scan evidence
         shell: pwsh
-        run: ./scripts/Assert-DefenderClean.ps1 -Path $env:NUGET_PACKAGES -Source 'https://api.nuget.org/v3/index.json; restored package archives and extracted dependencies'
+        run: ./scripts/maintenance/Assert-DefenderClean.ps1 -Path $env:NUGET_PACKAGES -Source 'https://api.nuget.org/v3/index.json; restored package archives and extracted dependencies'
       # The vendored LibreHardwareMonitor source follows its upstream formatting.
       - run: dotnet format ThermalrightVibeWare.slnx --verify-no-changes --no-restore --exclude third_party/LibreHardwareMonitor
       - run: dotnet build ThermalrightVibeWare.slnx --configuration Release --no-restore --warnaserror -p:Platform=${{ matrix.arch }}
@@ -46,7 +46,7 @@ jobs:
         run: |
           $payloads = @(Get-ChildItem -LiteralPath artifacts/staging -Directory)
           if ($payloads.Count -ne 1) { throw 'Expected exactly one fresh published payload.' }
-          ./scripts/Build-Msi.ps1 -PayloadPath $payloads[0].FullName -Architecture ${{ matrix.arch }}
+          ./scripts/build/Build-Msi.ps1 -PayloadPath $payloads[0].FullName -Architecture ${{ matrix.arch }}
       - uses: actions/upload-artifact@v7
         with:
           name: ThermalrightVibeWare-win-${{ matrix.arch }}

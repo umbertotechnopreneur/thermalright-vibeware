@@ -16,7 +16,7 @@ import time
 
 sys.dont_write_bytecode = True
 repo = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("memory_fixtures", repo / "scripts/Render-ThemeReview.py")
+spec = importlib.util.spec_from_file_location("memory_fixtures", repo / "scripts/tools/Render-ThemeReview.py")
 fixtures = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fixtures)
 

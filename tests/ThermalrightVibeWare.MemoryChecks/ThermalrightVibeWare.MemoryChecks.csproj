@@ -16,7 +16,7 @@ VBWR E -->
     <ChecksNativeFolder Condition="'$(PreviewCapture)' == 'true'">x64-preview-capture</ChecksNativeFolder>
   </PropertyGroup>
   <Target Name="BuildPreviewCaptureNative" BeforeTargets="Build" Condition="'$(PreviewCapture)' == 'true'">
-    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/Build-PhotinoNative.ps1&quot; -PreviewCapture" />
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/build/Build-PhotinoNative.ps1&quot; -PreviewCapture" />
   </Target>
   <Target Name="CopyPatchedNativeForChecks" AfterTargets="Build" DependsOnTargets="BuildPreviewCaptureNative">
     <Copy SourceFiles="../../artifacts/native/photino-memory/$(ChecksNativeFolder)/Photino.Native.dll" DestinationFolder="$(TargetDir)" />

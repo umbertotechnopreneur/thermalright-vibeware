@@ -6,6 +6,8 @@
 
 I made this free, open-source app for my Thermalright Trofeo Vision LCD. It puts music, artwork and PC sensor readings on the screen. I'm [Umberto Giacobbi](https://umbertogiacobbi.biz).
 
+**Start here: [Quick Start (PDF)](docs/quick-start.pdf)** · [Read it online](docs/quick-start.md).
+
 *Real app captures, not AI-generated images. Captured before the rename.*
 
 ## Music from your apps

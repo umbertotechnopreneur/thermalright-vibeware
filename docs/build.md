@@ -2,9 +2,12 @@
 
 I use the .NET 10 SDK and Python with pip on the packaging PC.
 
+Only `Reinstall.ps1` and `Publish.ps1` sit at the top of `scripts`. The
+[script map](../scripts/README.md) lists the build, install, maintenance and tools folders.
+
 Windows builds also need PowerShell 7, Visual Studio's C++ v143 tools for the target architecture, and the Windows SDK. No tool installer runs as part of the build.
 
-`scripts/Build-PhotinoNative.ps1` builds the Windows native bridge with owned UTF strings. It checks the pinned Apache-2.0 source archive and native SDK package hashes, then caches its output under `artifacts/native/photino-memory/`. The first build downloads those sources and SDK packages. Later builds reuse the checked DLL when its patch and hash match.
+`scripts/build/Build-PhotinoNative.ps1` builds the Windows native bridge with owned UTF strings. It checks the pinned Apache-2.0 source archive and native SDK package hashes, then caches its output under `artifacts/native/photino-memory/`. The first build downloads those sources and SDK packages. Later builds reuse the checked DLL when its patch and hash match.
 
 From the repository folder:
 
@@ -20,7 +23,7 @@ pwsh -NoProfile -File ./scripts/Reinstall.ps1 -Architecture x64
 ```
 
 Prepare new external imports before building: restore the NuGet packages into
-`artifacts/nuget-stage`, then run `Assert-DefenderClean.ps1 -ScanNewImport` on that
+`artifacts/nuget-stage`, then run `scripts/maintenance/Assert-DefenderClean.ps1 -ScanNewImport` on that
 staging folder. Native and Python dependencies have separate `-PrepareImports`
 steps. Each new archive and its extracted inputs need a completed targeted scan.
 Unchanged hashes reuse evidence saved outside build output. Builds check this

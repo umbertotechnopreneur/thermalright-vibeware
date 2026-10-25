@@ -10,7 +10,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $version = '3.13.16'
 $pythonTag = '313'
 # Archive digests from https://www.python.org/ftp/python/3.13.16/windows-3.13.16.json.
@@ -186,15 +186,15 @@ if (Test-Path -LiteralPath $bundleMarker) {
 
 $pythonStage = Join-Path $engine "python.$([guid]::NewGuid().ToString('N')).stage"
 # Scan imported archives, not the locally generated wheel cache manifest.
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $pythonArchive -Source "https://www.python.org/ftp/python/$version/" -ScanNewImport:$PrepareImports
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $pythonArchive -Source "https://www.python.org/ftp/python/$version/" -ScanNewImport:$PrepareImports
 foreach ($wheel in $wheelEntries) {
-    & "$PSScriptRoot/Assert-DefenderClean.ps1" -Path (Join-Path $wheelCache $wheel.filename) -Source 'https://pypi.org/; pinned wheel' -ScanNewImport:$PrepareImports
+    & "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path (Join-Path $wheelCache $wheel.filename) -Source 'https://pypi.org/; pinned wheel' -ScanNewImport:$PrepareImports
 }
 Expand-Archive -LiteralPath $pythonArchive -DestinationPath $pythonStage
 $sitePackages = Join-Path $pythonStage 'Lib/site-packages'
 New-Item -ItemType Directory -Path $sitePackages -Force | Out-Null
 foreach ($wheel in $wheelEntries) { Expand-Wheel (Join-Path $wheelCache $wheel.filename) $pythonStage }
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $pythonStage -Source "Extracted Python $version and pinned PyPI wheels" -ScanNewImport:$PrepareImports
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $pythonStage -Source "Extracted Python $version and pinned PyPI wheels" -ScanNewImport:$PrepareImports
 $pth = Join-Path $pythonStage "python$pythonTag._pth"
 @("python$pythonTag.zip", '.', 'Lib/site-packages', '../theme-runtime', 'import site') |
     Set-Content -LiteralPath $pth -Encoding ascii

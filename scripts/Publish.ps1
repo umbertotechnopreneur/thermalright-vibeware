@@ -22,15 +22,15 @@ foreach ($name in @('Cli', 'Photino')) {
     dotnet restore (Join-Path $repo "src/ThermalrightVibeWare.$name/ThermalrightVibeWare.$name.csproj") --runtime $runtime -p:Platform=$Architecture
     if ($LASTEXITCODE -ne 0) { throw "Restore failed: $name" }
 }
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $env:NUGET_PACKAGES -Source 'https://api.nuget.org/v3/index.json; restored package archives and extracted dependencies'
+& "$PSScriptRoot/maintenance/Assert-DefenderClean.ps1" -Path $env:NUGET_PACKAGES -Source 'https://api.nuget.org/v3/index.json; restored package archives and extracted dependencies'
 foreach ($target in @(@{ Project = 'Cli'; Folder = $engine }, @{ Project = 'Photino'; Folder = $destination })) {
     $project = Join-Path $repo "src/ThermalrightVibeWare.$($target.Project)/ThermalrightVibeWare.$($target.Project).csproj"
     dotnet publish $project --no-restore --disable-build-servers --configuration $Configuration --runtime $runtime --self-contained true -p:Platform=$Architecture --output $target.Folder --warnaserror
     if ($LASTEXITCODE -ne 0) { throw "Publish failed: $($target.Project) / $runtime" }
 }
-& (Join-Path $PSScriptRoot 'Bundle-Python.ps1') -Architecture $Architecture -Destination $destination -HostPython $HostPython
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Install-Local.ps1') -Destination (Join-Path $destination 'Install-ThermalrightVibeWare.ps1') -Force
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Uninstall-Local.ps1') -Destination (Join-Path $destination 'Uninstall-ThermalrightVibeWare.ps1') -Force
+& (Join-Path $PSScriptRoot 'build/Bundle-Python.ps1') -Architecture $Architecture -Destination $destination -HostPython $HostPython
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install/Install-Local.ps1') -Destination (Join-Path $destination 'Install-ThermalrightVibeWare.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'install/Uninstall-Local.ps1') -Destination (Join-Path $destination 'Uninstall-ThermalrightVibeWare.ps1') -Force
 foreach ($document in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'TRADEMARKS.md', 'PORTABLE.md', 'cave.md', 'lesson.md')) {
     Copy-Item -LiteralPath (Join-Path $repo $document) -Destination $destination -Force
 }

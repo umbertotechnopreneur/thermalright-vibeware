@@ -24,7 +24,7 @@ VBWR E -->
     <PatchedPhotinoRoot>$(MSBuildProjectDirectory)/../../artifacts/native/photino-memory/$(PatchedPhotinoArchitecture)</PatchedPhotinoRoot>
   </PropertyGroup>
   <Target Name="BuildPatchedWindowsPhotino" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true'">
-    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/Build-PhotinoNative.ps1&quot; -Architecture $(PatchedPhotinoArchitecture)" />
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/build/Build-PhotinoNative.ps1&quot; -Architecture $(PatchedPhotinoArchitecture)" />
   </Target>
   <Target Name="CopyPatchedWindowsPhotino" AfterTargets="CopyFilesToOutputDirectory;Publish" DependsOnTargets="BuildPatchedWindowsPhotino" Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true'">
     <Copy SourceFiles="$(PatchedPhotinoRoot)/Photino.Native.dll" DestinationFolder="$(TargetDir)" />

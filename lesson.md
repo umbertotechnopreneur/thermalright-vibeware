@@ -78,3 +78,5 @@
 - On 21 October 2026 I renamed the product to Thermalright VibeWare, the GitHub repository to `thermalright-vibeware`, code identifiers to `ThermalrightVibeWare` and the CLI to `trv`. There are no old-name aliases or settings migrations. The new MSI has its own upgrade identity. Old user data is preserved outside the new app's settings directory.
 - The product uses its own display-and-sensor icon. Thermalright's logo is not used. The VibeWare initiative mark and author remain unchanged. Public pages disclose the independent project and lack of employment, affiliation, sponsorship or endorsement.
 - The README uses real owner-supplied captures with conventional cropping, resizing and mild sharpening, and asks for volunteer Linux/macOS guinea pigs. Historical evidence keeps its original filenames and measurements.
+
+- I keep only Reinstall.ps1 and Publish.ps1 at the scripts root. Supporting scripts live in build, install, maintenance and tools folders; repository-relative paths and CI references move together. Portable install scripts still resolve their own extracted package folder.

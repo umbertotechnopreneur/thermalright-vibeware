@@ -7,11 +7,11 @@
 param(
     [Parameter(Mandatory)][string]$PayloadPath,
     [ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64',
-    [string]$Version = (Get-Content "$PSScriptRoot/../installer/Version.txt" -Raw).Trim()
+    [string]$Version = (Get-Content "$PSScriptRoot/../../installer/Version.txt" -Raw).Trim()
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path $PSScriptRoot -Parent
+$repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $payload = (Resolve-Path -LiteralPath $PayloadPath).Path
 if (-not (Test-Path -LiteralPath (Join-Path $payload 'ThermalrightVibeWare.exe'))) { throw 'The published studio is missing.' }
 & (Join-Path $PSScriptRoot 'Build-SetupActions.ps1') -Architecture $Architecture
@@ -23,17 +23,17 @@ if (-not (Test-Path -LiteralPath $wix)) {
     dotnet tool install wix --version 4.0.6 --tool-path $toolRoot --allow-roll-forward
     if ($LASTEXITCODE -ne 0) { throw 'Could not restore the pinned MSI build tool.' }
 }
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $toolRoot -Source 'https://api.nuget.org/v3/index.json; wix 4.0.6'
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $toolRoot -Source 'https://api.nuget.org/v3/index.json; wix 4.0.6'
 # Download and scan the extension before WiX loads its DLL.
 $extensionArchive = Join-Path $toolRoot 'wixtoolset.ui.wixext.4.0.6.nupkg'
 $extensionUrl = 'https://api.nuget.org/v3-flatcontainer/wixtoolset.ui.wixext/4.0.6/wixtoolset.ui.wixext.4.0.6.nupkg'
 Invoke-WebRequest -Uri $extensionUrl -OutFile $extensionArchive
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $extensionArchive -Source $extensionUrl
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $extensionArchive -Source $extensionUrl
 $extensionRoot = Join-Path $toolRoot '.wix/extensions/WixToolset.UI.wixext/4.0.6'
 if (-not (Test-Path -LiteralPath $extensionRoot)) {
     [IO.Compression.ZipFile]::ExtractToDirectory($extensionArchive, $extensionRoot)
 }
-& "$PSScriptRoot/Assert-DefenderClean.ps1" -Path $extensionRoot -Source $extensionUrl
+& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $extensionRoot -Source $extensionUrl
 $generated = Join-Path $repo ('artifacts/msi/' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $generated -Force | Out-Null
 [IO.File]::WriteAllText((Join-Path $generated 'ThermalrightVibeWare.cmd'), "@echo off`r`nstart `"`" `"%~dp0MSI\ThermalrightVibeWare.exe`" %*`r`n", [Text.Encoding]::ASCII)

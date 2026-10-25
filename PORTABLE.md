@@ -1,5 +1,7 @@
 # Use Thermalright VibeWare
 
+For the short illustrated guide, open the [Quick Start (PDF)](docs/quick-start.pdf).
+
 1. Unzip the file. Keep its files together.
 2. Open `ThermalrightVibeWare.exe`.
 3. Choose **Music**, **Codex** or **System**.

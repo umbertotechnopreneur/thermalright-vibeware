@@ -448,3 +448,16 @@ completed successfully. HTTP reads confirmed the new English, Italian and
 Vietnamese copy and three pairs of screenshots. All six displayed image files
 match the local owner-supplied crops by SHA-256. Ulanzi's disclaimer was pushed
 without changing its project name. No physical-device test was performed.
+
+### Script layout and Quick Start - 25 October 2026
+
+The scripts root now contains two entry commands, with helpers grouped under
+build, install, maintenance and tools. CI, MSBuild, packaging and the Python
+memory-check import use the new paths. Package install/uninstall filenames
+are unchanged. The Quick Start PDF and its Markdown text are under docs and
+linked from the README and portable guide; publishing already includes docs.
+
+Static parsing found no syntax errors in the ten PowerShell scripts, the two
+Python tools and their changed test importer, or the two changed project XML
+files. No build, installer, automated test, antivirus scan or physical-device
+command was run for this change. The PDF was rendered and visually inspected.
