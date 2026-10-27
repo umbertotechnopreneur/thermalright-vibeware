@@ -1,4 +1,23 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsMetricsService.Network.cs
+ * Purpose: Filters network sensor access to verified physical Ethernet and Wi-Fi interfaces.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Globalization;
 using System.Management;
 using Lhm = LibreHardwareMonitor.Hardware;
@@ -11,6 +30,8 @@ public sealed partial class WindowsMetricsService
     private bool networkMetadataRead;
     private string? networkMetadataNotice;
 
+    /// <summary>Allows only configured hardware groups and verified physical network interfaces.</summary>
+    /// <param name="hardware">Raw hardware device from the configured LibreHardwareMonitor provider.</param>
     private bool IncludeHardware(Lhm.IHardware hardware)
     {
         if (hardware.HardwareType == Lhm.HardwareType.Storage) { return false; }
@@ -28,6 +49,7 @@ public sealed partial class WindowsMetricsService
     }
 
     // Adapter identity is cached for this reader's lifetime, with no extra per-frame query or link-state requirement.
+    /// <summary>Caches verified physical Ethernet and Wi-Fi adapter identities.</summary>
     private void ReadNetworkConfiguration()
     {
         if (networkMetadataRead) { return; }

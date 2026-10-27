@@ -1,4 +1,23 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: MainPage.Sensors.cs
+ * Purpose: Shows driver metadata and the requested driver folder action.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,6 +30,7 @@ public sealed partial class MainPage
     private bool sensorDriverReading;
     private string? sensorDriverActionNotice;
 
+    /// <summary>Loads driver metadata for the sensor setup disclosure.</summary>
     private async Task RefreshSensorDriverStatusAsync()
     {
         if (!ready || sensorDriverReading) { return; }
@@ -25,6 +45,8 @@ public sealed partial class MainPage
         finally { sensorDriverReading = false; }
     }
 
+    /// <summary>Shows driver availability and its verified local path.</summary>
+    /// <param name="driver">Driver installation metadata; availability does not prove sensor access.</param>
     private void ApplySensorDriverStatus(SensorDriverDto driver)
     {
         SensorSummaryText.Text = sensorDriverActionNotice is not null ? "Driver folder unavailable"
@@ -41,6 +63,9 @@ public sealed partial class MainPage
         ToolTipService.SetToolTip(SensorDriverText, SensorDriverText.Text);
     }
 
+    /// <summary>Opens the verified sensor driver folder on request.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void SensorDriverFolder_Click(object sender, RoutedEventArgs args)
     {
         SensorDriverFolderButton.IsEnabled = false;

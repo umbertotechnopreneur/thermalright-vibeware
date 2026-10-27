@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsTrayService.cs
+ * Purpose: Owns the Windows tray icon, menu and native window message callbacks.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -58,6 +73,9 @@ internal sealed class WindowsTrayService : IDisposable
     private bool _disposed;
 
     public bool IsMaximized => IsZoomed(_windowHandle);
+
+    /// <summary>Checks whether the native window is maximized.</summary>
+    /// <param name="window">Native studio window handle.</param>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsZoomed(IntPtr window);
@@ -66,6 +84,14 @@ internal sealed class WindowsTrayService : IDisposable
     public event Action<Exception>? Error;
 
     /// <summary>Callbacks run on the native UI thread. The show callback may restore and center the window.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="iconPath">Local path of the product icon loaded for the tray.</param>
+    /// <param name="show">Restores the existing studio window from its tray icon.</param>
+    /// <param name="closeRequested">Opens the studio's explicit close choices.</param>
+    /// <param name="showAbout">Optional callback opening the product information view.</param>
+    /// <param name="openManifesto">Optional callback opening the VibeWare manifesto.</param>
+    /// <param name="openWebsite">Optional callback opening the author's website.</param>
+    /// <param name="openGitHub">Optional callback opening the product repository.</param>
     public WindowsTrayService(IntPtr windowHandle, string iconPath, Action show, Action closeRequested,
         Action? showAbout = null, Action? openManifesto = null, Action? openWebsite = null, Action? openGitHub = null)
     {
@@ -123,6 +149,7 @@ internal sealed class WindowsTrayService : IDisposable
         RestoreWindow();
     }
 
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         if (_disposed) { return; }
@@ -143,12 +170,14 @@ internal sealed class WindowsTrayService : IDisposable
         if (_iconHandle != IntPtr.Zero) { _ = DestroyIcon(_iconHandle); }
     }
 
+    /// <summary>Rejects operations after tray resources have been disposed.</summary>
     private void EnsureUsable()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureUiThread();
     }
 
+    /// <summary>Rejects tray operations outside the owning Windows thread.</summary>
     private void EnsureUiThread()
     {
         if (GetCurrentThreadId() != _uiThread)
@@ -157,12 +186,14 @@ internal sealed class WindowsTrayService : IDisposable
         }
     }
 
+    /// <summary>Restores and centers the existing studio window.</summary>
     private void RestoreWindow()
     {
         _ = ShowWindow(_windowHandle, IsIconic(_windowHandle) ? 9 : 5);
         _ = SetForegroundWindow(_windowHandle);
     }
 
+    /// <summary>Registers the notification-area icon if it is not present.</summary>
     private void EnsureIconRegistered()
     {
         var data = CreateIconData();
@@ -183,6 +214,8 @@ internal sealed class WindowsTrayService : IDisposable
         }
     }
 
+    /// <summary>Shows the tray menu at the requested screen position.</summary>
+    /// <param name="packedPosition">Packed screen coordinates supplied with the tray context-menu message.</param>
     private void ShowContextMenu(UIntPtr packedPosition)
     {
         var menu = CreatePopupMenu();
@@ -232,6 +265,10 @@ internal sealed class WindowsTrayService : IDisposable
         }
     }
 
+    /// <summary>Appends an actionable item to the native tray menu.</summary>
+    /// <param name="menu">Native popup-menu handle owned by the caller.</param>
+    /// <param name="id">Native menu command or callback identifier.</param>
+    /// <param name="label">Visible menu label or reading label.</param>
     private static void AddMenuItem(IntPtr menu, uint id, string label)
     {
         if (!AppendMenu(menu, 0, new UIntPtr(id), label))
@@ -240,6 +277,8 @@ internal sealed class WindowsTrayService : IDisposable
         }
     }
 
+    /// <summary>Appends a separator to the native tray menu.</summary>
+    /// <param name="menu">Native popup-menu handle owned by the caller.</param>
     private static void AddSeparator(IntPtr menu)
     {
         if (!AppendMenu(menu, MenuSeparator, UIntPtr.Zero, string.Empty))
@@ -248,6 +287,7 @@ internal sealed class WindowsTrayService : IDisposable
         }
     }
 
+    /// <summary>Creates the shell notification structure for this studio window.</summary>
     private IconData CreateIconData() => new()
     {
         Size = Marshal.SizeOf<IconData>(),
@@ -262,6 +302,13 @@ internal sealed class WindowsTrayService : IDisposable
         TimeoutOrVersion = IconVersion4
     };
 
+    /// <summary>Routes tray and window messages to the owning studio instance.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="message">Windows message identifier used to interpret wParam and lParam.</param>
+    /// <param name="wParam">Windows message word parameter, interpreted by the message identifier.</param>
+    /// <param name="lParam">Windows message long parameter, interpreted by the message identifier.</param>
+    /// <param name="subclassId">Identifier used to add/remove this window subclass callback.</param>
+    /// <param name="referenceData">Native callback context retained by the window subclass.</param>
     private static IntPtr WindowSubclassProcedure(IntPtr windowHandle, uint message,
         UIntPtr wParam, IntPtr lParam, UIntPtr subclassId, IntPtr referenceData)
     {
@@ -333,54 +380,135 @@ internal sealed class WindowsTrayService : IDisposable
     private delegate IntPtr SubclassProcDelegate(IntPtr windowHandle, uint message,
         UIntPtr wParam, IntPtr lParam, UIntPtr subclassId, IntPtr referenceData);
 
+    /// <summary>Returns the calling Windows thread identifier.</summary>
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
+
+    /// <summary>Reads the owning thread and process of a native window.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="processId">Receives the owning process identifier from Windows.</param>
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(IntPtr windowHandle, out uint processId);
+
+    /// <summary>Registers a named Windows message shared with Explorer.</summary>
+    /// <param name="message">User-facing text or registered Windows message name used by this call.</param>
     [DllImport("user32.dll", EntryPoint = "RegisterWindowMessageW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint RegisterWindowMessage(string message);
+
+    /// <summary>Adds, updates or removes the notification-area icon.</summary>
+    /// <param name="message">Windows message identifier used to interpret wParam and lParam.</param>
+    /// <param name="data">Notification icon structure read by the Windows shell.</param>
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShellNotifyIcon(uint message, ref IconData data);
+
+    /// <summary>Loads the configured product icon from a local file.</summary>
+    /// <param name="instance">Native module instance handle, or zero when loading an icon from file.</param>
+    /// <param name="path">Local settings, manifest or activity JSON file path used by this operation.</param>
+    /// <param name="type">Native API type/flag selector for the requested operation.</param>
+    /// <param name="width">Width in viewport units or panel pixels, according to the declared type and operation.</param>
+    /// <param name="height">Height in viewport units or panel pixels, according to the declared type and operation.</param>
+    /// <param name="flags">Bitwise flags defined by the called Windows API.</param>
     [DllImport("user32.dll", EntryPoint = "LoadImageW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr LoadImage(IntPtr instance, string path, uint type, int width, int height, uint flags);
+
+    /// <summary>Releases an owned native icon handle.</summary>
+    /// <param name="icon">Native icon handle to release.</param>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyIcon(IntPtr icon);
+
+    /// <summary>Checks the native window's visibility flag.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr windowHandle);
+
+    /// <summary>Checks whether the native window is minimized.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsIconic(IntPtr windowHandle);
+
+    /// <summary>Applies a native window show/restore command.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="command">Windows window show/restore command.</param>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ShowWindow(IntPtr windowHandle, int command);
+
+    /// <summary>Requests foreground activation for the studio window.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetForegroundWindow(IntPtr windowHandle);
+
+    /// <summary>Allocates a native popup menu.</summary>
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr CreatePopupMenu();
+
+    /// <summary>Appends a command or separator to a native menu.</summary>
+    /// <param name="menu">Native popup-menu handle owned by the caller.</param>
+    /// <param name="flags">Bitwise flags defined by the called Windows API.</param>
+    /// <param name="id">Native menu command or callback identifier.</param>
+    /// <param name="label">Visible menu label or reading label.</param>
     [DllImport("user32.dll", EntryPoint = "AppendMenuW", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AppendMenu(IntPtr menu, uint flags, UIntPtr id, string label);
+
+    /// <summary>Shows a native popup menu and returns the selected command.</summary>
+    /// <param name="menu">Native popup-menu handle owned by the caller.</param>
+    /// <param name="flags">Bitwise flags defined by the called Windows API.</param>
+    /// <param name="x">Horizontal screen coordinate in pixels.</param>
+    /// <param name="y">Vertical screen coordinate in pixels.</param>
+    /// <param name="ownerWindow">Native owner window for the popup menu.</param>
+    /// <param name="parameters">Request payload serialized with the versioned contract; null when no payload is needed.</param>
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr ownerWindow, IntPtr parameters);
+
+    /// <summary>Reads the current cursor position in screen coordinates.</summary>
+    /// <param name="point">Receives the current cursor position in screen pixels.</param>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetCursorPos(out Point point);
+
+    /// <summary>Releases an owned native menu handle.</summary>
+    /// <param name="menu">Native popup-menu handle owned by the caller.</param>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyMenu(IntPtr menu);
+
+    /// <summary>Posts a message to the window's owning thread.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="message">Windows message identifier used to interpret wParam and lParam.</param>
+    /// <param name="wParam">Windows message word parameter, interpreted by the message identifier.</param>
+    /// <param name="lParam">Windows message long parameter, interpreted by the message identifier.</param>
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool PostMessage(IntPtr windowHandle, uint message, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>Installs the studio's native window message callback.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="procedure">Rooted native window subclass callback.</param>
+    /// <param name="subclassId">Identifier used to add/remove this window subclass callback.</param>
+    /// <param name="referenceData">Native callback context retained by the window subclass.</param>
     [DllImport("comctl32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowSubclass(IntPtr windowHandle, SubclassProcDelegate procedure, UIntPtr subclassId, IntPtr referenceData);
+
+    /// <summary>Removes the studio's native window message callback.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="procedure">Rooted native window subclass callback.</param>
+    /// <param name="subclassId">Identifier used to add/remove this window subclass callback.</param>
     [DllImport("comctl32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool RemoveWindowSubclass(IntPtr windowHandle, SubclassProcDelegate procedure, UIntPtr subclassId);
+
+    /// <summary>Forwards unhandled messages through the window subclass chain.</summary>
+    /// <param name="windowHandle">Native handle of the studio window.</param>
+    /// <param name="message">Windows message identifier used to interpret wParam and lParam.</param>
+    /// <param name="wParam">Windows message word parameter, interpreted by the message identifier.</param>
+    /// <param name="lParam">Windows message long parameter, interpreted by the message identifier.</param>
     [DllImport("comctl32.dll")]
     private static extern IntPtr DefSubclassProc(IntPtr windowHandle, uint message, UIntPtr wParam, IntPtr lParam);
 }

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WinUsbDisplayDiscovery.cs
+ * Purpose: Enumerates supported WinUSB panel interfaces without submitting frames.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -69,6 +84,9 @@ public static class WinUsbDisplayDiscovery
         }
     }
 
+    /// <summary>Enumerates supported present USB interfaces without sending frames.</summary>
+    /// <param name="interfaceClass">Windows interface class GUID to enumerate.</param>
+    /// <param name="devices">Destination collection to which supported device descriptors are appended.</param>
     private static void FindSupportedDevices(Guid interfaceClass, ICollection<DisplayDevice> devices)
     {
         var deviceSet = Native.SetupDiGetClassDevs(ref interfaceClass, IntPtr.Zero, IntPtr.Zero, Native.DigcfPresent | Native.DigcfDeviceInterface);

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: ThemeEnvironment.cs
+ * Purpose: Caches desktop palette and bounded local Codex activity metadata.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Drawing;
 using System.Globalization;
@@ -18,6 +33,7 @@ internal sealed class ThemeEnvironment
     private long nextWallpaperRead;
     private readonly Queue<(string Key, object Activity)> history = new();
 
+    /// <summary>Returns a cached wallpaper palette for theme rendering.</summary>
     public IReadOnlyList<string> DesktopPalette()
     {
         if (Environment.TickCount64 < nextWallpaperRead) { return palette; }
@@ -51,6 +67,7 @@ internal sealed class ThemeEnvironment
         return palette;
     }
 
+    /// <summary>Reads bounded local Codex activity metadata.</summary>
     public object CodexActivity()
     {
         var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "codex", "current.json");
@@ -100,6 +117,8 @@ internal sealed class ThemeEnvironment
         { return Waiting("Activity unavailable"); }
     }
 
+    /// <summary>Creates an unavailable Codex activity observation with a reason.</summary>
+    /// <param name="detail">Optional explanation attached to an unavailable activity observation.</param>
     private object Waiting(string? detail = null) => new
     {
         status = "Waiting for Codex",
@@ -116,6 +135,9 @@ internal sealed class ThemeEnvironment
         events = history.Select(entry => entry.Activity).ToArray()
     };
 
+    /// <summary>Reads a string property with the caller's fallback policy.</summary>
+    /// <param name="element">JSON object whose property is read or validated.</param>
+    /// <param name="name">JSON string property to read.</param>
     private static string? Text(JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 }

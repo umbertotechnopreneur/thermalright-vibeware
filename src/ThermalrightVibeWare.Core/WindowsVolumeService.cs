@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsVolumeService.cs
+ * Purpose: Reads per-session Windows output volume and peak levels.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
@@ -20,6 +35,7 @@ public sealed class WindowsVolumeService : IVolumeProvider
     private bool disposed;
     private sealed record Session(string Key, string Name, int ProcessId, AudioSessionControl Control);
 
+    /// <summary>Reads Windows audio sessions and their read-only volume/peak observations.</summary>
     public IReadOnlyList<AppVolume> Read()
     {
         lock (gate)
@@ -50,12 +66,15 @@ public sealed class WindowsVolumeService : IVolumeProvider
         }
     }
 
+    /// <summary>Reads a session's peak meter, returning unavailable when access fails.</summary>
+    /// <param name="control">Read-only Windows audio session control used to access its meter.</param>
     private static double? Peak(AudioSessionControl control)
     {
         try { return control.AudioMeterInformation is { } meter ? Math.Clamp(meter.MasterPeakValue, 0, 1) : null; }
         catch (COMException) { return null; }
     }
 
+    /// <summary>Refreshes the Windows output endpoint and its audio session handles.</summary>
     private void Refresh()
     {
         Clear();
@@ -82,6 +101,7 @@ public sealed class WindowsVolumeService : IVolumeProvider
         refreshed = DateTime.UtcNow;
     }
 
+    /// <summary>Clears the currently held preview or session resources.</summary>
     private void Clear()
     {
         foreach (var session in sessions) { session.Control.Dispose(); }
@@ -90,6 +110,7 @@ public sealed class WindowsVolumeService : IVolumeProvider
         endpoints.Clear();
     }
 
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         lock (gate) { if (disposed) { return; } Clear(); disposed = true; }

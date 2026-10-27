@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: PanelFrameRenderer.cs
+ * Purpose: Encodes raster frames for supported panel formats and size limits.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Buffers.Binary;
 using System.Drawing;
@@ -15,6 +30,9 @@ namespace ThermalrightVibeWare.Core;
 public static class PanelFrameRenderer
 {
     /// <summary>Converts an already rendered frame only when the panel needs rotation or RGB565.</summary>
+    /// <param name="jpeg">Encoded JPEG bytes, reused for preview and physical output.</param>
+    /// <param name="profile">Validated target dimensions and pixel encoding.</param>
+    /// <param name="jpegQuality">Requested encoder JPEG quality on its 0..100 scale.</param>
     public static byte[] PrepareJpeg(byte[] jpeg, DisplayProfile profile, int jpegQuality = 90)
     {
         using var stream = new MemoryStream(jpeg, writable: false);
@@ -25,6 +43,8 @@ public static class PanelFrameRenderer
     }
 
     /// <summary>A black frame clears an inactive screen without closing or reopening its USB session.</summary>
+    /// <param name="profile">Validated target dimensions and pixel encoding.</param>
+    /// <param name="jpegQuality">Requested encoder JPEG quality on its 0..100 scale.</param>
     public static byte[] Blank(DisplayProfile profile, int jpegQuality = 90)
     {
         using var bitmap = new Bitmap(profile.Width, profile.Height, PixelFormat.Format24bppRgb);
@@ -33,6 +53,7 @@ public static class PanelFrameRenderer
     }
 
     /// <summary>Produces a labelled picture for orientation, RGB order, and edge visibility checks.</summary>
+    /// <param name="profile">Validated target dimensions and pixel encoding.</param>
     public static byte[] Pattern(DisplayProfile profile)
     {
         using var bitmap = new Bitmap(profile.Width, profile.Height, PixelFormat.Format24bppRgb);
@@ -58,6 +79,9 @@ public static class PanelFrameRenderer
     }
 
     /// <summary>Fits a local still image within the panel raster with black letterboxing and optional rotation.</summary>
+    /// <param name="path">Local raster image file to load.</param>
+    /// <param name="profile">Validated target dimensions and pixel encoding.</param>
+    /// <param name="rotation">Clockwise image rotation in one of the supported right-angle steps.</param>
     public static byte[] Image(string path, DisplayProfile profile, int rotation = 0)
     {
         if (rotation is not (0 or 90 or 180 or 270)) { throw new ArgumentOutOfRangeException(nameof(rotation)); }
@@ -80,6 +104,10 @@ public static class PanelFrameRenderer
         return Encode(bitmap, profile);
     }
 
+    /// <summary>Encodes a raster using the selected profile's supported pixel format.</summary>
+    /// <param name="bitmap">Raster image to encode at the selected display profile.</param>
+    /// <param name="profile">Validated target dimensions and pixel encoding.</param>
+    /// <param name="jpegQuality">Requested encoder JPEG quality on its 0..100 scale.</param>
     internal static byte[] Encode(Bitmap bitmap, DisplayProfile profile, int jpegQuality = 95)
     {
         if (jpegQuality is < 1 or > 100) { throw new ArgumentOutOfRangeException(nameof(jpegQuality)); }

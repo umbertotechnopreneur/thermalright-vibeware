@@ -1,7 +1,23 @@
 <!-- VBWR B
-  Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-  Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+
+  Project: Thermalright VibeWare
+  Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+  Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+
+  File: ThermalrightVibeWare.App.csproj
+  Purpose: Defines build inputs and dependencies for ThermalrightVibeWare.App.
+
+  VibeWare: Human intent, AI execution, and plenty of tokens
+  Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+
+  Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+  Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+
+  Copyright (c) 2026 Umberto Giacobbi
+  SPDX-License-Identifier: MIT
+
 VBWR E -->
+
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -21,7 +37,17 @@ VBWR E -->
     <Page Include="MainPage.xaml" />
     <Compile Include="App.xaml.cs" />
     <Compile Include="MainPage.xaml.cs" />
+    <Compile Include="MainPage.Layout.cs" />
+    <Compile Include="MainPage.Preview.cs" />
+    <Compile Include="MainPage.Appearance.cs" />
+    <Compile Include="MainPage.Library.cs" />
+    <Compile Include="MainPage.Display.cs" />
+    <Compile Include="MainPage.Integrations.cs" />
+    <Compile Include="MainPage.Window.cs" />
+    <Compile Include="MainPage.Typography.cs" />
+    <Compile Include="MainPage.CatalogRow.cs" />
     <Compile Include="MainPage.Colors.cs" />
+    <Compile Include="MainPage.FilterControls.cs" />
     <Compile Include="MainPage.Sensors.cs" />
     <Compile Include="MainPage.SensorDebug.cs" />
     <Compile Include="MainPage.Disclosure.cs" />

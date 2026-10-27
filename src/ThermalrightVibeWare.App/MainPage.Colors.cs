@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: MainPage.Colors.cs
+ * Purpose: Previews runtime filters and fits the flat JPEG preview backing.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Windows;
 using System.Windows.Media;
@@ -31,6 +46,8 @@ public sealed partial class MainPage
     }
 
     /// <summary>Keep drafts when filters are disabled, then request a frame with the new bypass state.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void Filters_Changed(object sender, RoutedEventArgs args)
     {
         if (!ready) { return; }
@@ -55,6 +72,7 @@ public sealed partial class MainPage
     }
 
     /// <summary>Reuse the renderer's cached artwork/theme accent without decoding a second image.</summary>
+    /// <param name="hex">Hexadecimal theme color; null is allowed where the signature permits it.</param>
     private void UpdatePreviewAccent(string? hex)
     {
         if (hex is not { Length: 7 } || hex[0] != '#' || !hex[1..].All(Uri.IsHexDigit)) { return; }
@@ -80,6 +98,7 @@ public sealed partial class MainPage
     }
 
     /// <summary>Sample nine guide colors; this does not touch preview or panel pixels.</summary>
+    /// <param name="sample">Color sampler over the normalized slider range.</param>
     private static LinearGradientBrush CreateColorRamp(Func<double, Color> sample)
     {
         var gradient = new LinearGradientBrush { StartPoint = new Point(0, .5), EndPoint = new Point(1, .5) };
@@ -92,6 +111,11 @@ public sealed partial class MainPage
     }
 
     /// <summary>Apply the engine's saturation, hue and tone order to a single guide color.</summary>
+    /// <param name="source">Original color used to calculate the filter preview.</param>
+    /// <param name="saturationPercent">Saturation from 0 to 200 percent; 100 is neutral.</param>
+    /// <param name="hueDegrees">Hue rotation from -180 to 180 degrees; zero is neutral.</param>
+    /// <param name="brightnessPercent">Brightness offset from -100 to 100 percent; zero is neutral.</param>
+    /// <param name="contrastPercent">Contrast from 0 to 200 percent; 100 is neutral.</param>
     private static Color PreviewTone(Color source, double saturationPercent, double hueDegrees, double brightnessPercent, double contrastPercent)
     {
         var saturation = saturationPercent / 100;
@@ -118,10 +142,15 @@ public sealed partial class MainPage
     }
 
     /// <summary>Clip the final guide channel to the display's byte range.</summary>
+    /// <param name="value">Normalized color channel before contrast and brightness are applied.</param>
+    /// <param name="contrast">Normalized contrast multiplier.</param>
+    /// <param name="offset">Normalized channel brightness offset.</param>
     private static byte ToneChannel(double value, double contrast, double offset) =>
         (byte)Math.Round(Math.Clamp(value * contrast + offset, 0, 1) * 255);
 
     /// <summary>Refit the image when the available viewport changes.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void Preview_SizeChanged(object sender, SizeChangedEventArgs args) => FitPreviewSurface();
 
     /// <summary>Fit the preview and its solid backing, including portrait and square panels.</summary>

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: StdioPanelClient.cs
+ * Purpose: Owns one engine child and exchanges bounded JSON-lines requests.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Diagnostics;
 using System.Text;
@@ -20,6 +35,11 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
     private bool disposed;
     private long nextId;
 
+    /// <summary>Serializes a named engine request and returns its typed response.</summary>
+    /// <typeparam name="T">Expected response or payload type used by this operation.</typeparam>
+    /// <param name="method">Allow-listed engine or worker method name.</param>
+    /// <param name="parameters">Request payload serialized with the versioned contract; null when no payload is needed.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     public async Task<T> RequestAsync<T>(string method, object? parameters = null, CancellationToken cancellationToken = default)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
@@ -54,6 +74,7 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
         finally { gate.Release(); }
     }
 
+    /// <summary>Starts the bundled stdio engine without opening a listening port.</summary>
     private static Process StartEngine()
     {
         var executable = Path.Combine(AppContext.BaseDirectory, "engine", "trv.exe");
@@ -77,12 +98,17 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
         return child;
     }
 
+    /// <summary>Drains bounded engine diagnostics so stderr cannot block the child.</summary>
+    /// <param name="reader">Child-process text stream owned by the caller.</param>
     private static async Task DrainErrorsAsync(StreamReader reader)
     {
         try { var buffer = new char[1024]; while (await reader.ReadAsync(buffer.AsMemory()).ConfigureAwait(false) > 0) { } }
         catch (Exception error) when (error is IOException or ObjectDisposedException) { }
     }
 
+    /// <summary>Reads one bounded protocol response from the child process.</summary>
+    /// <param name="reader">Child-process text stream owned by the caller.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     private static async Task<string> ReadResponseAsync(StreamReader reader, CancellationToken cancellationToken)
     {
         var text = new StringBuilder();
@@ -103,6 +129,7 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
         throw new IOException("The local engine closed its output.");
     }
 
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         if (disposed) { return; }
@@ -125,5 +152,7 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
         lifetime.Dispose();
     }
 
+    /// <summary>Distinguishes an engine command rejection from a broken stdio transport.</summary>
+    /// <param name="message">Engine's bounded error text for the rejected command.</param>
     private sealed class EngineCommandException(string message) : Exception(message);
 }

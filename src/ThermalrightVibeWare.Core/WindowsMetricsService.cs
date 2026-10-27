@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsMetricsService.cs
+ * Purpose: Collects supported hardware metrics and tracks observed fan activity.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -14,6 +29,7 @@ namespace ThermalrightVibeWare.Core;
 /// Reads CPU/GPU/board sensors through Libre Hardware Monitor and physical RAM through Windows.
 /// Construction opens no hardware. This adapter never installs, extracts or removes a sensor driver.
 /// </summary>
+/// <param name="allowHardwareAccess">Whether explicit reads may open the configured hardware provider; construction opens no hardware.</param>
 public sealed partial class WindowsMetricsService(bool allowHardwareAccess = false) : IMetricsProvider
 {
     private const int MaximumHardware = 64;
@@ -59,6 +75,8 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         { return new(false, null, "PawnIO installation could not be checked. No driver was installed or changed."); }
     }
 
+    /// <summary>Resolves a registered driver path without installing or starting it.</summary>
+    /// <param name="path">Registered driver binary path to normalize.</param>
     private static string? NormalizeDriverPath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path)) { return null; }
@@ -177,6 +195,7 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
             gpu is null ? "Unavailable" : "Libre Hardware Monitor (first detected GPU)");
     }
 
+    /// <summary>Lazily opens the configured sensor provider when hardware access is allowed.</summary>
     private bool EnsureComputer()
     {
         if (computer is not null) { return true; }
@@ -249,6 +268,9 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         }
     }
 
+    /// <summary>Projects aggregate CPU readings without individual core/thread rows.</summary>
+    /// <param name="name">CPU identity reported by the hardware provider.</param>
+    /// <param name="sensors">Raw sensor channels supplied by the selected hardware device.</param>
     private HardwareDeviceSensors ReadCpu(string name, Lhm.ISensor[] sensors)
     {
         var usage = FindValue(sensors, Lhm.SensorType.Load, "CPU Total", percentage: true);
@@ -276,11 +298,19 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
             clock is null ? null : "Average clock", temperatureLabel, ReadFans(sensors), ReadThemeValues(sensors));
     }
 
+    /// <summary>Projects available GPU usage, temperature, clock and hardware readings.</summary>
+    /// <param name="name">GPU identity reported by the hardware provider.</param>
+    /// <param name="sensors">Raw sensor channels supplied by the selected hardware device.</param>
     private HardwareDeviceSensors ReadGpu(string name, Lhm.ISensor[] sensors) => new(name,
         FindValue(sensors, Lhm.SensorType.Load, "GPU Core", percentage: true),
         FindValue(sensors, Lhm.SensorType.Clock, "GPU Core", nonnegative: true),
         FindValue(sensors, Lhm.SensorType.Temperature, "GPU Core"), "Core clock", "GPU core", ReadFans(sensors), ReadThemeValues(sensors));
 
+    /// <summary>Combines motherboard temperatures, fans and electrical readings.</summary>
+    /// <param name="name">Reported motherboard identity, or null when unavailable.</param>
+    /// <param name="temperatures">Named motherboard temperature readings.</param>
+    /// <param name="fans">Fan observations that have passed the session activity rule.</param>
+    /// <param name="readings">Raw or projected hardware readings, according to the declared type.</param>
     internal static HardwareMotherboardSensors? CreateMotherboard(string? name,
         IReadOnlyList<HardwareTemperatureSensors> temperatures, IReadOnlyList<HardwareFanSensors> fans,
         IReadOnlyList<HardwareReading>? readings = null)
@@ -292,6 +322,12 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         return new(name ?? "Motherboard", primary?.TemperatureC, primary?.Name, fans, temperatures, readings);
     }
 
+    /// <summary>Explains missing hardware readings without treating driver registration as access.</summary>
+    /// <param name="driver">Driver installation metadata; availability does not prove sensor access.</param>
+    /// <param name="cpu">Available aggregate CPU readings, or null when inaccessible.</param>
+    /// <param name="board">Available motherboard readings, or null when inaccessible.</param>
+    /// <param name="readFailed">Whether a recoverable sensor read failure occurred.</param>
+    /// <param name="boardFanChannelsReported">Whether raw board data reported fan channels, even if none are visible yet.</param>
     internal static string? AvailabilityNotice(HardwareDriverStatus driver, HardwareDeviceSensors? cpu,
         HardwareMotherboardSensors? board, bool readFailed, bool boardFanChannelsReported = false)
     {
@@ -307,14 +343,20 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         return readFailed ? "Some Libre Hardware Monitor measurements could not be read. Other available readings are shown." : null;
     }
 
+    /// <summary>Recognizes named motherboard temperature channels.</summary>
+    /// <param name="name">Raw temperature-channel name reported by the sensor provider.</param>
     private static bool IsBoardTemperature(string name) => name.Contains("Mainboard", StringComparison.OrdinalIgnoreCase)
         || name.Contains("Motherboard", StringComparison.OrdinalIgnoreCase)
         || name.Equals("System", StringComparison.OrdinalIgnoreCase)
         || name.Equals("SYS", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Detects whether the raw sensor list contains fan channels.</summary>
+    /// <param name="sensors">Raw sensor channels supplied by the selected hardware device.</param>
     private static bool HasFanChannels(Lhm.ISensor[] sensors) => sensors.Any(sensor =>
         sensor.SensorType == Lhm.SensorType.Fan && Value(sensor, nonnegative: true) is >= 0 and <= 20000);
 
+    /// <summary>Projects fans observed spinning during this engine session.</summary>
+    /// <param name="sensors">Raw sensor channels supplied by the selected hardware device.</param>
     private HardwareFanSensors[] ReadFans(Lhm.ISensor[] sensors) => sensors
         .Where(sensor => sensor.SensorType == Lhm.SensorType.Fan)
         .Select(sensor => (Id: sensor.Identifier.ToString(), sensor.Name, Rpm: Value(sensor, nonnegative: true)))
@@ -325,6 +367,8 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         .ToArray();
 
     /// <summary>Remember real activity per channel for this reader's lifetime, independently of themes.</summary>
+    /// <param name="id">Exact sensor identifier retained across pages and themes during this engine session.</param>
+    /// <param name="rpm">Measured fan speed in revolutions per minute; zero remains meaningful after activity.</param>
     private bool ObserveFan(string id, double rpm)
     {
         if (observedFans.TryGetValue(id, out var existing))
@@ -344,6 +388,7 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         return true;
     }
 
+    /// <summary>Reads physical RAM totals and usage through Windows.</summary>
     private HardwareMemorySensors? ReadPhysicalMemory()
     {
         var status = new MemoryStatus { Length = (uint)Marshal.SizeOf<MemoryStatus>() };
@@ -363,15 +408,27 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
             TotalVirtual, AvailableVirtual, AvailableExtendedVirtual;
     }
 
+    /// <summary>Reads physical memory totals and usage from Windows.</summary>
+    /// <param name="status">Sized native structure receiving Windows physical memory counters.</param>
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GlobalMemoryStatusEx(ref MemoryStatus status);
 
+    /// <summary>Finds an available sensor matching the requested type and name.</summary>
+    /// <param name="sensors">Raw sensor channels supplied by the selected hardware device.</param>
+    /// <param name="type">Raw sensor type used to select readings or their display unit.</param>
+    /// <param name="name">Exact sensor name to match using ordinal case-insensitive comparison.</param>
+    /// <param name="percentage">Whether to clamp a reading to the 0..100 percentage range.</param>
+    /// <param name="nonnegative">Whether to reject negative readings as unavailable.</param>
     private static double? FindValue(IEnumerable<Lhm.ISensor> sensors, Lhm.SensorType type, string name,
         bool percentage = false, bool nonnegative = false) => sensors
         .Where(sensor => sensor.SensorType == type && sensor.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
         .Select(sensor => Value(sensor, percentage, nonnegative)).FirstOrDefault(value => value is not null);
 
+    /// <summary>Reads a finite sensor value with optional range restrictions.</summary>
+    /// <param name="sensor">Raw sensor channel whose value is being projected.</param>
+    /// <param name="percentage">Whether to clamp a reading to the 0..100 percentage range.</param>
+    /// <param name="nonnegative">Whether to reject negative readings as unavailable.</param>
     private static double? Value(Lhm.ISensor sensor, bool percentage = false, bool nonnegative = false)
     {
         if (sensor.Value is not float value || !float.IsFinite(value)) { return null; }
@@ -379,6 +436,8 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         return value;
     }
 
+    /// <summary>Traverses allowed sensor devices without collecting excluded groups.</summary>
+    /// <param name="roots">Root hardware devices from which allowed children are traversed.</param>
     private IEnumerable<Lhm.IHardware> EnumerateHardware(IEnumerable<Lhm.IHardware> roots)
     {
         var visited = new HashSet<Lhm.IHardware>(ReferenceEqualityComparer.Instance);
@@ -388,6 +447,8 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
             if (visited.Count >= MaximumHardware) { yield break; }
         }
 
+        // Visit only allowed devices, bounding depth before updating/enumerating children.
+        // hardware is the current raw device; depth counts edges from a root device.
         IEnumerable<Lhm.IHardware> Visit(Lhm.IHardware hardware, int depth)
         {
             if (visited.Count >= MaximumHardware || !visited.Add(hardware)) { yield break; }
@@ -402,8 +463,11 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
         }
     }
 
+    /// <summary>Identifies recoverable sensor failures while preserving fatal runtime exceptions.</summary>
+    /// <param name="error">Exception being classified for recoverable handling.</param>
     private static bool IsSensorFailure(Exception error) => error is not (OutOfMemoryException or StackOverflowException or AccessViolationException);
 
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         lock (sync)

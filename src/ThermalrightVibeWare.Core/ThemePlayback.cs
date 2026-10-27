@@ -1,13 +1,47 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: ThemePlayback.cs
+ * Purpose: Runs explicitly requested theme rendering and physical output until cancellation.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 namespace ThermalrightVibeWare.Core;
 
 /// <summary>Explicit theme output to one selected panel; never reconnects or starts from a preview request.</summary>
 public static class ThemePlayback
 {
+
+    /// <summary>Renders and submits the selected theme until cancellation or the requested duration.</summary>
+    /// <param name="theme">Validated theme definition, including its local folder and category.</param>
+    /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
+    /// <param name="profileId">Profile identifier; auto requests resolution from the device handshake where supported.</param>
+    /// <param name="duration">Optional output duration; null runs until cancellation or disconnection.</param>
+    /// <param name="progress">Optional sink for submitted-frame progress messages.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
+    /// <param name="light">Whether to use the light appearance.</param>
+    /// <param name="ambientDrift">Whether the theme may animate its ambient background.</param>
+    /// <param name="fontFamily">Printable font family name resolved by the Python renderer.</param>
+    /// <param name="fontScale">Multiplier applied to the theme's text sizes.</param>
+    /// <param name="refreshIntervalMilliseconds">Requested frame interval in milliseconds; this is not a measured frame rate.</param>
+    /// <param name="jpegQuality">Requested JPEG preset: poor, low, medium or high.</param>
+    /// <param name="saturationPercent">Saturation from 0 to 200 percent; 100 is neutral.</param>
+    /// <param name="hueDegrees">Hue rotation from -180 to 180 degrees; zero is neutral.</param>
+    /// <param name="showSpectrum">Whether Multimedia themes may use Windows output loopback analysis.</param>
+    /// <param name="brightnessPercent">Brightness offset from -100 to 100 percent; zero is neutral.</param>
+    /// <param name="contrastPercent">Contrast from 0 to 200 percent; 100 is neutral.</param>
     public static async Task RunAsync(ThemeDefinition theme, DisplayDevice device, string profileId,
         TimeSpan? duration, IProgress<string>? progress, CancellationToken cancellationToken,
         bool light = false, bool ambientDrift = false, string fontFamily = "Cascadia Mono", double fontScale = 1,

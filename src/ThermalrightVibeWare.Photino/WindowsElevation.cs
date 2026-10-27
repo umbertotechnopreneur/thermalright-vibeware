@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsElevation.cs
+ * Purpose: Requests administrator startup while preserving saved-session arguments.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Diagnostics;
@@ -27,6 +42,8 @@ internal static class WindowsElevation
         }
     }
 
+    /// <summary>Requests elevation while preserving the studio launch arguments.</summary>
+    /// <param name="arguments">Studio launch arguments preserved across elevation.</param>
     internal static bool StartAdministrator(string[] arguments)
     {
         if (IsAdministrator) { return false; }
@@ -49,10 +66,15 @@ internal static class WindowsElevation
         return false;
     }
 
+    /// <summary>Warns that the previous studio session could not be released.</summary>
     internal static void ShowSessionUnavailable() => _ = MessageBox(IntPtr.Zero,
         "Thermalright VibeWare could not open its session. Another copy may be running as administrator." +
         "\n\nAllow administrator access when reopening the app.", "Thermalright VibeWare - administrator access", 0x00010030);
 
+    /// <summary>Builds an elevated studio restart with previous-process identity checks.</summary>
+    /// <param name="previousId">Previous studio process identifier to verify before restart.</param>
+    /// <param name="previousStart">Previous studio process start-time ticks used to reject PID reuse.</param>
+    /// <param name="arguments">Studio launch arguments preserved across elevation.</param>
     internal static ProcessStartInfo CreateStartInfo(int previousId, long previousStart, IReadOnlyList<string>? arguments = null)
     {
         var executable = Environment.ProcessPath ?? throw new IOException("The app path is unavailable.");
@@ -71,6 +93,8 @@ internal static class WindowsElevation
         return start;
     }
 
+    /// <summary>Waits for the identified previous studio before completing a restart.</summary>
+    /// <param name="args">Command-line arguments including the command name.</param>
     internal static bool WaitForPreviousStudio(string[] args)
     {
         if (args.Length < 3 || args.Length > 5 || args[0] != Argument || !IsAdministrator
@@ -91,6 +115,11 @@ internal static class WindowsElevation
         catch (Win32Exception) { return false; }
     }
 
+    /// <summary>Shows a native Windows message dialog.</summary>
+    /// <param name="owner">Native owner window for the message dialog.</param>
+    /// <param name="text">Text to format, normalize or display in this operation.</param>
+    /// <param name="title">Dialog title shown by Windows.</param>
+    /// <param name="type">Native API type/flag selector for the requested operation.</param>
     [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)]
     private static extern int MessageBox(IntPtr owner, string text, string title, uint type);
 }

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: ThemeCatalog.cs
+ * Purpose: Discovers local theme manifests and reports invalid pack entries.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Text.Json;
 
@@ -15,8 +30,13 @@ public static class ThemeCatalog
 {
     public static string UserThemesPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "themes");
 
+    /// <summary>Finds a bundled content directory relative to the application layout.</summary>
+    /// <param name="name">Bundled content folder name, such as themes or theme-runtime.</param>
     public static string? FindContentDirectory(string name) => FindContentDirectory(name, AppContext.BaseDirectory);
 
+    /// <summary>Finds a bundled content directory relative to the application layout.</summary>
+    /// <param name="name">Bundled content folder name, such as themes or theme-runtime.</param>
+    /// <param name="baseDirectory">Base directory from which bundled content locations are resolved.</param>
     internal static string? FindContentDirectory(string name, string baseDirectory)
     {
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || Path.GetFileName(name) != name || Path.IsPathRooted(name))
@@ -25,6 +45,7 @@ public static class ThemeCatalog
         return Directory.Exists(candidate) && (File.GetAttributes(candidate) & FileAttributes.ReparsePoint) == 0 ? candidate : null;
     }
 
+    /// <summary>Discovers valid local theme pack manifests and records rejected entries.</summary>
     public static ThemeCatalogSnapshot Read()
     {
         var notices = new List<string>();
@@ -113,9 +134,12 @@ public static class ThemeCatalog
         if (themes.Count == 0) { notices.Add("No themes found. Add a pack under themes/<pack>/themes/<theme>/theme.json."); }
         return Result();
 
+        // Return the same stable catalog ordering for both empty and populated discovery paths.
         ThemeCatalogSnapshot Result() => new(themes.Values.OrderBy(theme => theme.Category).ThenBy(theme => theme.Name, StringComparer.OrdinalIgnoreCase).ToArray(), notices);
     }
 
+    /// <summary>Reads a bounded theme manifest JSON document.</summary>
+    /// <param name="path">Local settings, manifest or activity JSON file path used by this operation.</param>
     private static JsonDocument ReadManifest(string path)
     {
         if (new FileInfo(path).Length > 64 * 1024) { throw new ArgumentException("Manifest exceeds 64 KiB."); }
@@ -123,9 +147,15 @@ public static class ThemeCatalog
         return JsonDocument.Parse(stream, new JsonDocumentOptions { MaxDepth = 16 });
     }
 
+    /// <summary>Reads a string property with the caller's fallback policy.</summary>
+    /// <param name="element">JSON object whose property is read or validated.</param>
+    /// <param name="property">JSON property name to read.</param>
+    /// <param name="fallback">Value to use when the optional input is absent.</param>
     private static string Text(JsonElement element, string property, string fallback = "") =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? fallback : fallback;
 
+    /// <summary>Rejects a manifest whose schema version is unsupported.</summary>
+    /// <param name="element">JSON object whose property is read or validated.</param>
     private static void ValidateSchema(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty("schema", out var schema)

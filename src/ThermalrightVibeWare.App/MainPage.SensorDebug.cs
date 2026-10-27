@@ -1,4 +1,23 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: MainPage.SensorDebug.cs
+ * Purpose: Presents raw sensor diagnostics without applying theme projection filters.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,6 +31,9 @@ public sealed partial class MainPage
     private bool sensorDebugReading;
     private SensorDebugDto? lastSensorDebug;
 
+    /// <summary>Returns from sensor diagnostics to the theme preview.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void ThemesTab_Click(object sender, RoutedEventArgs args)
     {
         SensorDebugPanel.Visibility = Visibility.Collapsed;
@@ -20,6 +42,9 @@ public sealed partial class MainPage
         ApplySensorDebugAppearance();
     }
 
+    /// <summary>Opens the raw sensor diagnostic view and refreshes its observation.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void SensorsTab_Click(object sender, RoutedEventArgs args)
     {
         ContentArea.Visibility = Visibility.Collapsed;
@@ -29,8 +54,12 @@ public sealed partial class MainPage
         await RefreshSensorDebugAsync();
     }
 
+    /// <summary>Refreshes raw sensor diagnostics on request.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void SensorDebugRefresh_Click(object sender, RoutedEventArgs args) => await RefreshSensorDebugAsync();
 
+    /// <summary>Requests raw sensor diagnostics while preventing overlapping refreshes.</summary>
     private async Task RefreshSensorDebugAsync()
     {
         if (!ready || sensorDebugReading) { return; }
@@ -51,10 +80,12 @@ public sealed partial class MainPage
         finally { sensorDebugReading = false; SensorDebugRefresh.IsEnabled = true; }
     }
 
+    /// <summary>Projects the latest diagnostic snapshot into grouped UI rows.</summary>
     private void RenderSensorDebug()
     {
         if (lastSensorDebug is not { } sample) { return; }
         var expanded = new Dictionary<string, bool>();
+        // items are the current tree rows; retain expansion state before rebuilding their observations.
         void Remember(ItemCollection items)
         {
             foreach (var item in items.OfType<TreeViewItem>())
@@ -119,6 +150,9 @@ public sealed partial class MainPage
         SensorDebugNotice.Text = string.Join("\n", sample.Notices);
     }
 
+    /// <summary>Creates a diagnostic text control using the current studio palette.</summary>
+    /// <param name="text">Text to format, normalize or display in this operation.</param>
+    /// <param name="heading">Whether to style this diagnostic row as a heading.</param>
     private TextBlock DebugText(string text, bool heading = false) => new()
     {
         Text = text,
@@ -128,6 +162,12 @@ public sealed partial class MainPage
         Margin = new Thickness(0, 3, 0, 3)
     };
 
+    /// <summary>Builds an aligned sensor row with value and extrema columns.</summary>
+    /// <param name="name">Display name of the sensor or diagnostic heading.</param>
+    /// <param name="value">Formatted current sensor reading, including its unavailable marker.</param>
+    /// <param name="minimum">Formatted minimum reading for the diagnostic row.</param>
+    /// <param name="maximum">Formatted maximum reading observed by the sensor provider.</param>
+    /// <param name="heading">Whether to style this diagnostic row as a heading.</param>
     private Grid SensorDebugRow(string name, string value, string minimum, string maximum, bool heading = false)
     {
         var row = new Grid { Width = 760 };
@@ -144,9 +184,13 @@ public sealed partial class MainPage
         return row;
     }
 
+    /// <summary>Formats an available sensor reading with its unit.</summary>
+    /// <param name="value">Optional measured sensor value; null is formatted as unavailable.</param>
+    /// <param name="unit">Display unit appended only when a reading is available.</param>
     private static string DebugValue(double? value, string unit) => value is double number
         ? number.ToString("0.###", CultureInfo.InvariantCulture) + (unit.Length == 0 ? "" : " " + unit) : "Unavailable";
 
+    /// <summary>Applies the current studio palette to sensor diagnostics.</summary>
     private void ApplySensorDebugAppearance()
     {
         var ink = Brush(IsLight ? "#242231" : "#F1F1FA");

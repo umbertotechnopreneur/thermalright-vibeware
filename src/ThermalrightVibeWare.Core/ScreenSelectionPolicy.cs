@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: ScreenSelectionPolicy.cs
+ * Purpose: Resolves enabled screen categories and current Codex availability.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Diagnostics;
@@ -12,6 +27,9 @@ namespace ThermalrightVibeWare.Core;
 /// <summary>Chooses a display screen without changing the user's independent preview selection.</summary>
 public static class ScreenSelectionPolicy
 {
+
+    /// <summary>Rejects settings outside the supported contract.</summary>
+    /// <param name="screens">Optional enabled-category/theme choices for output selection.</param>
     public static void Validate(IReadOnlyList<ScreenSelectionDto>? screens)
     {
         if (screens is null) { return; }
@@ -26,10 +44,16 @@ public static class ScreenSelectionPolicy
         }
     }
 
+    /// <summary>Resolves the requested theme against enabled screen categories.</summary>
+    /// <param name="requested">Theme requested before applying enabled-screen availability rules.</param>
+    /// <param name="catalog">Available theme definitions used to validate and resolve selections.</param>
+    /// <param name="screens">Optional enabled-category/theme choices for output selection.</param>
+    /// <param name="codexProcessRunning">Whether a current local Codex process observation permits Codex screens.</param>
     public static ThemeDefinition? Resolve(ThemeDefinition requested, IReadOnlyList<ThemeDefinition> catalog,
         IReadOnlyList<ScreenSelectionDto>? screens, bool codexProcessRunning)
     {
         Validate(screens);
+        // category is the stable screen category; Codex is eligible only while its process is present.
         bool Available(string category) => category != "codex" || codexProcessRunning;
         if (screens is null)
         {
@@ -56,6 +80,7 @@ public sealed class CodexProcessMonitor
     private long checkedAt;
     private bool initialized, running;
 
+    /// <summary>Checks whether the local Codex process is present using the cached observation.</summary>
     public bool IsRunning()
     {
         var now = Environment.TickCount64;

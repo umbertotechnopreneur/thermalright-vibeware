@@ -1,4 +1,23 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: OnlineArtistProvider.cs
+ * Purpose: Caches bounded public artist facts, images and their attribution.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
@@ -17,11 +36,14 @@ public sealed class OnlineArtistProvider : IArtistProvider
     private DateTimeOffset lastMusicBrainzCall;
     private bool disposed;
 
+    /// <summary>Configures bounded public-data requests and local artist caching.</summary>
     public OnlineArtistProvider()
     {
         http.DefaultRequestHeaders.UserAgent.ParseAdd("ThermalrightVibeWare/0.1.10 (+https://github.com/umbertotechnopreneur/thermalright-vibeware)");
     }
 
+    /// <summary>Returns cached artist facts and schedules a bounded lookup when needed.</summary>
+    /// <param name="media">Current Windows media observation used for artist lookup or artwork.</param>
     public ArtistProfile? Read(NowPlaying media)
     {
         if (string.IsNullOrWhiteSpace(media.Source) || string.IsNullOrWhiteSpace(media.Artist) || media.Artist.Length > 160 || media.Album.Length > 200) { return null; }
@@ -51,6 +73,10 @@ public sealed class OnlineArtistProvider : IArtistProvider
         }
     }
 
+    /// <summary>Resolves bounded artist facts from the configured public sources.</summary>
+    /// <param name="requestedArtist">Artist text from the selected media session, used as a public-data search term.</param>
+    /// <param name="album">Album title used to narrow public artist/album data.</param>
+    /// <param name="token">Cancellation signal for the current background operation.</param>
     private async Task<ArtistProfile?> LookupAsync(string requestedArtist, string album, CancellationToken token)
     {
         var query = Uri.EscapeDataString("artist:\"" + EscapeSearch(requestedArtist) + "\"");
@@ -103,6 +129,9 @@ public sealed class OnlineArtistProvider : IArtistProvider
         return new(requestedArtist, String(matches[0], "name"), biography, wikipediaUrl, "Wikipedia · CC BY-SA 4.0 · excerpt", photo, photoCredit, photoSource, facts, sales);
     }
 
+    /// <summary>Resolves an attributed Wikimedia image and downloads its bounded thumbnail.</summary>
+    /// <param name="imageName">Public Wikimedia file title used to resolve an attributed thumbnail.</param>
+    /// <param name="token">Cancellation signal for the current background operation.</param>
     private async Task<(byte[]?, string?, string?)> PhotoAsync(string imageName, CancellationToken token)
     {
         using var info = await JsonAsync("https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=512&titles=" + Uri.EscapeDataString("File:" + imageName), token);
@@ -124,6 +153,10 @@ public sealed class OnlineArtistProvider : IArtistProvider
         return output.Length <= 400_000 ? (output.ToArray(), credit + " · " + license, String(image, "descriptionurl")) : (null, null, null);
     }
 
+    /// <summary>Reads sourced album sales statements when a matching public claim exists.</summary>
+    /// <param name="artistId">Resolved MusicBrainz artist identifier.</param>
+    /// <param name="album">Album title used to narrow public artist/album data.</param>
+    /// <param name="token">Cancellation signal for the current background operation.</param>
     private async Task<AlbumSales?> AlbumSalesAsync(Guid artistId, string album, CancellationToken token)
     {
         var query = Uri.EscapeDataString("releasegroup:\"" + EscapeSearch(album) + "\" AND arid:" + artistId);
@@ -154,6 +187,9 @@ public sealed class OnlineArtistProvider : IArtistProvider
         return null;
     }
 
+    /// <summary>Fetches and parses a bounded JSON response from a public data source.</summary>
+    /// <param name="url">Explicit URL to open or query, according to this method's role.</param>
+    /// <param name="token">Cancellation signal for the current background operation.</param>
     private async Task<JsonDocument> JsonAsync(string url, CancellationToken token)
     {
         var uri = new Uri(url);
@@ -166,6 +202,10 @@ public sealed class OnlineArtistProvider : IArtistProvider
         return JsonDocument.Parse(await BytesAsync(uri, 2_000_000, token));
     }
 
+    /// <summary>Downloads a response while enforcing the byte limit.</summary>
+    /// <param name="uri">Public resource URI to download within the supplied byte limit.</param>
+    /// <param name="limit">Maximum permitted response/file length in bytes.</param>
+    /// <param name="token">Cancellation signal for the current background operation.</param>
     private async Task<byte[]> BytesAsync(Uri uri, int limit, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -186,6 +226,8 @@ public sealed class OnlineArtistProvider : IArtistProvider
         return output.ToArray();
     }
 
+    /// <summary>Extracts the Wikidata identity from a MusicBrainz relation list.</summary>
+    /// <param name="entity">JSON entity containing public-data relations.</param>
     private static string? WikidataRelation(JsonElement entity)
     {
         foreach (var relation in Array(entity, "relations"))
@@ -199,15 +241,35 @@ public sealed class OnlineArtistProvider : IArtistProvider
         }
         return null;
     }
+
+    /// <summary>Enumerates a JSON array, treating a missing array as empty.</summary>
+    /// <param name="parent">Parent JSON object containing the requested property.</param>
+    /// <param name="key">Dictionary key or JSON property name to look up.</param>
     private static IEnumerable<JsonElement> Array(JsonElement parent, string key) => parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Array ? value.EnumerateArray() : [];
+
+    /// <summary>Reads one string field from a JSON object.</summary>
+    /// <param name="parent">Parent JSON object containing the requested property.</param>
+    /// <param name="key">Dictionary key or JSON property name to look up.</param>
     private static string String(JsonElement parent, string key) => PathString(parent, key);
+
+    /// <summary>Follows a JSON property path and returns the available string.</summary>
+    /// <param name="value">JSON object from which the property path is traversed.</param>
+    /// <param name="path">Ordered JSON property names to traverse.</param>
     private static string PathString(JsonElement value, params string[] path)
     {
         foreach (var key in path) { if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty(key, out value)) { return ""; } }
         return value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
     }
+
+    /// <summary>Removes markup and normalizes whitespace in public source text.</summary>
+    /// <param name="text">Text to format, normalize or display in this operation.</param>
     private static string Plain(string text) => Regex.Replace(WebUtility.HtmlDecode(Regex.Replace(text, "<[^>]*>", "")), @"\s+", " ").Trim();
+
+    /// <summary>Escapes reserved MusicBrainz search characters.</summary>
+    /// <param name="value">Media artist/album text to quote for a MusicBrainz search expression.</param>
     private static string EscapeSearch(string value) => Regex.Replace(value, @"([+\-!(){}\[\]^""~*?:\\/])", @"\$1");
+
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         lock (sync) { disposed = true; cache.Clear(); }

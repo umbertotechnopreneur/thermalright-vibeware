@@ -1,14 +1,27 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: NetworkTrafficService.cs
+ * Purpose: Samples verified physical network counters for session traffic totals.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 
 namespace ThermalrightVibeWare.Core;
-
-
 
 /// <summary>Reads OS counters, not packets. Totals start with this service and may overlap on VPN/bridge adapters.</summary>
 public sealed class NetworkTrafficService : INetworkProvider
@@ -16,6 +29,7 @@ public sealed class NetworkTrafficService : INetworkProvider
     private readonly Dictionary<string, (long Received, long Sent)> previous = [];
     private long lastRead, receivedTotal, sentTotal;
 
+    /// <summary>Samples verified physical network counters and calculates session deltas.</summary>
     public NetworkTraffic Read()
     {
         var now = Stopwatch.GetTimestamp();
@@ -45,6 +59,8 @@ public sealed class NetworkTrafficService : INetworkProvider
         return new(seconds > 0 ? received / seconds : null, seconds > 0 ? sent / seconds : null, receivedTotal, sentTotal);
     }
 
+    /// <summary>Formats an available byte count using binary size units.</summary>
+    /// <param name="bytes">Available byte count or byte rate to format; null means unavailable.</param>
     public static string Size(double? bytes)
     {
         if (bytes is null) { return "—"; }

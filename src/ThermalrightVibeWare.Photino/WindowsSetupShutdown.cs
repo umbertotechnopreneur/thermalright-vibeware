@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsSetupShutdown.cs
+ * Purpose: Receives the installer's scoped studio shutdown signal.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Diagnostics;
@@ -19,6 +34,8 @@ internal sealed class WindowsSetupShutdown : IDisposable
     private int _disposed;
 
     /// <summary>Listen once the native window is ready, using the current user's default event security.</summary>
+    /// <param name="dispatchToUi">Schedules an action on the owning desktop UI thread.</param>
+    /// <param name="requestExit">Requests a normal studio shutdown.</param>
     internal WindowsSetupShutdown(Action<Action> dispatchToUi, Action requestExit)
     {
         ArgumentNullException.ThrowIfNull(dispatchToUi);
@@ -56,6 +73,7 @@ internal sealed class WindowsSetupShutdown : IDisposable
         }
     }
 
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }
