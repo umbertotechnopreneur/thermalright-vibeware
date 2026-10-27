@@ -20,7 +20,9 @@
  * VBWR E */
 
 
+using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using ThermalrightVibeWare.Contracts;
 
 namespace ThermalrightVibeWare.App;
