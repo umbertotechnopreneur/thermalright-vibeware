@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: CodexIntegration.cs
+ * Purpose: Reports and explicitly prepares the bundled local Codex plugin.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Diagnostics;
 using System.Globalization;
@@ -17,6 +32,7 @@ public static class CodexIntegration
     private const string SourcePath = "./.codex/plugins/thermalright-vibeware-codex";
     private const string Instructions = "Press Prepare only if you want Codex activity. Then restart Codex, install Thermalright VibeWare Codex from your personal Plugins Directory, and review and trust its hooks there. No account login is needed.";
 
+    /// <summary>Reads local plugin setup and activity status without preparing the plugin.</summary>
     public static CodexSetupStatus Status()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -75,6 +91,8 @@ public static class CodexIntegration
         return new(prepared, listed, activitySeen, status, lastEvent, lastEventUtc, Instructions);
     }
 
+    /// <summary>Prepares the local Codex plugin without trusting a theme-provided hook.</summary>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     public static async Task<CodexSetupStatus> PrepareAsync(CancellationToken cancellationToken = default)
     {
         var source = ThemeCatalog.FindContentDirectory("plugins");
@@ -115,6 +133,9 @@ public static class CodexIntegration
         return Status();
     }
 
+    /// <summary>Drains child output within the configured character limit.</summary>
+    /// <param name="reader">Child-process text stream owned by the caller.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     private static async Task ReadBoundedAsync(StreamReader reader, CancellationToken cancellationToken)
     {
         var buffer = new char[512];
@@ -128,6 +149,9 @@ public static class CodexIntegration
         }
     }
 
+    /// <summary>Reads a local JSON file only when it fits the configured byte limit.</summary>
+    /// <param name="path">Local settings, manifest or activity JSON file path used by this operation.</param>
+    /// <param name="limit">Maximum permitted response/file length in bytes.</param>
     private static JsonDocument? ReadSmallJson(string path, long limit)
     {
         var file = new FileInfo(path);
@@ -136,6 +160,9 @@ public static class CodexIntegration
         return JsonDocument.Parse(stream, new JsonDocumentOptions { MaxDepth = 16 });
     }
 
+    /// <summary>Reads a string property with the caller's fallback policy.</summary>
+    /// <param name="element">JSON object whose property is read or validated.</param>
+    /// <param name="key">Dictionary key or JSON property name to look up.</param>
     private static string Text(JsonElement element, string key) =>
         element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
 

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsMemoryGuard.cs
+ * Purpose: Guards the studio process tree with bounded Windows job memory limits.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Diagnostics;
@@ -63,6 +78,7 @@ internal static class WindowsMemoryGuard
     }
 
     /// <summary>Internal child mode. Never creates a studio, engine, tray icon or USB session.</summary>
+    /// <param name="args">Command-line arguments including the command name.</param>
     public static int Run(string[] args)
     {
         if (args.Length != 4 || !int.TryParse(args[1], CultureInfo.InvariantCulture, out var processId) || processId <= 0
@@ -130,6 +146,11 @@ internal static class WindowsMemoryGuard
         { return 1; } // The studio refuses to open without a successful handshake.
     }
 
+    /// <summary>Handles an authenticated restart request from the guarded studio.</summary>
+    /// <param name="pipe">Connected named pipe used for local guard communication.</param>
+    /// <param name="studioId">Authenticated studio process identifier monitored by the guard.</param>
+    /// <param name="studioStart">Authenticated studio start-time ticks used to reject PID reuse.</param>
+    /// <param name="token">Cancellation signal for the current background operation.</param>
     private static async Task ServeRestartAsync(NamedPipeClientStream pipe, int studioId, long studioStart, CancellationToken token)
     {
         var command = new byte[1];
@@ -154,8 +175,13 @@ internal static class WindowsMemoryGuard
         catch (Exception error) when (error is IOException or OperationCanceledException or ObjectDisposedException) { }
     }
 
+    /// <summary>Owns the guard process reference and authenticated studio-side pipe.</summary>
+    /// <param name="guard">Started memory guard process; the guard supervises studio process-tree lifetime.</param>
+    /// <param name="pipe">Connected studio-side pipe used for guarded restart requests.</param>
     internal sealed class Session(Process guard, NamedPipeServerStream pipe) : IDisposable
     {
+
+        /// <summary>Requests a guarded restart with administrator rights.</summary>
         internal async Task<bool> RestartAsAdministratorAsync()
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
@@ -171,14 +197,21 @@ internal static class WindowsMemoryGuard
             };
         }
 
+        /// <summary>Releases resources owned by this instance.</summary>
         public void Dispose() { pipe.Dispose(); guard.Dispose(); }
     }
 
+    /// <summary>Explains why the studio cannot start without its memory guard.</summary>
     public static void ShowUnavailable() => ShowNotice("The memory guard could not start.\nThermalright VibeWare will not open without memory protection.");
 
+    /// <summary>Creates the memory guard pipe name from its per-launch token.</summary>
+    /// <param name="token">Per-launch random token used to identify the local guard pipe.</param>
     private static string PipeName(string token) => "ThermalrightVibeWare.MemoryGuard." + token;
 
     /// <summary>One bounded numeric record, only when the existing local diagnostics are enabled.</summary>
+    /// <param name="reason">Human-readable reason for stopping the guarded session.</param>
+    /// <param name="jobPeakBytes">Peak memory reported for the guarded job, in bytes.</param>
+    /// <param name="priorBytes">Earlier job memory observation in bytes.</param>
     private static void RecordStop(string reason, ulong jobPeakBytes = 0, ulong priorBytes = 0)
     {
         try
@@ -195,9 +228,13 @@ internal static class WindowsMemoryGuard
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException) { }
     }
 
+    /// <summary>Terminates the guarded job and shows the reason to the user.</summary>
+    /// <param name="job">Owned job handle containing only the guarded process tree.</param>
+    /// <param name="message">User-facing text or registered Windows message name used by this call.</param>
     private static int StopWithNotice(SafeJobHandle job, string message)
     {
         var stopped = 0;
+        // Notify and stop only the already authenticated guarded job.
         void Stop()
         {
             if (Interlocked.Exchange(ref stopped, 1) != 0) { return; }
@@ -213,6 +250,8 @@ internal static class WindowsMemoryGuard
         return (int)MemoryExitCode;
     }
 
+    /// <summary>Shows a native warning when the managed studio is unavailable.</summary>
+    /// <param name="message">User-facing text or registered Windows message name used by this call.</param>
     private static void ShowNotice(string message) => _ = MessageBox(IntPtr.Zero, message,
         "Thermalright VibeWare - memory protection", 0x00051010); // Error icon, foreground and topmost; no UI owner.
 
@@ -254,33 +293,78 @@ internal static class WindowsMemoryGuard
 
     private sealed class SafeJobHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
+
+        /// <summary>Creates a safe owner for a Windows job handle.</summary>
         public SafeJobHandle() : base(true) { }
+
+        /// <summary>Closes the owned native job handle.</summary>
         protected override bool ReleaseHandle() => CloseHandle(handle);
     }
 
+    /// <summary>Allocates a job object for the guarded studio process tree.</summary>
+    /// <param name="attributes">Optional native security attributes; zero uses defaults.</param>
+    /// <param name="name">Name to match, display or resolve in this operation.</param>
     [DllImport("kernel32.dll", EntryPoint = "CreateJobObjectW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeJobHandle CreateJobObject(IntPtr attributes, string? name);
+
+    /// <summary>Sets the guarded job's memory and lifetime limits.</summary>
+    /// <param name="job">Owned job handle containing only the guarded process tree.</param>
+    /// <param name="informationClass">Job-object information class matching the supplied structure.</param>
+    /// <param name="limits">Job limit/counter structure passed to or filled by Windows.</param>
+    /// <param name="length">Size of the supplied native structure in bytes.</param>
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetInformationJobObject(SafeJobHandle job, int informationClass, ref JobExtendedLimits limits, uint length);
+
+    /// <summary>Reads the guarded job's memory counters and limits.</summary>
+    /// <param name="job">Owned job handle containing only the guarded process tree.</param>
+    /// <param name="informationClass">Job-object information class matching the supplied structure.</param>
+    /// <param name="limits">Job limit/counter structure passed to or filled by Windows.</param>
+    /// <param name="length">Size of the supplied native structure in bytes.</param>
+    /// <param name="returnedLength">Optional pointer receiving the returned structure size.</param>
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool QueryInformationJobObject(SafeJobHandle job, int informationClass, out JobExtendedLimits limits, uint length, IntPtr returnedLength);
+
+    /// <summary>Attaches the identified process to the guarded job.</summary>
+    /// <param name="job">Owned job handle containing only the guarded process tree.</param>
+    /// <param name="process">Verified process handle to attach to the guarded Windows job.</param>
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AssignProcessToJobObject(SafeJobHandle job, SafeProcessHandle process);
+
+    /// <summary>Terminates only the processes owned by the guarded job.</summary>
+    /// <param name="job">Owned job handle containing only the guarded process tree.</param>
+    /// <param name="exitCode">Exit status applied when terminating the guarded job.</param>
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool TerminateJobObject(SafeJobHandle job, uint exitCode);
+
+    /// <summary>Releases an owned Windows kernel handle.</summary>
+    /// <param name="handle">Owned native Windows handle.</param>
     [DllImport("kernel32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CloseHandle(IntPtr handle);
+
+    /// <summary>Reads the process identity at the pipe's server end.</summary>
+    /// <param name="pipe">Connected named pipe used for local guard communication.</param>
+    /// <param name="processId">Receives the owning process identifier from Windows.</param>
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint processId);
+
+    /// <summary>Reads the process identity at the pipe's client end.</summary>
+    /// <param name="pipe">Connected named pipe used for local guard communication.</param>
+    /// <param name="processId">Receives the owning process identifier from Windows.</param>
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint processId);
+
+    /// <summary>Shows a native Windows message dialog.</summary>
+    /// <param name="owner">Native owner window for the message dialog.</param>
+    /// <param name="text">Text to format, normalize or display in this operation.</param>
+    /// <param name="caption">Dialog caption shown by Windows.</param>
+    /// <param name="type">Native API type/flag selector for the requested operation.</param>
     [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)]
     private static extern int MessageBox(IntPtr owner, string text, string caption, uint type);
 }

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: SetupActions.cpp
+ * Purpose: Implements scoped Windows MSI cleanup and successful-install completion actions.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 #include <windows.h>
 #include <shlobj.h>
@@ -32,24 +47,38 @@ struct Failure {
     bool canElevate = true;
 };
 
+/** Throws the scoped setup failure with its Windows error code.
+ * @param message User-facing failure or warning text without private runtime payloads.
+ * @param code Windows error code preserved with the setup failure.
+ */
 [[noreturn]] void Fail(const std::wstring& message, DWORD code = GetLastError()) {
     throw Failure{ code, message };
 }
 
 class Handle {
 public:
+    /// Creates an empty owner for a Windows kernel handle.
     Handle() = default;
+    /// Takes ownership of value; INVALID_HANDLE_VALUE is normalized to an empty handle.
     explicit Handle(HANDLE value) : value_(value == INVALID_HANDLE_VALUE ? nullptr : value) {}
+    /// Releases the owned handle exactly once.
     ~Handle() { reset(); }
+    /// Kernel handle ownership cannot be copied.
     Handle(const Handle&) = delete;
+    /// Kernel handle ownership cannot be copied.
     Handle& operator=(const Handle&) = delete;
+    /// Transfers the handle from other and clears its previous owner.
     Handle(Handle&& other) noexcept : value_(std::exchange(other.value_, nullptr)) {}
+    /// Releases the current handle, then transfers ownership from other.
     Handle& operator=(Handle&& other) noexcept {
         if (this != &other) { reset(); value_ = std::exchange(other.value_, nullptr); }
         return *this;
     }
+    /// Borrows the native handle without transferring ownership.
     HANDLE get() const { return value_; }
+    /// Reports whether this wrapper owns a valid handle.
     explicit operator bool() const { return value_ != nullptr; }
+    /// Closes the owned handle and leaves this wrapper empty.
     void reset() { if (value_) { CloseHandle(value_); value_ = nullptr; } }
 private:
     HANDLE value_ = nullptr;
@@ -57,12 +86,19 @@ private:
 
 class ServiceHandle {
 public:
+    /// Takes ownership of value, an SCM/service handle, or starts empty for nullptr.
     explicit ServiceHandle(SC_HANDLE value = nullptr) : value_(value) {}
+    /// Releases the service handle exactly once.
     ~ServiceHandle() { reset(); }
+    /// Service handle ownership cannot be copied.
     ServiceHandle(const ServiceHandle&) = delete;
+    /// Service handle ownership cannot be copied.
     ServiceHandle& operator=(const ServiceHandle&) = delete;
+    /// Borrows the service handle without transferring ownership.
     SC_HANDLE get() const { return value_; }
+    /// Reports whether this wrapper owns a service handle.
     explicit operator bool() const { return value_ != nullptr; }
+    /// Closes the service handle and leaves this wrapper empty.
     void reset() { if (value_) { CloseServiceHandle(value_); value_ = nullptr; } }
 private:
     SC_HANDLE value_;
@@ -72,6 +108,7 @@ private:
 // when only the service-control portion needed administrator permission.
 class OriginalUser {
 public:
+    /// Uses token, the original installer's user token, while preserving any prior impersonation.
     explicit OriginalUser(HANDLE token) {
         HANDLE previous = nullptr;
         if (OpenThreadToken(GetCurrentThread(), TOKEN_QUERY | TOKEN_IMPERSONATE, TRUE, &previous)) {
@@ -81,6 +118,7 @@ public:
         if (!ImpersonateLoggedOnUser(token)) { Fail(L"Cannot use the original user's file permissions"); }
         active_ = true;
     }
+    /// Restores the previous identity; a failed restore terminates only this setup helper.
     ~OriginalUser() {
         if (active_ && !(previous_ ? SetThreadToken(nullptr, previous_.get()) : RevertToSelf())) {
             // Continuing under an unexpected token is unsafe. This is our own
@@ -89,30 +127,50 @@ public:
             std::terminate();
         }
     }
+    /// Impersonation scope ownership cannot be copied.
     OriginalUser(const OriginalUser&) = delete;
+    /// Impersonation scope ownership cannot be copied.
     OriginalUser& operator=(const OriginalUser&) = delete;
 private:
     Handle previous_;
     bool active_ = false;
 };
 
+/** Compares Windows identities or paths using ordinal case-insensitive text.
+ * @param left First identity/path string to compare.
+ * @param right Second identity/path string to compare.
+ */
 bool Equal(const std::wstring& left, const std::wstring& right) {
     return CompareStringOrdinal(left.c_str(), -1, right.c_str(), -1, TRUE) == CSTR_EQUAL;
 }
 
+/** Checks a strict child path with a directory-separator boundary.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ * @param root Verified managed directory bounding the child path.
+ */
 bool StartsWithPath(const std::wstring& path, const std::wstring& root) {
     return path.size() > root.size() && path[root.size()] == L'\\'
         && Equal(path.substr(0, root.size()), root);
 }
 
+/** Joins the managed root and a relative child name.
+ * @param root Verified managed directory bounding the child path.
+ * @param child Relative child name appended beneath the verified root.
+ */
 std::wstring Join(const std::wstring& root, const std::wstring& child) {
     return root + L"\\" + child;
 }
 
+/** Recognizes file/path-not-found Windows errors.
+ * @param error Windows error code or structured setup failure being classified/reported.
+ */
 bool IsMissing(DWORD error) {
     return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND;
 }
 
+/** Resolves a local absolute path and rejects unsupported path forms.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ */
 std::wstring FullPath(std::wstring path) {
     if (path.starts_with(L"\\??\\")) { path.erase(0, 4); }
     if (path.starts_with(L"\\\\?\\")) { path.erase(0, 4); }
@@ -132,6 +190,9 @@ std::wstring FullPath(std::wstring path) {
 
 // Check every existing ancestor, including the user's profile. A junction must
 // never turn a product-scoped cleanup into deletion outside its release folder.
+/** Rejects existing path components that redirect through reparse points.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ */
 void CheckNoReparse(const std::wstring& path) {
     for (size_t end = 3; end <= path.size();) {
         const auto part = path.substr(0, end);
@@ -150,6 +211,9 @@ void CheckNoReparse(const std::wstring& path) {
     }
 }
 
+/** Creates a managed directory only after validating its path components.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ */
 void EnsureDirectory(const std::wstring& path) {
     CheckNoReparse(path);
     const DWORD attributes = GetFileAttributesW(path.c_str());
@@ -167,6 +231,9 @@ void EnsureDirectory(const std::wstring& path) {
     CheckNoReparse(path);
 }
 
+/** Reads a process image path through its verified process handle.
+ * @param process Verified native process handle owned by the caller.
+ */
 std::wstring ProcessPath(HANDLE process) {
     std::wstring path(32768, L'\0');
     DWORD length = static_cast<DWORD>(path.size());
@@ -175,18 +242,28 @@ std::wstring ProcessPath(HANDLE process) {
     return FullPath(path);
 }
 
+/** Reads a process creation timestamp to reject process-ID reuse.
+ * @param process Verified native process handle owned by the caller.
+ */
 uint64_t ProcessStart(HANDLE process) {
     FILETIME created{}, exited{}, kernel{}, user{};
     if (!GetProcessTimes(process, &created, &exited, &kernel, &user)) { Fail(L"Cannot identify process creation time"); }
     return (static_cast<uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime;
 }
 
+/** Opens a process token with the requested access mask.
+ * @param process Verified native process handle owned by the caller.
+ * @param access Windows token access mask required for the scoped operation.
+ */
 Handle ProcessToken(HANDLE process, DWORD access = TOKEN_QUERY) {
     HANDLE token = nullptr;
     if (!OpenProcessToken(process, access, &token)) { Fail(L"Cannot identify the setup user's token"); }
     return Handle(token);
 }
 
+/** Reads the Windows user SID from a token into an owned byte buffer.
+ * @param token Original user's Windows token used for identity checks or impersonation.
+ */
 std::vector<BYTE> ReadTokenUser(HANDLE token) {
     DWORD size = 0;
     GetTokenInformation(token, ::TokenUser, nullptr, 0, &size);
@@ -196,6 +273,10 @@ std::vector<BYTE> ReadTokenUser(HANDLE token) {
     return bytes;
 }
 
+/** Checks a process token against the original installer's user identity.
+ * @param process Verified native process handle owned by the caller.
+ * @param expected Original user's SID bytes used for the same-user check.
+ */
 bool SameUser(HANDLE process, const std::vector<BYTE>& expected) {
     auto token = ProcessToken(process);
     const auto actual = ReadTokenUser(token.get());
@@ -203,6 +284,8 @@ bool SameUser(HANDLE process, const std::vector<BYTE>& expected) {
         reinterpret_cast<const TOKEN_USER*>(actual.data())->User.Sid) != FALSE;
 }
 
+/** Checks the current token's effective administrator membership.
+ */
 bool IsAdministrator() {
     auto token = ProcessToken(GetCurrentProcess());
     TOKEN_ELEVATION elevation{};
@@ -222,6 +305,10 @@ struct Scope {
     std::wstring backups;
 };
 
+/** Resolves the original user's managed paths and identity for scoped cleanup.
+ * @param parentId Original installer/helper process ID checked before elevated cleanup.
+ * @param parentStart Original process creation timestamp used to reject process-ID reuse.
+ */
 Scope MakeScope(DWORD parentId, uint64_t parentStart) {
     Scope scope;
     HANDLE original = GetCurrentProcess();
@@ -250,6 +337,7 @@ Scope MakeScope(DWORD parentId, uint64_t parentStart) {
 
 class Log {
 public:
+    /// Uses scope's verified original-user token and paths to open the scoped log location.
     explicit Log(const Scope& scope) {
         HANDLE retained = nullptr;
         if (!DuplicateHandle(GetCurrentProcess(), scope.token.get(), GetCurrentProcess(), &retained,
@@ -265,6 +353,7 @@ public:
         if (!file) { Fail(L"Cannot open the setup log: " + path_); }
     }
     const std::wstring& path() const { return path_; }
+    /// Appends message as UTF-8 under the original user's file permissions.
     void Write(const std::wstring& message) const {
         OriginalUser user(token_.get());
         CheckNoReparse(path_);
@@ -291,6 +380,10 @@ private:
     std::wstring path_;
 };
 
+/** Validates an exact-length hexadecimal release suffix.
+ * @param value Release-name text or native handle, as declared by this helper's signature.
+ * @param size Required hexadecimal text length in characters.
+ */
 bool IsHex(const std::wstring& value, size_t size) {
     return value.size() == size && std::all_of(value.begin(), value.end(), [](wchar_t character) {
         return (character >= L'0' && character <= L'9') || (character >= L'a' && character <= L'f')
@@ -298,6 +391,9 @@ bool IsHex(const std::wstring& value, size_t size) {
     });
 }
 
+/** Recognizes the managed application's supported release directory names.
+ * @param value Release-name text or native handle, as declared by this helper's signature.
+ */
 bool IsReleaseName(const std::wstring& value) {
     const std::wstring prefix = L"ThermalrightVibeWare-";
     return value.size() == prefix.size() + 12 && Equal(value.substr(0, prefix.size()), prefix)
@@ -306,6 +402,10 @@ bool IsReleaseName(const std::wstring& value) {
 
 // Recognize a release structurally, even if an old uninstaller moved its files.
 // This also identifies a stale service ImagePath whose original directory is gone.
+/** Resolves an owned release root without crossing the managed application boundary.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ */
 std::optional<std::wstring> ReleaseRoot(const Scope& scope, const std::wstring& path) {
     if (StartsWithPath(path, scope.apps)) {
         const auto rest = path.substr(scope.apps.size() + 1);
@@ -324,6 +424,10 @@ std::optional<std::wstring> ReleaseRoot(const Scope& scope, const std::wstring& 
     return std::nullopt;
 }
 
+/** Accepts only a verified product executable inside an owned release.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ */
 std::optional<std::wstring> OwnedExecutable(const Scope& scope, const std::wstring& path) {
     const auto root = ReleaseRoot(scope, path);
     if (!root || !StartsWithPath(path, *root)) { return std::nullopt; }
@@ -337,6 +441,10 @@ std::optional<std::wstring> OwnedExecutable(const Scope& scope, const std::wstri
     return std::nullopt;
 }
 
+/** Checks whether the driver path belongs to this installation's managed releases.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ */
 bool OwnedDriver(const Scope& scope, const std::wstring& path) {
     const auto root = ReleaseRoot(scope, path);
     if (!root || !Equal(path, Join(*root, L"engine\\OpenHardwareMonitorLib.sys"))) { return false; }
@@ -344,6 +452,9 @@ bool OwnedDriver(const Scope& scope, const std::wstring& path) {
     return true;
 }
 
+/** Enumerates direct child directories without following reparse points.
+ * @param directory Verified directory to enumerate or use as the completion action's working directory.
+ */
 std::vector<std::wstring> Directories(const std::wstring& directory) {
     CheckNoReparse(directory);
     WIN32_FIND_DATAW data{};
@@ -364,6 +475,9 @@ std::vector<std::wstring> Directories(const std::wstring& directory) {
     return names;
 }
 
+/** Enumerates only verified product release directories in the cleanup scope.
+ * @param scope Verified original-user identity and managed product paths.
+ */
 std::vector<std::wstring> ReleaseFolders(const Scope& scope) {
     std::vector<std::wstring> releases;
     for (const auto& name : Directories(scope.apps)) {
@@ -395,6 +509,8 @@ struct Process {
     bool studio;
 };
 
+/** Reads one Windows process snapshot for scoped process discovery.
+ */
 std::vector<PROCESSENTRY32W> ProcessSnapshot() {
     Handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
     if (!snapshot) { Fail(L"Cannot inspect running application processes"); }
@@ -407,11 +523,17 @@ std::vector<PROCESSENTRY32W> ProcessSnapshot() {
     return entries;
 }
 
+/** Recognizes executable names that may seed this product's process tree.
+ * @param name Executable name or MSI property name used by this helper.
+ */
 bool SeedName(const std::wstring& name) {
     return Equal(name, L"ThermalrightVibeWare.exe") || Equal(name, L"trv.exe") || Equal(name, L"ThermalrightVibeWare.Cli.exe")
         || Equal(name, L"python.exe") || Equal(name, L"pythonw.exe");
 }
 
+/** Finds verified same-user product processes and their owned descendants.
+ * @param scope Verified original-user identity and managed product paths.
+ */
 std::vector<Process> FindProcesses(const Scope& scope) {
     const auto entries = ProcessSnapshot();
     std::vector<Process> selected;
@@ -457,6 +579,10 @@ std::vector<Process> FindProcesses(const Scope& scope) {
     return selected;
 }
 
+/** Requests normal shutdown before the bounded scoped process termination fallback.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ */
 void StopProcesses(const Scope& scope, const Log& log) {
     for (unsigned pass = 0; pass != 3; ++pass) {
         auto processes = FindProcesses(scope);
@@ -507,6 +633,9 @@ struct DriverConfiguration {
     std::wstring path;
 };
 
+/** Normalizes a registered driver path before ownership checks.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ */
 std::wstring DriverPath(std::wstring path) {
     if (path.size() >= 2 && path.front() == L'"' && path.back() == L'"') {
         path = path.substr(1, path.size() - 2);
@@ -514,6 +643,9 @@ std::wstring DriverPath(std::wstring path) {
     return FullPath(path);
 }
 
+/** Reads a service's configured driver type and binary path.
+ * @param service Caller-owned service handle whose configuration/state is read.
+ */
 DriverConfiguration ReadDriverConfiguration(SC_HANDLE service) {
     DWORD size = 0;
     QueryServiceConfigW(service, nullptr, 0, &size);
@@ -524,6 +656,9 @@ DriverConfiguration ReadDriverConfiguration(SC_HANDLE service) {
     return { configuration->dwServiceType, configuration->lpBinaryPathName };
 }
 
+/** Reads the current service state and process status.
+ * @param service Caller-owned service handle whose configuration/state is read.
+ */
 SERVICE_STATUS_PROCESS DriverStatus(SC_HANDLE service) {
     SERVICE_STATUS_PROCESS status{};
     DWORD size = 0;
@@ -533,6 +668,9 @@ SERVICE_STATUS_PROCESS DriverStatus(SC_HANDLE service) {
     return status;
 }
 
+/** Waits a bounded time for service deletion and rejects pending deletion.
+ * @param manager Caller-owned service-control-manager handle used to verify registration removal.
+ */
 void WaitForServiceAbsent(SC_HANDLE manager) {
     const ULONGLONG deadline = GetTickCount64() + 15000;
     do {
@@ -550,6 +688,8 @@ void WaitForServiceAbsent(SC_HANDLE manager) {
 
 // A pending-delete service cannot be opened, but its configuration still
 // identifies whether this is our service. Reading does not alter SCM state.
+/** Reads a pending driver registration when the normal service query cannot open it.
+ */
 std::optional<DriverConfiguration> PendingDriverConfiguration() {
     HKEY key = nullptr;
     const LSTATUS opened = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
@@ -573,6 +713,11 @@ std::optional<DriverConfiguration> PendingDriverConfiguration() {
     return DriverConfiguration{ type, path.data() };
 }
 
+/** Checks driver configuration ownership before any cleanup mutation.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param configuration Observed driver type/path to verify against the managed installation.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ */
 bool IsOurConfiguration(const Scope& scope, const DriverConfiguration& configuration, const Log& log) {
     if (configuration.type != SERVICE_KERNEL_DRIVER) {
         log.Write(L"Preserving foreign WinRing0 service type " + std::to_wstring(configuration.type));
@@ -592,6 +737,8 @@ bool IsOurConfiguration(const Scope& scope, const DriverConfiguration& configura
     return true;
 }
 
+/** Rejects driver cleanup while another client still holds a driver reference.
+ */
 void CheckDriverNotShared() {
     Handle device(CreateFileW(L"\\\\.\\WinRing0_1_2_0", GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
@@ -606,6 +753,10 @@ void CheckDriverNotShared() {
     if (count > 1) { Fail(L"Another hardware monitor is using the Thermalright VibeWare driver. Close that app and run setup again.", ERROR_SHARING_VIOLATION); }
 }
 
+/** Stops and deletes only the verified owned driver service registration.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ */
 void RemoveDriverService(const Scope& scope, const Log& log) {
     ServiceHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
     if (!manager) { Fail(L"Cannot inspect hardware driver registration"); }
@@ -659,6 +810,10 @@ void RemoveDriverService(const Scope& scope, const Log& log) {
     log.Write(L"Owned driver service registration is absent.");
 }
 
+/** Removes verified owned generated driver files after the service is released.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ */
 void RemoveDriverFiles(const Scope& scope, const Log& log) {
     OriginalUser user(scope.token.get());
     for (const auto& release : ReleaseFolders(scope)) {
@@ -691,6 +846,10 @@ void RemoveDriverFiles(const Scope& scope, const Log& log) {
     }
 }
 
+/** Rechecks process, service and generated driver-file cleanup before setup continues.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ */
 void VerifyCleanup(const Scope& scope, const Log& log) {
     if (!FindProcesses(scope).empty()) { Fail(L"Thermalright VibeWare restarted during setup. Close it and run setup again.", ERROR_BUSY); }
     ServiceHandle manager(OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT));
@@ -723,6 +882,10 @@ void VerifyCleanup(const Scope& scope, const Log& log) {
     }
 }
 
+/** Validates a complete owned release tree before optionally removing its files.
+ * @param path Local file, driver or release path that must pass the operation's ownership checks.
+ * @param remove Whether to remove files after validating the entire owned release tree.
+ */
 void RemoveReleaseTree(const std::wstring& path, bool remove) {
     CheckNoReparse(path);
     WIN32_FIND_DATAW data{};
@@ -750,6 +913,10 @@ void RemoveReleaseTree(const std::wstring& path, bool remove) {
 
 // The old script wrote a per-user key. Read that user's hive explicitly in
 // both registry views; never rely on the MSI service's HKCU mapping.
+/** Removes only the verified legacy per-user product uninstall registration.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ */
 void RemoveLegacyRegistration(const Scope& scope, const Log& log) {
     LPWSTR sidText = nullptr;
     if (!ConvertSidToStringSidW(reinterpret_cast<const TOKEN_USER*>(scope.user.data())->User.Sid, &sidText)) {
@@ -788,6 +955,11 @@ void RemoveLegacyRegistration(const Scope& scope, const Log& log) {
     }
 }
 
+/** Removes verified previous release directories under the requested cleanup policy.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ * @param cleanInstall Whether the explicit cleanup mode also removes prior managed releases.
+ */
 void RemovePreviousReleases(const Scope& scope, const Log& log, bool cleanInstall) {
     OriginalUser user(scope.token.get());
     const auto releases = ReleaseFolders(scope);
@@ -804,6 +976,12 @@ void RemovePreviousReleases(const Scope& scope, const Log& log, bool cleanInstal
     RemoveLegacyRegistration(scope, log);
 }
 
+/** Coordinates scoped process, driver and old-release cleanup in the required order.
+ * @param scope Verified original-user identity and managed product paths.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ * @param closeOnly Whether to stop owned processes without deleting driver or release files.
+ * @param cleanInstall Whether the explicit cleanup mode also removes prior managed releases.
+ */
 void Cleanup(const Scope& scope, const Log& log, bool closeOnly, bool cleanInstall) {
     log.Write(L"Starting scoped cleanup; administrator=" + std::to_wstring(IsAdministrator() ? 1 : 0));
     StopProcesses(scope, log);
@@ -821,6 +999,9 @@ void Cleanup(const Scope& scope, const Log& log, bool closeOnly, bool cleanInsta
     log.Write(L"Cleanup completed: verified app processes stopped; owned driver registration and files removed.");
 }
 
+/** Parses a bounded unsigned command-line value and rejects invalid trailing text.
+ * @param value Release-name text or native handle, as declared by this helper's signature.
+ */
 uint64_t ParseNumber(const wchar_t* value) {
     if (!value || !*value || !std::all_of(value, value + wcslen(value), [](wchar_t character) {
         return character >= L'0' && character <= L'9';
@@ -832,6 +1013,12 @@ uint64_t ParseNumber(const wchar_t* value) {
     return number;
 }
 
+/** Runs the same scoped cleanup with administrator rights only when needed.
+ * @param uiLevel MSI UI level; silent setup must not open unexpected permission dialogs.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ * @param closeOnly Whether to stop owned processes without deleting driver or release files.
+ * @param cleanInstall Whether the explicit cleanup mode also removes prior managed releases.
+ */
 DWORD Elevate(int uiLevel, const Log& log, bool closeOnly, bool cleanInstall) {
     const auto executable = ProcessPath(GetCurrentProcess());
     const auto parameters = std::wstring(closeOnly ? L"--close-apps" : cleanInstall ? L"--clean-install" : L"--cleanup") + L" --ui-level " + std::to_wstring(uiLevel) + L" --parent "
@@ -863,6 +1050,11 @@ DWORD Elevate(int uiLevel, const Log& log, bool closeOnly, bool cleanInstall) {
     return code;
 }
 
+/** Records a setup failure and shows it when interactive setup permits a dialog.
+ * @param error Windows error code or structured setup failure being classified/reported.
+ * @param uiLevel MSI UI level; silent setup must not open unexpected permission dialogs.
+ * @param log Scoped setup log owned by the original user; optional where the signature permits null.
+ */
 void Report(const Failure& error, int uiLevel, const Log* log) {
     const auto detail = error.message + L"\nWindows error: " + std::to_wstring(error.code);
     if (log) {
@@ -877,6 +1069,8 @@ void Report(const Failure& error, int uiLevel, const Log* log) {
 }
 } // namespace
 
+/** Parses the setup helper's explicit cleanup mode and verifies its original process identity.
+ */
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     int argumentCount = 0;
     auto arguments = CommandLineToArgvW(GetCommandLineW(), &argumentCount);

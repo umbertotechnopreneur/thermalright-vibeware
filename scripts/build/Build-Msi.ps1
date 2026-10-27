@@ -1,8 +1,25 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: Build-Msi.ps1
+# Purpose: Packages the supplied source-built payload into a visible Windows MSI.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 #requires -Version 7.0
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$PayloadPath,
@@ -39,12 +56,32 @@ New-Item -ItemType Directory -Path $generated -Force | Out-Null
 [IO.File]::WriteAllText((Join-Path $generated 'ThermalrightVibeWare.cmd'), "@echo off`r`nstart `"`" `"%~dp0MSI\ThermalrightVibeWare.exe`" %*`r`n", [Text.Encoding]::ASCII)
 $namespace = 'http://wixtoolset.org/schemas/v4/wxs'
 $document = [Xml.XmlDocument]::new()
+<#
+.SYNOPSIS
+Appends a WiX XML element with the supplied attributes.
+
+.PARAMETER Parent
+Parent XML node receiving the new WiX element.
+
+.PARAMETER Name
+WiX XML element name.
+
+.PARAMETER Attributes
+XML attribute names and values assigned to the new element.
+#>
 function Add-Element($Parent, [string]$Name, [hashtable]$Attributes) {
     $element = $document.CreateElement($Name, $namespace)
     foreach ($attribute in $Attributes.GetEnumerator()) { $element.SetAttribute($attribute.Key, [string]$attribute.Value) }
     [void]$Parent.AppendChild($element)
     return $element
 }
+<#
+.SYNOPSIS
+Derives a stable legal WiX identifier from a relative payload path.
+
+.PARAMETER Text
+Source text or payload-relative path processed by this helper.
+#>
 function Get-Identifier([string]$Text) {
     return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Text.ToLowerInvariant()))).Substring(0, 32)
 }

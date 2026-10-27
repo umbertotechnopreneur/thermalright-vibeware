@@ -8,7 +8,7 @@ For the short illustrated guide, open the [Quick Start (PDF)](docs/quick-start.p
 4. Choose a theme. Look at the preview.
 5. Choose your USB screen. Press **Show on display**. Press **Stop** to stop.
 
-Only one window opens. Opening the app again brings it back to the center.
+The first launch opens the main window. Later Windows launches start by the clock, in the tray. Use the tray icon's **Open** command to bring the window back to the center. Opening the app while it is already running also restores that same window.
 
 On Windows, a separate guard checks the app and its child processes every 500 ms. If their private committed memory goes above 1 GB (1,000,000,000 bytes), it shows an alert and forces them to stop after two seconds, or sooner if you dismiss it. The alert stays open until dismissed. The app refuses to open if the guard cannot start. This guard remains a last limit after the focused memory fixes. [Checks and limits](cave.md).
 
@@ -24,7 +24,7 @@ From the extracted package, open PowerShell in its folder and run:
 
 Find **Thermalright VibeWare** in Start. Both Start and Windows startup use one stable launcher at `%LOCALAPPDATA%\Umberto Giacobbi.biz\Apps\ThermalrightVibeWare\ThermalrightVibeWare.cmd`; package-version folders are never used directly by those entries.
 
-Thermalright VibeWare keeps one current setup. Closing the app saves the selected theme and all settings, including the last slider change. Opening it again restores that setup in the preview. At Windows sign-in it starts in the tray and starts the saved screen and theme, like **Show on display**.
+Thermalright VibeWare keeps one current setup. Closing the app saves the selected theme and all settings, including the last slider change. Each Windows launch restores the saved screen and theme, like **Show on display**. The first launch shows the studio; later launches, including Windows sign-in, keep it in the tray.
 
 If the saved screen appears late, startup waits and checks every ten seconds. It never chooses a different screen or theme. **Stop** cancels the wait or current output for this run. To stop future Windows startup too, disable startup below.
 
@@ -34,7 +34,7 @@ To turn off startup, run `.\Install-ThermalrightVibeWare.ps1 -DisableStartup`.
 
 To uninstall, first quit from the tray menu. Use Windows **Installed apps** or run `.\Uninstall-ThermalrightVibeWare.ps1`. App files move to a backup. Your settings, user themes and Codex plugin stay in place.
 
-From a command line, `ThermalrightVibeWare.exe --start-minimized` starts the preview in the tray. `ThermalrightVibeWare.exe --restore-last-session` starts in the tray and starts the saved screen and theme. Windows startup uses both flags.
+Windows startup keeps the `--start-minimized --restore-last-session` arguments. First-launch visibility takes priority over those flags. Once the studio has loaded and saved that completion, later Windows launches start in the tray. If settings cannot be saved, the main window opens again next time.
 
 ## Make it yours
 

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsMediaService.cs
+ * Purpose: Reads and controls the selected generic Windows media session.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using Windows.Media.Control;
 using Windows.Storage.Streams;
@@ -17,6 +32,8 @@ public sealed class WindowsMediaService : IMediaProvider
     private NowPlaying? metadata;
     private long metadataAt;
 
+    /// <summary>Resolves the current Windows media session within the request lifetime.</summary>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     private async Task<GlobalSystemMediaTransportControlsSession?> SessionAsync(CancellationToken cancellationToken)
     {
         manager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync().AsTask(cancellationToken);
@@ -79,6 +96,7 @@ public sealed class WindowsMediaService : IMediaProvider
     }
 
     /// <summary>Controls the selected local player only after a user invokes a media command.</summary>
+    /// <param name="action">Allowed Windows media playback command.</param>
     public async Task ControlAsync(string action)
     {
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));

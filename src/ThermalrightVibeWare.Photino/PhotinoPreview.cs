@@ -1,7 +1,23 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: PhotinoPreview.cs
+ * Purpose: Bridges engine JPEGs and browser preview acknowledgements.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Text.Json;
 using System.Runtime.InteropServices;
 using Photino.NET;
@@ -23,12 +39,17 @@ internal sealed class PhotinoPreview : IStudioPreview, IDisposable
     public bool IsVisible => !OperatingSystem.IsWindows()
         || IsWindowVisible(window.WindowHandle) && !IsIconic(window.WindowHandle);
 
+    /// <summary>Connects the desktop window to the browser's JPEG preview bridge.</summary>
+    /// <param name="window">Existing studio host window to size or center.</param>
     public PhotinoPreview(PhotinoWindow window)
     {
         this.window = window;
         window.RegisterWebMessageReceivedHandler(Receive);
     }
 
+    /// <summary>Displays the engine's encoded JPEG and reports its pixel dimensions.</summary>
+    /// <param name="jpeg">Encoded JPEG bytes, reused for preview and physical output.</param>
+    /// <param name="transition">Whether to cross-fade from the previously displayed frame.</param>
     public async Task<PreviewSize> ShowAsync(byte[] jpeg, bool transition)
     {
         if (jpeg.Length is 0 or > 450_000) { throw new ArgumentException("Preview JPEG exceeds the frame limit.", nameof(jpeg)); }
@@ -50,12 +71,16 @@ internal sealed class PhotinoPreview : IStudioPreview, IDisposable
         finally { lock (sync) { if (ReferenceEquals(pending, completion)) { pending = null; } } }
     }
 
+    /// <summary>Clears the currently held preview or session resources.</summary>
     public void Clear()
     {
         lock (sync) { if (disposed) { return; } pending?.TrySetCanceled(); }
         window.Invoke(() => window.SendWebMessage("{\"type\":\"trv.preview.clear\",\"version\":1}"));
     }
 
+    /// <summary>Handles an acknowledgement from the browser preview bridge.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="message">User-facing text or registered Windows message name used by this call.</param>
     private void Receive(object? sender, string message)
     {
         if (message.Length > 1024) { return; }
@@ -78,15 +103,20 @@ internal sealed class PhotinoPreview : IStudioPreview, IDisposable
         catch (Exception error) when (error is JsonException or InvalidOperationException or KeyNotFoundException or FormatException or OverflowException) { }
     }
 
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         lock (sync) { disposed = true; pending?.TrySetCanceled(); pending = null; }
     }
 
+    /// <summary>Checks the native window's visibility flag.</summary>
+    /// <param name="handle">Owned native Windows handle.</param>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWindowVisible(IntPtr handle);
 
+    /// <summary>Checks whether the native window is minimized.</summary>
+    /// <param name="handle">Owned native Windows handle.</param>
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsIconic(IntPtr handle);

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: SingleInstanceService.cs
+ * Purpose: Enforces one studio instance per user and forwards activation requests.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Security.Principal;
 
@@ -48,6 +63,8 @@ internal sealed class SingleInstanceService : IDisposable
     }
 
     /// <summary>Begin listening after the native window is ready. Dispatch must marshal onto its UI thread.</summary>
+    /// <param name="dispatchToUi">Schedules an action on the owning desktop UI thread.</param>
+    /// <param name="activateWindow">Restores the existing studio window after an activation request.</param>
     public void Listen(Action<Action> dispatchToUi, Action activateWindow)
     {
         ArgumentNullException.ThrowIfNull(dispatchToUi);
@@ -83,6 +100,7 @@ internal sealed class SingleInstanceService : IDisposable
         return _activation?.Set() ?? false;
     }
 
+    /// <summary>Releases resources owned by this instance.</summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) { return; }

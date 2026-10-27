@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: PanelProbeResult.cs
+ * Purpose: Parses device-info replies and resolves compatible display profiles.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 namespace ThermalrightVibeWare.Core;
 
@@ -15,6 +30,7 @@ public sealed record PanelProbeResult(bool IsCompatible, byte ProductMode, byte 
     public DisplayProfile? DetectedProfile => IsCompatible ? DisplayProfileCatalog.FromProductMode(ProductMode, SubMode) : null;
 
     /// <summary>Decodes the HID reply, where SUB precedes PM and the unnumbered report may contain only eight data bytes.</summary>
+    /// <param name="response">Device-info reply bytes in the layout accepted by this parser.</param>
     public static PanelProbeResult FromHidResponse(ReadOnlySpan<byte> response)
     {
         var hasMagic = response.Length >= 8 && response[..4].SequenceEqual(Thermalright04165302Protocol.Magic);
@@ -32,6 +48,7 @@ public sealed record PanelProbeResult(bool IsCompatible, byte ProductMode, byte 
     }
 
     /// <summary>Creates a result from the 512-byte reply used by the 0416:5302 panel profile.</summary>
+    /// <param name="response">Device-info reply bytes in the layout accepted by this parser.</param>
     public static PanelProbeResult FromResponse(ReadOnlySpan<byte> response)
     {
         return FromHidResponse(response);

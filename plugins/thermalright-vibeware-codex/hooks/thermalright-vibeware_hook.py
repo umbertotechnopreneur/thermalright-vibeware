@@ -1,7 +1,23 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: thermalright-vibeware_hook.py
+# Purpose: Stores bounded local Codex activity without prompts or tool payloads.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 """Record minimal Codex lifecycle status for the local ThermalrightVibeWare display."""
 
 from __future__ import annotations
@@ -14,7 +30,6 @@ import sys
 import time
 from datetime import datetime, timezone
 from uuid import uuid4
-
 
 MAX_INPUT_BYTES = 1_048_576
 MAX_SESSIONS = 64
@@ -33,7 +48,6 @@ KNOWN_EVENTS = {
     "SessionEnd": ("Chat closed", "closed", False),
 }
 
-
 def state_directory() -> Path:
     """Use the same user-local location as the ThermalrightVibeWare theme host."""
     if os.name == "nt":
@@ -46,14 +60,22 @@ def state_directory() -> Path:
     base = Path(xdg) if xdg and Path(xdg).is_absolute() else Path.home() / ".local" / "state"
     return base / "ThermalrightVibeWare" / "codex"
 
-
 def opaque_key(value: object) -> str | None:
+    """Hash an identity into a bounded opaque key without retaining its private text.
+
+    Args:
+        value: Private source identity converted to a bounded opaque key before retention.
+    """
     if not isinstance(value, str) or not value or len(value) > 256:
         return None
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:20]
 
-
 def tool_kind(value: object) -> str | None:
+    """Reduce a tool name to the allow-listed display category.
+
+    Args:
+        value: Untrusted tool name reduced to an allow-listed display category.
+    """
     if not isinstance(value, str):
         return None
     if value in {"Bash", "exec_command"}:
@@ -64,8 +86,13 @@ def tool_kind(value: object) -> str | None:
         return "connected-app"
     return "tool"
 
-
 def display_status(event: str, kind: str | None) -> tuple[str, str, bool]:
+    """Map an allowed Codex event to brief display text and activity state.
+
+    Args:
+        event: Allow-listed local Codex lifecycle event name.
+        kind: Sensor type or allow-listed Codex tool category used by this helper.
+    """
     label, phase, is_live = KNOWN_EVENTS[event]
     if event == "PreToolUse":
         label = {
@@ -75,8 +102,12 @@ def display_status(event: str, kind: str | None) -> tuple[str, str, bool]:
         }.get(kind, label)
     return label, phase, is_live
 
-
 def event_from_input(payload: object) -> dict[str, object] | None:
+    """Extract only the allow-listed activity fields from an untrusted hook payload.
+
+    Args:
+        payload: Untrusted hook input; only allow-listed activity fields are retained.
+    """
     if not isinstance(payload, dict):
         return None
     event = payload.get("hook_event_name")
@@ -116,8 +147,12 @@ def event_from_input(payload: object) -> dict[str, object] | None:
         result["trigger"] = trigger
     return result
 
-
 def read_timestamp(path: Path) -> int:
+    """Read the last bounded event timestamp, treating absent data as zero.
+
+    Args:
+        path: Local state or marketplace JSON file path.
+    """
     try:
         with path.open("rb") as stream:
             previous = json.loads(stream.read(4096))
@@ -126,8 +161,13 @@ def read_timestamp(path: Path) -> int:
     except (OSError, ValueError, TypeError):
         return 0
 
-
 def atomic_json(path: Path, value: dict[str, object]) -> None:
+    """Replace a local JSON file atomically after writing its temporary sibling.
+
+    Args:
+        path: Local state or marketplace JSON file path.
+        value: JSON-compatible state object written to a temporary sibling before atomic replacement.
+    """
     temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
     try:
         with temporary.open("x", encoding="utf-8") as stream:
@@ -140,8 +180,12 @@ def atomic_json(path: Path, value: dict[str, object]) -> None:
         except OSError:
             pass
 
-
 def acquire_lock(root: Path) -> Path | None:
+    """Claim the local state lock or recover only an expired lock.
+
+    Args:
+        root: Per-user local activity-state directory.
+    """
     lock = root / ".write-lock"
     deadline = time.monotonic() + 0.2
     while time.monotonic() < deadline:
@@ -157,8 +201,12 @@ def acquire_lock(root: Path) -> Path | None:
             time.sleep(0.01)
     return None
 
-
 def retain_recent_sessions(directory: Path) -> None:
+    """Remove only obsolete session records above the bounded retention policy.
+
+    Args:
+        directory: Local session-state directory subject to bounded retention.
+    """
     files = list(directory.glob("*.json"))
     if len(files) <= MAX_SESSIONS:
         return
@@ -166,8 +214,12 @@ def retain_recent_sessions(directory: Path) -> None:
     for old in files[: len(files) - MAX_SESSIONS]:
         old.unlink(missing_ok=True)
 
-
 def store_event(value: dict[str, object]) -> None:
+    """Persist a bounded sanitized event and update the latest session observation.
+
+    Args:
+        value: Sanitized allow-listed event fields to retain in bounded local state.
+    """
     root = state_directory()
     sessions = root / "sessions"
     sessions.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -189,8 +241,8 @@ def store_event(value: dict[str, object]) -> None:
         except OSError:
             pass
 
-
 def main() -> None:
+    """Read and sanitize one bounded Codex hook event before local persistence."""
     try:
         raw = sys.stdin.buffer.read(MAX_INPUT_BYTES + 1)
         if len(raw) > MAX_INPUT_BYTES:
@@ -207,7 +259,6 @@ def main() -> None:
     finally:
         # Stop, SubagentStop, and Interrupt require JSON, and {} is safe for all events.
         sys.stdout.write("{}\n")
-
 
 if __name__ == "__main__":
     main()

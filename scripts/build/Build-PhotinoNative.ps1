@@ -1,8 +1,25 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: Build-PhotinoNative.ps1
+# Purpose: Builds the pinned Photino native source for the selected architecture.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 #requires -Version 7.0
+
 [CmdletBinding()]
 param([ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64', [switch]$PreviewCapture, [switch]$PrepareImports)
 Set-StrictMode -Version Latest
@@ -41,10 +58,33 @@ if ($sourceRoots.Count -ne 1) { throw 'Unexpected Photino source layout.' }
 $source = $sourceRoots[0].FullName
 $native = Join-Path $source 'Photino.Native'
 Copy-Item -LiteralPath $header -Destination (Join-Path $native 'UtfConversion.h')
+<#
+.SYNOPSIS
+Applies a required source patch and fails if its expected text is absent.
+
+.PARAMETER Text
+Source text or payload-relative path processed by this helper.
+
+.PARAMETER Old
+Exact source fragment that the pinned patch expects to find.
+
+.PARAMETER New
+Replacement source fragment for that exact pinned input.
+#>
 function Replace-Required([string]$Text, [string]$Old, [string]$New) {
     if (-not $Text.Contains($Old)) { throw "Pinned Photino patch no longer matches: $Old" }
     return $Text.Replace($Old, $New)
 }
+<#
+.SYNOPSIS
+Writes generated build input as UTF-8 without a byte-order mark.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+
+.PARAMETER Text
+Source text or payload-relative path processed by this helper.
+#>
 function Save-Source([string]$Path, [string]$Text) { [IO.File]::WriteAllText($Path, $Text, [Text.UTF8Encoding]::new($false)) }
 $projectPath = Join-Path $native 'Photino.Native.vcxproj'
 $project = Get-Content -LiteralPath $projectPath -Raw

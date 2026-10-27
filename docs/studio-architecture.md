@@ -25,6 +25,10 @@ flowchart TD
 
 `StudioSettingsStore` reads at most 1 MiB and writes `schemaVersion: 1`. Unversioned settings are rejected and left untouched. A save flushes a temporary file, then atomically replaces the current file and preserves its previous contents as `.bak`. A corrupt file falls back to a valid backup. Recovery does not replace that good backup with corrupt data. Unsupported versions and unrecoverable files are left untouched, with a visible notice; saving remains disabled for that session. Runtime revisions and timestamps are not persisted.
 
+`StudioPreferences.IsFirstRun` defaults to `true` and is stored as `isFirstRun` in the same versioned file. The first Windows launch shows the studio even when sign-in passes tray arguments. Once the main page has loaded, `StudioModel.CompleteFirstRun` saves a detached state with the flag set to `false`, then publishes it. A failed save leaves the flag true and reports a notice. Later Windows launches start in the tray; Open, About and ordinary activation still restore the existing window. Without a working tray, the host keeps its visible-window fallback.
+
+See [Code maintenance](code-maintenance.md) for the source file map and documentation conventions.
+
 ## Platform boundary
 
 `ThermalrightVibeWare.Data` targets plain `net10.0`. It holds data records, provider interfaces and the shared collection service. It references no Windows APIs or hardware libraries.  `WindowsDashboardProviders` is the Windows composition root. The host explicitly supplies these providers; constructing the data service does not choose or open hardware. Disabled features do not read their providers. A failed playback provider cannot discard available media or sensor results.

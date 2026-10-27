@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: PanelContract.cs
+ * Purpose: Defines versioned stdio messages and host/UI contracts independent of USB code.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Text.Json;
 
@@ -11,7 +26,13 @@ namespace ThermalrightVibeWare.Contracts;
 public interface IStudioPreview
 {
     bool IsVisible => true;
+
+    /// <summary>Displays the engine's encoded JPEG and reports its pixel dimensions.</summary>
+    /// <param name="jpeg">Encoded JPEG bytes, reused for preview and physical output.</param>
+    /// <param name="transition">Whether to cross-fade from the previously displayed frame.</param>
     Task<PreviewSize> ShowAsync(byte[] jpeg, bool transition);
+
+    /// <summary>Clears the currently held preview or session resources.</summary>
     void Clear();
 }
 
@@ -69,6 +90,12 @@ public sealed record PanelState(string Title, string Artist, string Album, bool 
 /// <summary>The presentation depends on this contract, not the USB driver or operating system APIs.</summary>
 public interface IPanelClient
 {
+
+    /// <summary>Serializes a named engine request and returns its typed response.</summary>
+    /// <typeparam name="T">Expected response or payload type used by this operation.</typeparam>
+    /// <param name="method">Allow-listed engine or worker method name.</param>
+    /// <param name="parameters">Request payload serialized with the versioned contract; null when no payload is needed.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     Task<T> RequestAsync<T>(string method, object? parameters = null, CancellationToken cancellationToken = default);
 }
 
@@ -77,7 +104,13 @@ public interface IStudioWindowActions
 {
     bool CanMinimizeToTray { get; }
     bool CanRestartAsAdministrator => false;
+
+    /// <summary>Requests a guarded restart with administrator rights.</summary>
     Task<bool> RestartAsAdministratorAsync() => Task.FromResult(false);
+
+    /// <summary>Delegates studio minimization to the desktop host.</summary>
     void MinimizeToTray();
+
+    /// <summary>Delegates application shutdown to the desktop host.</summary>
     void CloseApplication();
 }

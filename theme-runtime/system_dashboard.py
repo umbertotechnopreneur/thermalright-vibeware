@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: system_dashboard.py
+# Purpose: Composes the six System pages using shared hardware readings and drawing primitives.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """Paged instruments for measured hardware; no synthetic history or missing-value filler."""
 from __future__ import annotations
 
@@ -14,18 +33,33 @@ from system_details import HARDWARE_KINDS, cooling_values, core_heatmap_values, 
 NAMES = {"thermal": "THERMAL ATLAS", "orbit": "AIRFLOW", "terminal": "MATRIX"}
 _FAN_ROTATIONS = OrderedDict()
 
-
 def readings(raw, kind):
+    """Select finite raw readings of the requested sensor type.
+
+    Args:
+        raw: Raw observation dictionary received from the engine.
+        kind: Sensor type or allow-listed Codex tool category used by this helper.
+    """
     return [(clean(item.get("name")), value) for item in raw.get("readings", [])
             if isinstance(item, dict) and item.get("type") == kind
             and (value := optional_number(item.get("value"))) is not None]
 
-
 def measured(raw, kind, name):
+    """Return an exact named reading of the requested type, if available.
+
+    Args:
+        raw: Raw observation dictionary received from the engine.
+        kind: Sensor type or allow-listed Codex tool category used by this helper.
+        name: Display heading or setting/reading name used by this helper.
+    """
     return next((value for label, value in readings(raw, kind) if label == name), None)
 
-
 def devices(s):
+    """Select available CPU, rotating GPU and physical RAM observations.
+
+    Args:
+        s: Current ThemeContext containing available data, palette and page timing.
+    """
     raw = s.sensors
     result = []
     if isinstance(raw.get("cpu"), dict):
@@ -38,15 +72,25 @@ def devices(s):
         result.append(("memory", "RAM", raw["memory"]))
     return result
 
-
 def short_name(key, raw):
+    """Build a compact hardware identity label without guessing missing metadata.
+
+    Args:
+        key: Stable cache, metric or data identity used by this helper.
+        raw: Raw observation dictionary received from the engine.
+    """
     if key == "memory":
         modules = raw.get("modules") or []
         return " · ".join(value for value in (clean(raw.get("type")), f"{len(modules)} DIMMs" if modules else "") if value)
     return clean(raw.get("name"))
 
-
 def metadata(key, raw):
+    """Build available identity/detail rows for a hardware device.
+
+    Args:
+        key: Stable cache, metric or data identity used by this helper.
+        raw: Raw observation dictionary received from the engine.
+    """
     result = []
     if key == "memory":
         used, total = optional_number(raw.get("usedGiB")), optional_number(raw.get("totalGiB"))
@@ -65,9 +109,22 @@ def metadata(key, raw):
             result.append(("TEMPERATURE", f"{temp:.1f}°C"))
     return result
 
-
 def arc(c, x, y, radius, start, sweep, tint, width=7, opacity=1, segments=False):
     # Piecewise arcs use the same CPU Skia primitives at all output sizes.
+    """Draw a continuous or segmented arc in logical canvas coordinates.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        x: Horizontal origin in logical canvas units.
+        y: Vertical origin in logical canvas units.
+        radius: Radius or corner radius in logical canvas units.
+        start: Arc start angle in degrees.
+        sweep: Signed arc sweep in degrees.
+        tint: RGB hex color used by this drawing.
+        width: Stroke thickness in logical canvas units.
+        opacity: Alpha fraction from transparent zero to opaque one.
+        segments: Whether the decorative arc is divided into separate strokes.
+    """
     count = max(1, int(abs(sweep) / 3))
     for index in range(count):
         if segments and index % 4 == 3:
@@ -77,8 +134,21 @@ def arc(c, x, y, radius, start, sweep, tint, width=7, opacity=1, segments=False)
         c.line(x + math.cos(a) * radius, y + math.sin(a) * radius,
                x + math.cos(b) * radius, y + math.sin(b) * radius, tint, width, opacity)
 
-
 def dial(c, s, x, y, radius, value, unit, maximum, tint, style):
+    """Draw an available reading on a bounded instrument scale.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        x: Horizontal origin in logical canvas units.
+        y: Vertical origin in logical canvas units.
+        radius: Radius or corner radius in logical canvas units.
+        value: Available measured reading shown against maximum, or None when unavailable.
+        unit: Reading unit shown alongside the available value.
+        maximum: Upper setting bound, scale limit or item cap used by this helper.
+        tint: RGB hex color used by this drawing.
+        style: Stable visual style identifier from the selected theme.
+    """
     start, sweep = (135, 270) if style in ("blueprint", "thermal", "ledger") else (-90, 360)
     segments = style in ("terminal", "signal", "blocks")
     arc(c, x, y, radius, start, sweep, tint, 7, .13, segments)
@@ -99,8 +169,14 @@ def dial(c, s, x, y, radius, value, unit, maximum, tint, style):
         _text(c, "0", x - radius * .7, y + radius + 20, 11, 50, s.muted, align="center")
         _text(c, str(maximum), x + radius * .7, y + radius + 20, 11, 50, s.muted, align="center")
 
-
 def background(c, s, style):
+    """Draw the selected System style's page background.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+    """
     c.gradient(0, 0, c.width, 480, [blend(s.base, s.palette[0], .13), s.base, blend(s.base, s.palette[1], .10)], vertical=True)
     if style in ("blueprint", "terminal"):
         for x in range(0, int(c.width), 28):
@@ -119,8 +195,16 @@ def background(c, s, style):
         for index in range(7):
             c.line(0, 260 + index * 26, c.width, 160 + index * 26, s.palette[1], 2, .07)
 
-
 def panel(c, s, box, tint, style):
+    """Draw a theme panel using the current appearance and opacity.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        box: Logical drawing rectangle as x, y, width and height.
+        tint: RGB hex color used by this drawing.
+        style: Stable visual style identifier from the selected theme.
+    """
     x, y, w, h = box
     c.gradient(x, y, w, h, [blend(s.base, tint, .14), blend(s.base, tint, .025)], vertical=True, radius=0 if style == "blueprint" else 12)
     if style in ("blueprint", "terminal"):
@@ -129,8 +213,14 @@ def panel(c, s, box, tint, style):
     else:
         c.line(x + 16, y, x + w - 16, y, tint, 2, .55)
 
-
 def frame(c, s, style):
+    """Draw the shared System page heading and footer.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+    """
     margin = 24 if c.compact else 40
     title = NAMES.get(style, style.upper())
     _text(c, title, margin, 31, 18, c.width - margin * 2 - 100, s.fg, True)
@@ -146,8 +236,15 @@ def frame(c, s, style):
             c.rect(x, 459, 17 * s.page_progress, 3, progress_color(s.palette[0], s.page_progress, s.light), radius=1)
     _text(c, f"{s.page_index + 1:02d} / {s.page_count:02d}", c.width - margin, 468, 11, 90, s.muted, align="right")
 
-
 def overview(c, s, style, items):
+    """Compose the System overview from available aggregate readings.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        items: Available aggregate device observations for this page.
+    """
     count = len(items)
     if not count:
         return
@@ -181,8 +278,16 @@ def overview(c, s, style, items):
                 value_size = 21 if key != "memory" else 15 if len(info) > 1 else 17
                 _text(c, value, xx, 400, value_size, half - 8, tint, True)
 
-
 def history(c, s, component, box, tint):
+    """Draw the measured chart history for one hardware component.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        component: Projected hardware component containing the selected metric.
+        box: Logical drawing rectangle as x, y, width and height.
+        tint: RGB hex color used by this drawing.
+    """
     x, y, w, h = box
     metric = component.metric("usagePercent") if component else None
     if metric is None:
@@ -205,8 +310,16 @@ def history(c, s, component, box, tint):
     _text(c, f"{span:.0f}s", x + 27, y + h + 17, 10, 50, s.muted)
     _text(c, "NOW", x + w, y + h + 17, 10, 45, s.muted, align="right")
 
-
 def aggregate_activity(c, s, raw, box, tint):
+    """Draw available aggregate activity readings for one device.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        raw: Raw observation dictionary received from the engine.
+        box: Logical drawing rectangle as x, y, width and height.
+        tint: RGB hex color used by this drawing.
+    """
     x, y, w, h = box
     rows = reading_rows(raw, ("Clock",), aggregate=True)
     if rows:
@@ -214,8 +327,18 @@ def aggregate_activity(c, s, raw, box, tint):
         _text(c, label, x, y + 13, 12, w, s.muted)
         _text(c, value_text(value, unit), x, y + 53, 27, w, tint, True)
 
-
 def occupancy(c, s, used, total, box, tint, label):
+    """Draw a used/total occupancy meter with explicit unavailable handling.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        used: Available used amount in the same units as total.
+        total: Available total capacity; missing or nonpositive totals stay unavailable.
+        box: Logical drawing rectangle as x, y, width and height.
+        tint: RGB hex color used by this drawing.
+        label: Display label, or whether to show it when the parameter is a flag.
+    """
     if used is None or total is None or total <= 0:
         return
     x, y, w, h = box
@@ -227,8 +350,16 @@ def occupancy(c, s, used, total, box, tint, label):
         c.rect(x + index * w / 32, y + h - 19, w / 32 - 3, 16, active if filled else tint, radius=2,
                opacity=1 if filled else .14)
 
-
 def activity(c, s, style, items, components):
+    """Compose System activity meters and measured history charts.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        items: Available aggregate device observations for this page.
+        components: Available projected hardware components.
+    """
     count = len(items)
     if not count:
         return
@@ -261,15 +392,34 @@ def activity(c, s, style, items, components):
                 occupancy(c, s, used / 1024 if used is not None else None, total / 1024 if total is not None else None,
                           (x + 20, 320, w - 40, 80), tint, "VRAM")
 
-
 def heat_color(value, low, high, light=False):
+    """Map an available reading onto the bounded theme heat scale.
+
+    Args:
+        value: Measured reading mapped between the supplied lower and upper scale bounds.
+        low: Lower bound of the displayed range.
+        high: Upper bound of the displayed range.
+        light: Whether the current theme uses a light appearance.
+    """
     cold = "#286EDB" if light else "#2388FF"
     hot = "#D63B4C" if light else "#FF4D5E"
     fraction = 0 if high <= low else clip((value - low) / (high - low))
     return blend(cold, hot, fraction)
 
-
 def heatmap_grid(c, s, rows, value_index, box, low, high, formatter, outline=None):
+    """Draw available readings in a bounded heatmap grid.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        rows: Available projected reading rows, preserving their source units.
+        value_index: Tuple index containing the measured value for heatmap coloring.
+        box: Logical drawing rectangle as x, y, width and height.
+        low: Lower bound of the displayed range.
+        high: Upper bound of the displayed range.
+        formatter: Callback formatting one available heatmap reading.
+        outline: Optional RGB color for the heatmap cell outline.
+    """
     x, y, size, _ = box
     count = len(rows)
     columns = math.ceil(math.sqrt(count))
@@ -298,8 +448,14 @@ def heatmap_grid(c, s, rows, value_index, box, low, high, formatter, outline=Non
         _text(c, formatter(value), xx + cell / 2, yy + cell * .70,
               value_size, cell - 4, "#FFFFFF", True, "center")
 
-
 def core_page(c, s, style):
+    """Compose the available aggregate processor temperature/activity page.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+    """
     rows = core_heatmap_values(s.sensors)
     if len(rows) < 8:
         return
@@ -336,13 +492,25 @@ def core_page(c, s, style):
     _text(c, "0%  COLD", margin + width + gap + 18, 416, 9, width / 2 - 18, s.muted)
     _text(c, "HOT  100%", c.width - margin - 18, 416, 9, width / 2 - 18, s.muted, align="right")
 
-
 def instrument_page(rows, cycle, count):
+    """Select a bounded rotating subset of instrument rows.
+
+    Args:
+        rows: Available projected reading rows, preserving their source units.
+        cycle: Shared page-cycle counter used for bounded row rotation.
+        count: Maximum number of rows selected for this instrument page.
+    """
     start = (cycle % math.ceil(len(rows) / count)) * count
     return rows[start:start + count], start
 
-
 def fan_angle(label, rpm, now):
+    """Advance a fan's animation from its measured RPM while bounding retained state.
+
+    Args:
+        label: Visible reading/device label retained from its source.
+        rpm: Real measured fan speed in revolutions per minute.
+        now: Monotonic timestamp in seconds used for fan motion.
+    """
     previous = _FAN_ROTATIONS.get(label)
     angle = 0
     if previous and now >= previous[0]:
@@ -355,8 +523,17 @@ def fan_angle(label, rpm, now):
         _FAN_ROTATIONS.popitem(last=False)
     return angle
 
-
 def fan_icon(c, x, y, radius, tint, angle):
+    """Draw a fan symbol at the supplied angle.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        x: Horizontal origin in logical canvas units.
+        y: Vertical origin in logical canvas units.
+        radius: Radius or corner radius in logical canvas units.
+        tint: RGB hex color used by this drawing.
+        angle: Fan rotation angle in radians.
+    """
     c.rect(x - radius, y - radius, radius * 2, radius * 2, tint,
            radius=radius * .22, opacity=.35, stroke=1.2)
     c.circle(x, y, radius * .82, tint, opacity=.25, stroke=1)
@@ -377,8 +554,16 @@ def fan_icon(c, x, y, radius, tint, angle):
     c.native.restore()
     c.circle(x, y, radius * .16, tint, stroke=1.6)
 
-
 def power_instruments(c, s, style, rows, box):
+    """Draw the current page of measured power instruments.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        rows: Available projected reading rows, preserving their source units.
+        box: Logical drawing rectangle as x, y, width and height.
+    """
     x, y, w, h = box
     count = 2 if c.compact else 3
     if len(rows) > count:
@@ -410,8 +595,16 @@ def power_instruments(c, s, style, rows, box):
             _text(c, value_text(value, unit), xx, baseline, 32 if h > 180 else 28,
                   width - 16, s.fg, True)
 
-
 def fan_instruments(c, s, style, rows, box):
+    """Draw the current page of observed fan instruments.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        rows: Available projected reading rows, preserving their source units.
+        box: Logical drawing rectangle as x, y, width and height.
+    """
     x, y, w, h = box
     count = 2 if c.compact else 3
     if len(rows) > count and rows[0][1] > 0:
@@ -446,8 +639,14 @@ def fan_instruments(c, s, style, rows, box):
         _text(c, unit, center, top + height - 27, 10, width - 24, s.palette[1], align="center")
         _text(c, name, center, top + height - 12, 12, width - 24, s.muted, align="center")
 
-
 def cooling(c, s, style):
+    """Compose cooling readings with real fan activity and available power data.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+    """
     thermal, powers, fans = cooling_values(s.sensors)
     if thermal:
         thermal, _ = instrument_page(thermal, detail_step(s), 2)
@@ -479,15 +678,30 @@ def cooling(c, s, style):
         if fans:
             fan_instruments(c, s, style, fans, (x, fan_y, w, 422 - fan_y))
 
-
 def trend_extrema(low, high, unit):
+    """Format available minimum/maximum readings for a detail chart.
+
+    Args:
+        low: Lower bound of the displayed range.
+        high: Upper bound of the displayed range.
+        unit: Reading unit shown alongside the available value.
+    """
     digits = 3 if unit == "V" else 1 if unit in ("A", "°C") else 0
     while low != high and round(low, digits) == round(high, digits) and digits < 6:
         digits += 1
     return f"{low:.{digits}f}", f"{high:.{digits}f}"
 
-
 def detail_trend(c, s, samples, box, tint, unit):
+    """Draw real per-reading history and its available extrema.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        samples: Real timestamp/value pairs retained by the bounded history cache.
+        box: Logical drawing rectangle as x, y, width and height.
+        tint: RGB hex color used by this drawing.
+        unit: Reading unit shown alongside the available value.
+    """
     if len(samples) < 2 or samples[-1][0] <= samples[0][0]:
         return
     x, y, w, h = box
@@ -510,8 +724,18 @@ def detail_trend(c, s, samples, box, tint, unit):
         path.cubicTo(middle, previous[1], middle, current[1], *current)
     c.native.drawPath(path, c.paint(tint, .95, pixel))
 
-
 def detail_panel(c, s, style, group, box, tint, step):
+    """Draw the selected detail rows and their bounded history charts.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        group: Projected hardware group with its stable key, device identity and rows.
+        box: Logical drawing rectangle as x, y, width and height.
+        tint: RGB hex color used by this drawing.
+        step: Shared detail-rotation index; None uses the context's current page clock.
+    """
     key, label, name, rows = group
     x, y, w, h = box
     panel(c, s, box, tint, style)
@@ -542,8 +766,17 @@ def detail_panel(c, s, style, group, box, tint, step):
         _text(c, f"{start + 1}–{start + len(visible)} / {len(rows)}", x + w - 20, y + h - 8,
               10, w - 40, s.muted, align="right")
 
-
 def detail_groups(c, s, style, groups, columns=3, step=None):
+    """Lay out rotating hardware detail groups across the supplied columns.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        groups: Available grouped hardware readings for the current page.
+        columns: Number of detail columns available in this layout.
+        step: Shared detail-rotation index; None uses the context's current page clock.
+    """
     if not groups:
         return
     step = detail_step(s) if step is None else step
@@ -560,12 +793,26 @@ def detail_groups(c, s, style, groups, columns=3, step=None):
         height = 93 + 63 * len(detail_rows(group[3], row_step)[0])
         detail_panel(c, s, style, group, (margin + index * (width + gap), 77, width, height), tint, row_step)
 
-
 def details(c, s, style, kinds):
+    """Compose available hardware readings of the requested types.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        kinds: Allowed sensor types for this detail page.
+    """
     detail_groups(c, s, style, sensor_groups(s.sensors, kinds))
 
-
 def memory_page(c, s, style, step):
+    """Compose physical RAM identities and separately labeled SPD limits.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+        step: Shared detail-rotation index; None uses the context's current page clock.
+    """
     raw = s.sensors.get("memory") or {}
     summary = metadata("memory", raw)
     if memory_type := clean(raw.get("type")):
@@ -618,9 +865,16 @@ def memory_page(c, s, style, step):
                 _text(c, "CONFIGURED", x + cell - 20, 384, 9, (cell - 40) / 2, s.muted, align="right")
                 _text(c, f"{speed:.0f} MT/s", x + cell - 20, 406, 18, (cell - 40) / 2, s.fg, True, "right")
 
-
 def memory_outline(c, x, y, tint):
     # A small DIMM symbol, not a diagram of the installed module's chip layout.
+    """Draw the decorative RAM-module outline.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        x: Horizontal origin in logical canvas units.
+        y: Vertical origin in logical canvas units.
+        tint: RGB hex color used by this drawing.
+    """
     c.line(x, y, x + 100, y, tint, 1.5, .7)
     c.line(x, y, x, y + 29, tint, 1.5, .7)
     c.line(x + 100, y, x + 100, y + 29, tint, 1.5, .7)
@@ -632,8 +886,14 @@ def memory_outline(c, x, y, tint):
         if offset != 49:
             c.line(x + offset, y + 30, x + offset, y + 34, tint, 2, .6)
 
-
 def render(c, s, style):
+    """Compose the selected available System page in the requested visual style.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+        style: Stable visual style identifier from the selected theme.
+    """
     components = _components(s.sensors)
     _record(components, clean(s.sensors.get("updatedAtUtc")))
     record_details(s.sensors)

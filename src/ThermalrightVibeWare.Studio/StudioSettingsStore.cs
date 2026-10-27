@@ -1,9 +1,29 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: StudioSettingsStore.cs
+ * Purpose: Loads and atomically saves versioned studio choices with recovery notices.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; documentation, refactoring and first-launch policy; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Text.Json;
 using ThermalrightVibeWare.Contracts;
 namespace ThermalrightVibeWare.Studio;
 
 /// <summary>Versioned, bounded JSON settings with atomic replacement and last-good recovery.</summary>
+/// <param name="path">Versioned studio settings file; its temporary sibling and backup stay beside it.</param>
 public sealed class StudioSettingsStore(string path)
 {
     private const int MaximumBytes = 1024 * 1024;
@@ -11,6 +31,8 @@ public sealed class StudioSettingsStore(string path)
     private bool readOnly, recovered;
     public string Path { get; } = System.IO.Path.GetFullPath(path);
     public string? Notice { get; private set; }
+
+    /// <summary>Loads persisted settings, preserving a notice when recovery is needed.</summary>
     public StudioState Load()
     {
         try { return File.Exists(Path) ? Parse(Path) : new(); }
@@ -32,6 +54,9 @@ public sealed class StudioSettingsStore(string path)
             return new();
         }
     }
+
+    /// <summary>Persists the current settings snapshot.</summary>
+    /// <param name="state">Detached studio preferences, category selections and palette overrides.</param>
     public void Save(StudioState state)
     {
         if (readOnly) { throw new IOException(Notice); }
@@ -52,12 +77,16 @@ public sealed class StudioSettingsStore(string path)
         }
         finally { if (File.Exists(temporary)) { File.Delete(temporary); } }
     }
+
+    /// <summary>Converts the studio state to the versioned settings JSON.</summary>
+    /// <param name="state">Detached studio preferences, category selections and palette overrides.</param>
     private static string Serialize(StudioState state)
     {
         var p = state.Preferences;
         return JsonSerializer.Serialize(new
         {
             schemaVersion = 1,
+            isFirstRun = p.IsFirstRun,
             theme = p.Appearance,
             category = p.SelectedCategory,
             themeId = p.SelectedTheme,
@@ -79,6 +108,9 @@ public sealed class StudioSettingsStore(string path)
             palettes = state.Palettes
         }, PanelContract.Json);
     }
+
+    /// <summary>Reads and validates a versioned studio settings file.</summary>
+    /// <param name="path">Local settings, manifest or activity JSON file path used by this operation.</param>
     private static StudioState Parse(string path)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -90,6 +122,14 @@ public sealed class StudioSettingsStore(string path)
         { throw new NotSupportedException("Settings use an unsupported version and will not be overwritten."); }
         var state = new StudioState();
         var preferences = state.Preferences;
+        // A missing field keeps the default first launch visible. Never coerce malformed values.
+        if (json.TryGetProperty("isFirstRun", out var firstRun))
+        {
+            if (firstRun.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
+            { throw new JsonException("isFirstRun must be a boolean."); }
+            preferences.IsFirstRun = firstRun.GetBoolean();
+        }
+
         var ScreenThemes = state.ScreenThemes;
         var ScreenEnabled = state.ScreenEnabled;
         var Palettes = state.Palettes;

@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: hardware.py
+# Purpose: Projects hardware metrics and retains bounded chart history.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """System-theme compositions. Keep measured values and unavailable sensors distinct."""
 from __future__ import annotations
 
@@ -8,13 +27,11 @@ from dataclasses import dataclass
 
 from canvas import blend, clean, clip, optional_number
 
-
 # This is display history, not a sampler. Identical cached snapshots add nothing.
 # At most 64 measured series with 60 real samples each survive in this worker.
 _HISTORY = OrderedDict()
 _MAX_SERIES = 64
 _MAX_SAMPLES = 60
-
 
 @dataclass(frozen=True)
 class Metric:
@@ -24,7 +41,6 @@ class Metric:
     text: str
     ratio: float | None = None
 
-
 @dataclass
 class Component:
     key: str
@@ -33,19 +49,38 @@ class Component:
     metrics: list[Metric]
 
     def metric(self, key):
+        """Return a component metric by its stable key, if available.
+
+        Args:
+            key: Stable cache, metric or data identity used by this helper.
+        """
         return next((item for item in self.metrics if item.key == key), None)
 
-
-
 def _metric(raw, key, label, suffix, digits=0, ratio=False):
+    """Project one available hardware value with its unit and formatting policy.
+
+    Args:
+        raw: Raw observation dictionary received from the engine.
+        key: Stable cache, metric or data identity used by this helper.
+        label: Visible reading/device label retained from its source.
+        suffix: Display unit suffix for the metric.
+        digits: Number of decimal places used to format the metric.
+        ratio: Whether to derive a normalized meter fraction from a source percentage.
+    """
     value = optional_number(raw.get(key))
     if value is None or (value < 0 and key != "temperatureC"):
         return None
     text = f"{value:.{digits}f}{suffix}"
     return Metric(key, clean(label), value, text, clip(value / 100) if ratio else None)
 
-
 def _processor(raw, key, label):
+    """Project aggregate CPU/GPU metrics from a hardware observation.
+
+    Args:
+        raw: Raw observation dictionary received from the engine.
+        key: Stable cache, metric or data identity used by this helper.
+        label: Visible reading/device label retained from its source.
+    """
     if not isinstance(raw, dict):
         return None
     metrics = [
@@ -56,8 +91,12 @@ def _processor(raw, key, label):
     metrics = [item for item in metrics if item is not None]
     return Component(key, label, clean(raw.get("name")), metrics) if metrics else None
 
-
 def _components(raw):
+    """Project available CPU, GPU, motherboard and physical RAM components.
+
+    Args:
+        raw: Raw observation dictionary received from the engine.
+    """
     result = []
     cpu = _processor(raw.get("cpu"), "cpu", "CPU")
     if cpu:
@@ -85,9 +124,12 @@ def _components(raw):
             result.append(Component("memory", "RAM", "", metrics))
     return result
 
-
 def _board_temperatures(raw):
-    """Keep board channel names; a generic channel is never called CPU temperature."""
+    """Keep board channel names; a generic channel is never called CPU temperature.
+
+    Args:
+        raw: Raw observation dictionary received from the engine.
+    """
     result = []
     readings = raw.get("temperatures") if isinstance(raw.get("temperatures"), list) else []
     for index, reading in enumerate(readings[:16]):
@@ -98,8 +140,13 @@ def _board_temperatures(raw):
             result.append(Metric(f"boardTemperature-{index}", metric.label, metric.value, metric.text))
     return result
 
-
 def _record(components, stamp):
+    """Record new aggregate metric samples while bounding history and stale data.
+
+    Args:
+        components: Available projected hardware components.
+        stamp: Engine observation timestamp used to avoid duplicate history samples.
+    """
     active = set()
     now = time.monotonic()
     for component in components:
@@ -131,19 +178,40 @@ def _record(components, stamp):
     while len(_HISTORY) > _MAX_SERIES:
         _HISTORY.popitem(last=False)
 
-
 def _samples(component, metric):
+    """Return a copy of the available values for one component metric.
+
+    Args:
+        component: Projected hardware component containing the selected metric.
+        metric: Projected metric carrying its stable identity and current value.
+    """
     series = _HISTORY.get((component.key, component.name, metric.key))
     return list(series["samples"]) if series else []
 
-
 def _text(c, value, x, y, size, width, tint=None, bold=False, align="left"):
     # Reserve predictable vertical slots at every supported fontScale.
+    """Draw bounded hardware text within the current theme's scaled vertical slot.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        value: Hardware reading text drawn inside the supplied scaled layout slot.
+        x: Horizontal origin in logical canvas units.
+        y: Vertical origin in logical canvas units.
+        size: Text size or square image size in logical canvas units.
+        width: Available width in logical canvas units; None uses the helper's default.
+        tint: Optional RGB hex override; None uses this drawing helper's semantic theme color.
+        bold: Whether to select the bold cached font face.
+        align: Text anchor: left, center or right.
+    """
     c.text(value, x, y, min(size, size * 1.14 / c.ctx.font_scale), tint, width, align, bold)
 
-
-
 def _points(component, metric):
+    """Return available monotonic timestamps paired with component metric values.
+
+    Args:
+        component: Projected hardware component containing the selected metric.
+        metric: Projected metric carrying its stable identity and current value.
+    """
     series = _HISTORY.get((component.key, component.name, metric.key))
     return list(zip(series["times"], series["samples"])) if series else []
 # VBWR E

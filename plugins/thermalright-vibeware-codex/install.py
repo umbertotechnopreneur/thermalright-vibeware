@@ -1,7 +1,23 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: install.py
+# Purpose: Prepares the bundled Codex plugin and its local marketplace registration.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 """Stage the optional local Codex plugin for manual install and hook trust."""
 
 from __future__ import annotations
@@ -15,18 +31,21 @@ import sys
 import tempfile
 from uuid import uuid4
 
-
 PLUGIN_NAME = "thermalright-vibeware-codex"
 SOURCE_PATH = "./.codex/plugins/thermalright-vibeware-codex"
 
-
 def locations() -> tuple[Path, Path]:
+    """Resolve the per-user Codex plugin and marketplace file locations."""
     home = Path.home()
     return (home / ".codex" / "plugins" / PLUGIN_NAME,
             home / ".agents" / "plugins" / "marketplace.json")
 
-
 def read_marketplace(path: Path) -> dict[str, object]:
+    """Read the bounded local marketplace file or create an empty supported structure.
+
+    Args:
+        path: Local state or marketplace JSON file path.
+    """
     if not path.exists():
         return {"name": "thermalright-vibeware-local", "plugins": []}
     if path.stat().st_size > 1_048_576:
@@ -37,8 +56,13 @@ def read_marketplace(path: Path) -> dict[str, object]:
         raise ValueError("Personal marketplace has an unsupported shape; no changes were made.")
     return data
 
-
 def atomic_json(path: Path, value: dict[str, object]) -> None:
+    """Replace a local JSON file atomically after writing its temporary sibling.
+
+    Args:
+        path: Local state or marketplace JSON file path.
+        value: JSON-compatible state object written to a temporary sibling before atomic replacement.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
     try:
@@ -47,8 +71,8 @@ def atomic_json(path: Path, value: dict[str, object]) -> None:
     finally:
         temporary.unlink(missing_ok=True)
 
-
 def plugin_entry() -> dict[str, object]:
+    """Describe the bundled plugin's marketplace entry."""
     return {
         "name": PLUGIN_NAME,
         "source": {"source": "local", "path": SOURCE_PATH},
@@ -57,9 +81,12 @@ def plugin_entry() -> dict[str, object]:
         "interface": {"displayName": "Thermalright VibeWare Codex"},
     }
 
-
 def stage_portable_python(destination: Path) -> bool:
-    """Keep the optional hook working after the portable Thermalright VibeWare ZIP is moved."""
+    """Keep the optional hook working after the portable Thermalright VibeWare ZIP is moved.
+
+    Args:
+        destination: Local plugin/runtime staging directory owned by this operation.
+    """
     if os.name != "nt":
         return False
     runtime = Path(sys.executable).resolve().parent
@@ -95,8 +122,13 @@ def stage_portable_python(destination: Path) -> bool:
         atomic_json(hooks_path, hooks)
     return True
 
-
 def stage_plugin(source: Path, destination: Path) -> None:
+    """Stage the bundled plugin and its portable Python runtime.
+
+    Args:
+        source: Bundled plugin source directory to copy.
+        destination: Local plugin/runtime staging directory owned by this operation.
+    """
     if destination.exists():
         if destination.is_symlink():
             raise ValueError("The plugin destination is a link; no changes were made.")
@@ -112,8 +144,8 @@ def stage_plugin(source: Path, destination: Path) -> None:
         os.replace(staged, destination)
     stage_portable_python(destination)
 
-
 def prepare() -> None:
+    """Stage and list the bundled local plugin without enabling arbitrary theme providers."""
     if sys.version_info < (3, 10):
         raise ValueError("Python 3.10 or newer is required for the ThermalrightVibeWare Codex hook.")
     source = Path(__file__).resolve().parent
@@ -138,8 +170,8 @@ def prepare() -> None:
     print(f"Staged {destination}")
     print("Restart Codex, install Thermalright VibeWare Codex from your local Plugins Directory, then review and trust its hooks.")
 
-
 def status() -> None:
+    """Print the current local plugin preparation and listing status."""
     destination, marketplace_path = locations()
     marketplace = read_marketplace(marketplace_path)
     entries = marketplace["plugins"]
@@ -149,8 +181,8 @@ def status() -> None:
     print(f"Personal marketplace: {'listed' if listed else 'not listed'}")
     print("Codex installation and hook trust must be checked inside Codex.")
 
-
 def unlist() -> None:
+    """Remove only this plugin's local marketplace listing."""
     _, marketplace_path = locations()
     marketplace = read_marketplace(marketplace_path)
     entries = marketplace["plugins"]
@@ -163,8 +195,8 @@ def unlist() -> None:
     atomic_json(marketplace_path, marketplace)
     print("Removed ThermalrightVibeWare Codex from the personal marketplace; staged files were preserved.")
 
-
 def main() -> int:
+    """Dispatch explicit local plugin preparation, status and unlisting commands."""
     parser = argparse.ArgumentParser(description="Prepare my optional ThermalrightVibeWare Codex plugin")
     parser.add_argument("action", choices=("status", "prepare", "unlist"), nargs="?", default="status")
     args = parser.parse_args()
@@ -174,7 +206,6 @@ def main() -> int:
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"ThermalrightVibeWare Codex: {error}", file=sys.stderr)
         return 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

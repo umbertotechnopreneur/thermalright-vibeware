@@ -1,7 +1,23 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: Bundle-Python.ps1
+# Purpose: Stages approved Python/runtime dependencies for the source-built distribution.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 param(
     [Parameter(Mandatory)][ValidateSet('x64', 'ARM64')][string]$Architecture,
     [Parameter(Mandatory)][string]$Destination,
@@ -33,6 +49,16 @@ $wheelCache = Join-Path $cache 'wheels'
 $wheelManifest = Join-Path $wheelCache 'verified.json'
 $bundleMarker = Join-Path $pythonDestination 'thermalright-vibeware-bundle.json'
 
+<#
+.SYNOPSIS
+Verifies an input file against its pinned SHA-256 before use.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+
+.PARAMETER Expected
+Pinned SHA-256 expected for this exact dependency input.
+#>
 function Assert-Hash([string]$Path, [string]$Expected) {
     $actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actual -ne $Expected.ToLowerInvariant()) {
@@ -40,6 +66,13 @@ function Assert-Hash([string]$Path, [string]$Expected) {
     }
 }
 
+<#
+.SYNOPSIS
+Reads exact Python name/version pins and rejects unpinned requirements.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+#>
 function Read-PinnedRequirements([string]$Path) {
     $pins = @()
     foreach ($line in Get-Content -LiteralPath $Path) {
@@ -54,6 +87,16 @@ function Read-PinnedRequirements([string]$Path) {
     return $pins
 }
 
+<#
+.SYNOPSIS
+Extracts an approved wheel while rejecting entries outside the Python root.
+
+.PARAMETER Wheel
+Approved local wheel archive whose entries are checked before extraction.
+
+.PARAMETER PythonRoot
+Destination Python root; archive entries must remain inside its install scheme.
+#>
 function Expand-Wheel([string]$Wheel, [string]$PythonRoot) {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -97,6 +140,13 @@ function Expand-Wheel([string]$Wheel, [string]$PythonRoot) {
     } finally { $zip.Dispose() }
 }
 
+<#
+.SYNOPSIS
+Copies the complete first-party theme runtime into the engine payload.
+
+.PARAMETER Engine
+Staged engine directory receiving the complete theme-runtime folder.
+#>
 function Copy-ThemeRuntime([string]$Engine) {
     $target = Join-Path $Engine 'theme-runtime'
     New-Item -ItemType Directory -Path $target -Force | Out-Null

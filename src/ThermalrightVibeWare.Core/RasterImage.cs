@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: RasterImage.cs
+ * Purpose: Reads raster images without transferring ownership of caller streams.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Buffers.Binary;
 using System.Drawing;
@@ -15,6 +30,8 @@ internal static class RasterImage
     internal const long MaximumPixels = 16_777_216;
 
     // The caller owns the stream and keeps it alive until the returned image is disposed.
+    /// <summary>Decodes a raster while keeping ownership of the input stream with the caller.</summary>
+    /// <param name="stream">Input stream owned by the caller.</param>
     internal static Image Open(Stream stream)
     {
         if (!stream.CanSeek || stream.Length is <= 0 or > MaximumBytes)
@@ -30,6 +47,8 @@ internal static class RasterImage
         throw new IOException("The decoded image does not match its inspected dimensions.");
     }
 
+    /// <summary>Reads raster dimensions while keeping ownership of the input stream with the caller.</summary>
+    /// <param name="stream">Input stream owned by the caller.</param>
     private static (long Width, long Height) Dimensions(Stream stream)
     {
         Span<byte> header = stackalloc byte[26];

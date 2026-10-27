@@ -1,5 +1,30 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: render.py
+# Purpose: Composes the timeline theme in the codex pack using shared drawing helpers.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 def render(c, s):
+    """Compose the timeline theme using the shared Canvas API.
+
+    Args:
+        c: Shared Canvas facade; all coordinates use its logical theme space.
+        s: Current ThemeContext containing available data, palette and page timing.
+    """
     if c.compact:
         c.compact_codex("timeline")
         return

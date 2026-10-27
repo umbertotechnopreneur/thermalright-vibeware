@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: PanelSettings.cs
+ * Purpose: Defines and validates persisted CLI panel settings.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Text.Json;
 
@@ -16,6 +31,7 @@ public sealed class PanelSettingsStore
     private readonly string path;
 
     /// <summary>Uses the normal per-user destination, or a caller-supplied isolated destination for tests.</summary>
+    /// <param name="settingsPath">Explicit settings file path, or the default when the constructor allows null.</param>
     public PanelSettingsStore(string? settingsPath = null)
     {
         path = settingsPath ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "settings.json");
@@ -32,6 +48,7 @@ public sealed class PanelSettingsStore
     }
 
     /// <summary>Saves explicit choices without replacing the previous file until the new JSON is complete.</summary>
+    /// <param name="settings">Panel settings to validate or persist.</param>
     public void Save(PanelSettings settings)
     {
         Validate(settings);
@@ -46,6 +63,8 @@ public sealed class PanelSettingsStore
         finally { if (File.Exists(temporary)) { File.Delete(temporary); } }
     }
 
+    /// <summary>Rejects settings outside the supported contract.</summary>
+    /// <param name="settings">Panel settings to validate or persist.</param>
     private static void Validate(PanelSettings settings)
     {
         if (settings.Rotation is not (0 or 90 or 180 or 270)) { throw new ArgumentException("Rotation must be 0, 90, 180, or 270 degrees."); }

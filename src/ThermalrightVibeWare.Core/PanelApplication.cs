@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: PanelApplication.cs
+ * Purpose: Shares discovery, settings and explicit physical output between CLI callers.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 namespace ThermalrightVibeWare.Core;
 
@@ -17,6 +32,7 @@ public sealed class PanelApplication
     private readonly PanelSettingsStore settingsStore;
 
     /// <summary>Creates the small application facade for either interactive surface.</summary>
+    /// <param name="settingsStore">Optional panel settings store; null selects the default per-user store.</param>
     public PanelApplication(PanelSettingsStore? settingsStore = null)
     {
         this.settingsStore = settingsStore ?? new PanelSettingsStore();
@@ -29,9 +45,12 @@ public sealed class PanelApplication
     public PanelSettings LoadSettings() => settingsStore.Load();
 
     /// <summary>Saves explicit profile, rotation, and image selections.</summary>
+    /// <param name="settings">Panel settings to validate or persist.</param>
     public void SaveSettings(PanelSettings settings) => settingsStore.Save(settings);
 
     /// <summary>Requests a single device-information reply on a background thread.</summary>
+    /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     public Task<PanelProbeResult> ProbeAsync(DisplayDevice device, CancellationToken cancellationToken = default) => Task.Run(async () =>
     {
         using var session = PanelSession.Open(device);
@@ -39,6 +58,9 @@ public sealed class PanelApplication
     }, cancellationToken);
 
     /// <summary>Renders and submits one picture using a verified handshake and a resolved profile.</summary>
+    /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
+    /// <param name="request">Requested image/pattern, explicit profile and supported rotation.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     public Task<PanelSubmission> SendAsync(DisplayDevice device, PanelPictureRequest request,
         CancellationToken cancellationToken = default) => Task.Run(async () =>
     {
@@ -51,6 +73,11 @@ public sealed class PanelApplication
     }, cancellationToken);
 
     /// <summary>Repeats a cached still image at one frame per second until cancelled or disconnected.</summary>
+    /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
+    /// <param name="request">Requested image/pattern, explicit profile and supported rotation.</param>
+    /// <param name="duration">Optional output duration; null runs until cancellation or disconnection.</param>
+    /// <param name="progress">Optional sink for submitted-frame progress messages.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     public Task PlayAsync(DisplayDevice device, PanelPictureRequest request, TimeSpan? duration,
         IProgress<string>? progress, CancellationToken cancellationToken) => Task.Run(async () =>
     {
@@ -75,6 +102,9 @@ public sealed class PanelApplication
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
     }, cancellationToken);
 
+    /// <summary>Resolves an explicit or detected profile after a compatible device handshake.</summary>
+    /// <param name="request">Requested image/pattern, explicit profile and supported rotation.</param>
+    /// <param name="probe">Parsed device handshake used to verify compatibility and resolve dimensions.</param>
     private static DisplayProfile ResolveProfile(PanelPictureRequest request, PanelProbeResult probe)
     {
         if (!probe.IsCompatible) { throw new IOException(probe.Message); }
@@ -83,6 +113,9 @@ public sealed class PanelApplication
             : DisplayProfileCatalog.GetRequired(request.ProfileId));
     }
 
+    /// <summary>Renders the requested image/pattern and wraps it in a panel picture packet.</summary>
+    /// <param name="request">Requested image/pattern, explicit profile and supported rotation.</param>
+    /// <param name="profile">Validated target dimensions and pixel encoding.</param>
     private static byte[] Prepare(PanelPictureRequest request, DisplayProfile profile)
     {
         var payload = request.ImagePath is null ? PanelFrameRenderer.Pattern(profile)

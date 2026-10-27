@@ -1,8 +1,30 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: StudioPreferences.cs
+ * Purpose: Defines saved studio preferences and their defaults.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; documentation, refactoring and first-launch policy; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 namespace ThermalrightVibeWare.Studio;
 
 public sealed record StudioPreferences
 {
+    /// <summary>True until the main studio has loaded once and that completion was saved successfully.</summary>
+    public bool IsFirstRun { get; set; } = true;
+
     public int RefreshMilliseconds { get; set; } = 1000;
     public string JpegQuality { get; set; } = "high";
     public string ProfileSelection { get; set; } = "auto";

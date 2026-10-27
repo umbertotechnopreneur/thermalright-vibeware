@@ -1,13 +1,36 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: Uninstall-Local.ps1
+# Purpose: Removes only the current user's product installation while preserving settings.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 [CmdletBinding()]
 param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+<#
+.SYNOPSIS
+Rejects a path whose existing components traverse a reparse point.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+#>
 function Assert-NoReparsePath([string]$Path) {
     $current = [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('\', '/'))
     while (-not [string]::IsNullOrWhiteSpace($current)) {
@@ -23,6 +46,16 @@ function Assert-NoReparsePath([string]$Path) {
     }
 }
 
+<#
+.SYNOPSIS
+Verifies that a release directory belongs to the managed application root.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+
+.PARAMETER Root
+Resolved application root that bounds every managed file operation.
+#>
 function Assert-ReleasePath([string]$Path, [string]$Root) {
     $fullPath = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
     if (-not [string]::Equals([System.IO.Path]::GetDirectoryName($fullPath), $Root, [StringComparison]::OrdinalIgnoreCase) -or
@@ -39,6 +72,13 @@ function Assert-ReleasePath([string]$Path, [string]$Root) {
     }
 }
 
+<#
+.SYNOPSIS
+Rejects cleanup while a verified application process is still running.
+
+.PARAMETER Root
+Resolved application root that bounds every managed file operation.
+#>
 function Assert-AppStopped([string]$Root) {
     $prefix = $Root.TrimEnd('\') + '\'
     foreach ($process in (Get-CimInstance Win32_Process -Filter "Name='ThermalrightVibeWare.exe' OR Name='trv.exe' OR Name='python.exe' OR Name='dotnet.exe'")) {

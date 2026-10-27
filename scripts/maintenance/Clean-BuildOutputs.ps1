@@ -1,8 +1,25 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: Clean-BuildOutputs.ps1
+# Purpose: Removes scoped generated repository output while preserving the requested final MSI.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 #requires -Version 7.0
+
 [CmdletBinding()]
 param([string]$KeepMsiPath)
 Set-StrictMode -Version Latest
@@ -16,6 +33,13 @@ $tracked = @(git -C $repo ls-files)
 if ($keep -and ([IO.Path]::GetExtension($keep) -ne '.msi' -or [IO.Path]::GetDirectoryName($keep) -ne $packages)) {
     throw 'KeepMsiPath must name the final MSI directly under this repository artifacts/packages folder.'
 }
+<#
+.SYNOPSIS
+Removes only a verified generated path inside this repository.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+#>
 function Remove-Generated([string]$Path) {
     $absolute = [IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
     if (-not $absolute.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) -or $absolute -eq $keep) {

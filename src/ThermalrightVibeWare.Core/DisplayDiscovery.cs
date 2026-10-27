@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: DisplayDiscovery.cs
+ * Purpose: Enumerates supported present panel interfaces and HID capabilities.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -27,6 +42,8 @@ public static class DisplayDiscovery
         return devices.OrderBy(device => device.DevicePath, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    /// <summary>Enumerates present interface paths for the supplied Windows class GUID.</summary>
+    /// <param name="interfaceClass">Windows interface class GUID to enumerate.</param>
     internal static IEnumerable<string> InterfacePaths(Guid interfaceClass)
     {
         var set = Native.SetupDiGetClassDevs(ref interfaceClass, IntPtr.Zero, IntPtr.Zero,
@@ -72,6 +89,8 @@ public static class DisplayDiscovery
         finally { Native.SetupDiDestroyDeviceInfoList(set); }
     }
 
+    /// <summary>Reads capabilities only while the device interface is still present.</summary>
+    /// <param name="path">Literal Windows device-interface path to inspect.</param>
     private static DisplayDevice? ReadPresentHidCapabilities(string path)
     {
         try { return ReadHidCapabilities(path); }
@@ -79,6 +98,8 @@ public static class DisplayDiscovery
         catch (Win32Exception error) when (error.NativeErrorCode is 2 or 6 or 31 or 1167) { return null; }
     }
 
+    /// <summary>Reads HID capability metadata and filters unsupported report layouts.</summary>
+    /// <param name="path">Literal Windows device-interface path to inspect.</param>
     private static DisplayDevice? ReadHidCapabilities(string path)
     {
         // Zero desired access queries descriptors without opening a read/write session.

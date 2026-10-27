@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: Program.cs
+ * Purpose: Starts the single desktop studio with setup gating, elevation and memory protection.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; documentation, refactoring and first-launch policy; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Drawing;
 using OpenSilver.Photino;
@@ -15,6 +30,7 @@ namespace ThermalrightVibeWare.Photino;
 internal static class Program
 {
     /// <summary>Connect the local engine client and open the desktop presentation.</summary>
+    /// <param name="args">Command-line arguments including the command name.</param>
     [STAThread]
     private static int Main(string[] args)
     {
@@ -28,8 +44,8 @@ internal static class Program
         if (args.Any(argument => argument is not "--start-minimized" and not "--restore-last-session"))
         { Console.Error.WriteLine("Usage: ThermalrightVibeWare.exe [--start-minimized] [--restore-last-session]"); return 2; }
         var restoreLastSession = OperatingSystem.IsWindows();
-        var startMinimized = args.Contains("--start-minimized") || args.Contains("--restore-last-session");
-        if (OperatingSystem.IsWindows() && WindowsSetupGate.IsInstalling()) { if (!startMinimized) { WindowsSetupGate.ShowBusy(); } return 3; }
+        var requestedTrayStart = args.Contains("--start-minimized") || args.Contains("--restore-last-session");
+        if (OperatingSystem.IsWindows() && WindowsSetupGate.IsInstalling()) { if (!requestedTrayStart) { WindowsSetupGate.ShowBusy(); } return 3; }
         // Request elevation before creating the job, engine, WebView or single-instance objects.
         // The child waits for this launcher to exit and keeps the sign-in/tray arguments.
         if (OperatingSystem.IsWindows() && WindowsElevation.StartAdministrator(args)) { return 0; }
@@ -40,7 +56,7 @@ internal static class Program
         using var instanceLifetime = instance;
         if (!instance.IsPrimary)
         {
-            if (!startMinimized) { instance.RequestActivation(); }
+            if (!requestedTrayStart) { instance.RequestActivation(); }
             return 0;
         }
 
@@ -48,6 +64,10 @@ internal static class Program
         if (OperatingSystem.IsWindows() && memoryGuard is null) { return 1; }
         using var client = new StdioPanelClient();
         using var session = new StudioSession(client, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "presentation.json"), restoreLastSession);
+        // First launch always shows the studio, including a launch from the sign-in shortcut.
+        // Later Windows launches start in the tray; the icon and activation channel can reopen it.
+        var isFirstRun = session.Model.Preferences.IsFirstRun;
+        var startMinimized = OperatingSystem.IsWindows() && !isFirstRun;
         PhotinoWindow? window = null;
         WindowsTrayService? tray = null;
         WindowsSetupShutdown? setupShutdown = null;
@@ -68,6 +88,7 @@ internal static class Program
                 window?.Close();
             }));
 
+        // Restore the existing instance on the native UI thread; do not create another studio.
         void ShowStudio()
         {
             if (Volatile.Read(ref exiting) != 0 || window is null) { return; }
@@ -121,6 +142,7 @@ internal static class Program
                             openGitHub: () => OpenWebsite("https://github.com/umbertotechnopreneur/thermalright-vibeware"));
                         tray.Error += error => Console.Error.WriteLine("Thermalright VibeWare tray: " + error.Message);
                         if (startMinimized) { tray.HideWindow(); }
+                        else if (isFirstRun) { tray.ShowWindow(); }
                     }
                     catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
                     { Console.Error.WriteLine("Thermalright VibeWare tray: " + error.Message); created.SetMinimized(false); }
@@ -156,6 +178,7 @@ internal static class Program
         return 0;
     }
 
+    /// <summary>Starts the required guard or reports why startup cannot continue.</summary>
     private static WindowsMemoryGuard.Session? StartMemoryGuard()
     {
         if (!OperatingSystem.IsWindows()) { return null; }
@@ -165,6 +188,7 @@ internal static class Program
     }
 
     /// <summary>Reopen an existing studio centered without discarding its chosen size.</summary>
+    /// <param name="window">Existing studio host window to size or center.</param>
     private static void CenterOnWorkArea(PhotinoWindow window)
     {
         var monitors = window.Monitors;
@@ -181,21 +205,36 @@ internal static class Program
             area.Top + Math.Max(0, (area.Height - window.Size.Height) / 2)));
     }
 
+    /// <summary>Adapts the native host's window and guarded-restart actions for the portable view.</summary>
+    /// <param name="canMinimize">Reads whether the tray is available for this instance.</param>
+    /// <param name="canRestart">Reads whether a guarded administrator restart is available.</param>
+    /// <param name="restart">Requests the guarded administrator restart and reports its result.</param>
+    /// <param name="minimize">Hides the existing window in its tray.</param>
+    /// <param name="close">Requests normal host shutdown.</param>
     private sealed class StudioWindowActions(Func<bool> canMinimize, Func<bool> canRestart, Func<Task<bool>> restart, Action minimize, Action close) : IStudioWindowActions
     {
         public bool CanMinimizeToTray => canMinimize();
         public bool CanRestartAsAdministrator => canRestart();
+
+        /// <summary>Requests a guarded restart with administrator rights.</summary>
         public Task<bool> RestartAsAdministratorAsync() => restart();
+
+        /// <summary>Delegates studio minimization to the desktop host.</summary>
         public void MinimizeToTray() => minimize();
+
+        /// <summary>Delegates application shutdown to the desktop host.</summary>
         public void CloseApplication() => close();
     }
 
+    /// <summary>Opens an explicitly requested website with the default browser.</summary>
+    /// <param name="url">Explicit URL to open or query, according to this method's role.</param>
     private static void OpenWebsite(string url)
     {
         using var browser = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
     }
 
     /// <summary>Choose the initial window size once, while respecting display scaling and taskbars.</summary>
+    /// <param name="window">Existing studio host window to size or center.</param>
     private static void FitToWorkArea(PhotinoWindow window)
     {
         // Monitor information is available only after Photino creates its native window.

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: Thermalright04165302Protocol.cs
+ * Purpose: Encodes the independently documented Thermalright device-info and picture packets.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.Buffers.Binary;
 
@@ -47,6 +62,8 @@ public static class Thermalright04165302Protocol
     }
 
     /// <summary>Wraps an encoded frame and pads the wire packet to a 512-byte boundary.</summary>
+    /// <param name="profile">Validated target dimensions and pixel encoding.</param>
+    /// <param name="payload">Encoded image payload without the wire-protocol header or padding.</param>
     public static byte[] CreatePicturePacket(DisplayProfile profile, ReadOnlySpan<byte> payload)
     {
         ArgumentNullException.ThrowIfNull(profile);

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: DisplayProfileCatalog.cs
+ * Purpose: Maps documented panel modes to supported dimensions and encodings.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 namespace ThermalrightVibeWare.Core;
 
@@ -29,6 +44,8 @@ public static class DisplayProfileCatalog
     public static IReadOnlyList<DisplayProfile> All => Profiles;
 
     /// <summary>Maps documented model bytes, leaving unsupported or ambiguous combinations unresolved.</summary>
+    /// <param name="productMode">Product-mode byte returned by the display information exchange.</param>
+    /// <param name="subMode">Sub-mode byte returned by the display information exchange.</param>
     public static DisplayProfile? FromProductMode(byte productMode, byte subMode)
     {
         var id = productMode switch
@@ -55,6 +72,7 @@ public static class DisplayProfileCatalog
     }
 
     /// <summary>Finds a built-in profile by its stable CLI identifier.</summary>
+    /// <param name="id">Stable display-profile identifier from the supported catalog.</param>
     public static DisplayProfile GetRequired(string id)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);

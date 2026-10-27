@@ -1,4 +1,23 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsMetricsService.Debug.cs
+ * Purpose: Exposes raw sensor channels and access notices for diagnostics.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Diagnostics;
 using System.Security.Principal;
 using ThermalrightVibeWare.Contracts;
@@ -87,8 +106,16 @@ public sealed partial class WindowsMetricsService
         }
     }
 
+    /// <summary>Returns a finite sensor value or unavailable.</summary>
+    /// <param name="value">Optional raw floating-point sensor reading; non-finite values become unavailable.</param>
     private static double? Finite(float? value) => value is float number && float.IsFinite(number) ? number : null;
+
+    /// <summary>Bounds diagnostic text to the display limit.</summary>
+    /// <param name="text">Text to format, normalize or display in this operation.</param>
     private static string Limit(string text) => text.Length <= 160 ? text : text[..160];
+
+    /// <summary>Maps a sensor type to its displayed unit.</summary>
+    /// <param name="type">Raw sensor type used to select readings or their display unit.</param>
     private static string SensorUnit(Lhm.SensorType type) => type.ToString() switch
     {
         "Voltage" => "V",

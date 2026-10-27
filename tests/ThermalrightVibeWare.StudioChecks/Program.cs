@@ -90,6 +90,7 @@ await using (var session = new StudioSession(restored, path, restoreLastSession:
 
 try { new ThemePalette(Accent: "red").Validate(); throw new InvalidOperationException("Invalid color accepted."); }
 catch (ArgumentException) { checks++; }
+FirstRunChecks.Run(output, Check);
 await ArchitectureChecks.RunAsync(output, Check);
 Console.WriteLine($"{checks} studio checks passed. Fake client only; no UI, USB, audio, sensors or installer actions.");
 

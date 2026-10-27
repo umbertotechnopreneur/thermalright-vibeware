@@ -80,3 +80,6 @@
 - The README uses real owner-supplied captures with conventional cropping, resizing and mild sharpening, and asks for volunteer Linux/macOS guinea pigs. Historical evidence keeps its original filenames and measurements.
 
 - I keep only Reinstall.ps1 and Publish.ps1 at the scripts root. Supporting scripts live in build, install, maintenance and tools folders; repository-relative paths and CI references move together. Portable install scripts still resolve their own extracted package folder.
+
+- I group studio partials, CLI commands and Python drawing modules by responsibility. Method comments explain inputs and ownership; file headers record purpose and actual provenance. The source map lives in `docs/code-maintenance.md`.
+- First launch uses a persisted `IsFirstRun = true`. I show the studio once, then save false only after its main page loads. Later Windows launches start in the tray. A failed save preserves first-launch visibility; the tray can always reopen the window.

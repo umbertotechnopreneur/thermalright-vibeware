@@ -1,4 +1,23 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WindowsMetricsService.Memory.cs
+ * Purpose: Combines Windows physical RAM identities with unambiguous SPD observations.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 using System.Globalization;
 using System.Management;
 using Lhm = LibreHardwareMonitor.Hardware;
@@ -12,6 +31,7 @@ public sealed partial class WindowsMetricsService
     private IReadOnlyList<HardwareMemoryModule> memoryModules = [];
 
     // Static SMBIOS metadata is read once when this reader opens, never every frame.
+    /// <summary>Reads physical RAM identities from Windows without guessing slot mappings.</summary>
     private void ReadMemoryConfiguration()
     {
         try
@@ -64,6 +84,9 @@ public sealed partial class WindowsMetricsService
         { memoryMetadataNotice = "RAM identity/type/configured speed metadata unavailable: " + error.GetType().Name; }
     }
 
+    /// <summary>Normalizes a RAM identity field while preserving unavailable values.</summary>
+    /// <param name="value">Raw Windows memory identity field; null or placeholder text is unavailable.</param>
+    /// <param name="serialNumber">Whether placeholder serial-number values must be treated as unavailable.</param>
     private static string? MemoryIdentityText(object? value, bool serialNumber = false)
     {
         var text = value?.ToString()?.Trim();
@@ -76,6 +99,9 @@ public sealed partial class WindowsMetricsService
         return Limit(text);
     }
 
+    /// <summary>Projects one SPD device and its available readings into a memory module.</summary>
+    /// <param name="hardware">Raw hardware device from the configured LibreHardwareMonitor provider.</param>
+    /// <param name="sensors">Raw sensor channels supplied by the selected hardware device.</param>
     private HardwareMemoryModule ReadSpdModule(Lhm.IHardware hardware, Lhm.ISensor[] sensors)
     {
         // LHM 0.9.6 names SPD devices as "manufacturer - part number (#SMBus index)".
@@ -93,6 +119,9 @@ public sealed partial class WindowsMetricsService
             Limit(hardware.Identifier.ToString()), manufacturer, partNumber);
     }
 
+    /// <summary>Combines physical RAM identities and SPD data only when model matching is unambiguous.</summary>
+    /// <param name="configured">Physical RAM identities reported by Windows.</param>
+    /// <param name="spd">Independently reported SPD modules, without inferred physical slot assignments.</param>
     internal static IReadOnlyList<HardwareMemoryModule> MergeMemoryModules(IReadOnlyList<HardwareMemoryModule> configured,
         IReadOnlyList<HardwareMemoryModule> spd)
     {
@@ -110,12 +139,18 @@ public sealed partial class WindowsMetricsService
         }).ToArray();
     }
 
+    /// <summary>Compares normalized RAM model identities without inferring physical slots.</summary>
+    /// <param name="left">First RAM identity being compared.</param>
+    /// <param name="right">Second RAM identity being compared.</param>
     private static bool SameMemoryModel(HardwareMemoryModule left, HardwareMemoryModule right) =>
         left.PartNumber is not null && right.PartNumber is not null
         && left.PartNumber.Equals(right.PartNumber, StringComparison.OrdinalIgnoreCase)
         && left.CapacityGiB is double leftCapacity && right.CapacityGiB is double rightCapacity
         && Math.Abs(leftCapacity - rightCapacity) < 0.01;
 
+    /// <summary>Projects bounded sensor readings while applying session fan visibility rules.</summary>
+    /// <param name="sensors">Raw sensor channels supplied by the selected hardware device.</param>
+    /// <param name="maximum">Maximum number of projected readings returned for this device.</param>
     private HardwareReading[] ReadThemeValues(IEnumerable<Lhm.ISensor> sensors, int maximum = 256) => sensors
         .Where(sensor => sensor.SensorType != Lhm.SensorType.Fan
             || Value(sensor, nonnegative: true) is double rpm && rpm is >= 0 and <= 20000 && ObserveFan(sensor.Identifier.ToString(), rpm))

@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: PanelSession.cs
+ * Purpose: Owns one selected HID/WinUSB connection and its bounded transfers.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using System.ComponentModel;
 using System.Runtime.InteropServices;
@@ -15,6 +30,8 @@ public sealed class PanelSession : IDisposable
     private readonly FileStream? hid;
     private readonly WinUsbPanelTransport? winUsb;
 
+    /// <summary>Opens the selected device using its declared HID or WinUSB transport.</summary>
+    /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
     private PanelSession(DisplayDevice device)
     {
         this.device = device;
@@ -39,9 +56,11 @@ public sealed class PanelSession : IDisposable
     }
 
     /// <summary>Opens only the selected native panel interface.</summary>
+    /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
     public static PanelSession Open(DisplayDevice device) => new(device);
 
     /// <summary>Requests device information once and validates the reply using the selected transport layout.</summary>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     public async Task<PanelProbeResult> ProbeAsync(CancellationToken cancellationToken = default)
     {
         if (winUsb is not null)
@@ -75,6 +94,8 @@ public sealed class PanelSession : IDisposable
     }
 
     /// <summary>Submits an already encoded and padded picture packet with a bounded transfer deadline.</summary>
+    /// <param name="packet">Complete picture packet padded to 512-byte boundaries.</param>
+    /// <param name="cancellationToken">Cancellation signal for waiting and the current operation.</param>
     public async Task<int> SendPacketAsync(byte[] packet, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(packet);

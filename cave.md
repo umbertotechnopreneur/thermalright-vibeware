@@ -461,3 +461,46 @@ Static parsing found no syntax errors in the ten PowerShell scripts, the two
 Python tools and their changed test importer, or the two changed project XML
 files. No build, installer, automated test, antivirus scan or physical-device
 command was run for this change. The PDF was rendered and visually inspected.
+
+### Source maintenance and first launch - 27 October 2026
+
+First-party headers now describe file purpose and actual AI provenance. Studio,
+CLI, capture and Python drawing responsibilities are split into smaller files.
+Static inspection parsed 515 C# methods/constructors with matching XML parameter
+entries, 195 documented Python functions and ten PowerShell scripts. Python
+function bodies/signatures match their prior AST after excluding docstrings.
+Native installer code tokens match the prior source. Project/XAML XML and the
+App's explicit Compile entries were inspected. JavaScript syntax and the new
+first-launch check sources also parsed. These are source inspections, not test
+execution or runtime observations.
+
+The first-launch flag defaults to true. The loaded main page requests durable
+completion; only a successful settings save changes it to false. Later Windows
+launches start in the tray, with the existing reopen and missing-tray fallback.
+Offline checks were added for defaults, persistence, repeat completion and
+unwritable/damaged settings. They have not been executed. First-launch, tray,
+sign-in, administrator restart and installed behavior have not been observed.
+
+Restore and changed-file format verification could not start: global.json pins
+SDK 10.0.402 with roll-forward disabled, while the installed 10.0 patch is
+10.0.403. The pin was preserved. No Debug build, uninstall/reinstall, CI,
+publication, imported dependency, driver action or hardware trial was performed.
+This work does not establish Microsoft Store readiness.
+
+### Local Release MSI - 27 October 2026
+
+At the owner's request, Windows x64 was built in Release from source revision
+`d2990f9`. Two missing studio integration imports were restored before the
+successful build. Restore and changed-file format verification completed with
+SDK 10.0.402; the Release format pass reported no changes or workspace errors.
+The SDK was staged from Microsoft's official archive, its published SHA-512
+matched, and targeted first-import scans of the archive and extracted input
+completed without detections. Other unchanged inputs reused recorded scan
+evidence. The normal installed toolchain was not changed.
+
+The engine, studio, pinned sensor fork, Photino native library and MSI helpers
+were built from source. Read-only MSI metadata confirmed version 0.1.24,
+`x64;1033` and source revision `d2990f9`. The package is 77,793,109 bytes; SHA-256
+is `372D236C025EA8F3F406CF9E965A7692C4F6A4D186347A9DB5B4C9439C0BFA82`.
+The installed version remained 0.1.23. Installation and testing were left to the
+owner; no application launch, automated test or physical-device trial ran.

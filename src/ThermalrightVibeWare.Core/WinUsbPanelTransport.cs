@@ -1,7 +1,22 @@
-// VBWR B
-// Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-// Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
-// VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: WinUsbPanelTransport.cs
+ * Purpose: Owns one WinUSB interface and performs bounded panel protocol transfers.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
 
 using Microsoft.Win32.SafeHandles;
 using System.ComponentModel;
@@ -16,6 +31,9 @@ public sealed class WinUsbPanelTransport : IDisposable
     private readonly IntPtr interfaceHandle;
     private bool disposed;
 
+    /// <summary>Takes ownership of the opened device and WinUSB interface handles.</summary>
+    /// <param name="deviceHandle">Open native device handle.</param>
+    /// <param name="interfaceHandle">WinUSB interface handle returned by initialization.</param>
     private WinUsbPanelTransport(SafeFileHandle deviceHandle, IntPtr interfaceHandle)
     {
         this.deviceHandle = deviceHandle;
@@ -23,6 +41,7 @@ public sealed class WinUsbPanelTransport : IDisposable
     }
 
     /// <summary>Opens the WinUSB interface exposed by a discovered panel.</summary>
+    /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
     public static WinUsbPanelTransport Open(DisplayDevice device)
     {
         ArgumentNullException.ThrowIfNull(device);
@@ -61,12 +80,14 @@ public sealed class WinUsbPanelTransport : IDisposable
     }
 
     /// <summary>Sends an explicitly requested diagnostic RGB565 frame using the selected profile.</summary>
+    /// <param name="packet">Complete picture packet padded to 512-byte boundaries.</param>
     public void SendPacket(byte[] packet)
     {
         ThrowIfDisposed();
         WriteExact(packet);
     }
 
+    /// <summary>Verifies that the selected interface exposes the required endpoint layout.</summary>
     private void ValidatePipes()
     {
         var readFound = false;
@@ -113,6 +134,8 @@ public sealed class WinUsbPanelTransport : IDisposable
         disposed = true;
     }
 
+    /// <summary>Writes the full buffer or reports a short USB transfer.</summary>
+    /// <param name="buffer">Bytes to read or write, bounded by the supplied size when present.</param>
     private void WriteExact(byte[] buffer)
     {
         if (!Native.WinUsb_WritePipe(interfaceHandle, Thermalright04165302Protocol.WriteEndpoint, buffer, checked((uint)buffer.Length), out var written, IntPtr.Zero) || written != checked((uint)buffer.Length))
@@ -121,6 +144,8 @@ public sealed class WinUsbPanelTransport : IDisposable
         }
     }
 
+    /// <summary>Reads exactly the requested reply length or reports a short transfer.</summary>
+    /// <param name="expectedLength">Exact number of response bytes required by this protocol exchange.</param>
     private byte[] ReadExact(int expectedLength)
     {
         var response = new byte[expectedLength];
@@ -132,6 +157,7 @@ public sealed class WinUsbPanelTransport : IDisposable
         return read == expectedLength ? response : response[..checked((int)read)];
     }
 
+    /// <summary>Rejects use of a closed USB transport.</summary>
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
