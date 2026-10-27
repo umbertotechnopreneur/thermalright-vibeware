@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: font_catalog.py
+# Purpose: Lists renderer font families and resolves monospace fallback choices.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """A cached, bounded catalog from the renderer's actual system font backend.
 
 API references:
@@ -16,9 +35,9 @@ _MAX_INSPECTED_FAMILIES = 4096
 _MAX_RETURNED_FAMILIES = 512
 _MAX_BACKEND_ERRORS = 32
 
-
 @lru_cache(maxsize=1)
 def _catalog() -> tuple[tuple[str, ...], str | None]:
+    """Inspect a bounded installed-font catalog and cache fixed-pitch families."""
     try:
         manager = skia.FontMgr.RefDefault()
         if manager is None:
@@ -78,7 +97,6 @@ def _catalog() -> tuple[tuple[str, ...], str | None]:
     if not ordered:
         notes.append("No installed family was reported as fixed-pitch for normal and bold text.")
     return tuple(ordered), " ".join(notes) or None
-
 
 def list_monospace_fonts() -> dict:
     """List installed fixed-pitch families once per worker process.

@@ -1,7 +1,23 @@
 <!-- VBWR B
-  Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-  Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+
+  Project: Thermalright VibeWare
+  Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+  Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+
+  File: SetupGate.vcxproj
+  Purpose: Defines the native source build for the SetupGate installer helper.
+
+  VibeWare: Human intent, AI execution, and plenty of tokens
+  Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+
+  Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+  Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+
+  Copyright (c) 2026 Umberto Giacobbi
+  SPDX-License-Identifier: MIT
+
 VBWR E -->
+
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>

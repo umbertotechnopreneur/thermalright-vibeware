@@ -1,4 +1,23 @@
-// VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+/* VBWR B
+ *
+ * Project: Thermalright VibeWare
+ * Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+ * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+ *
+ * File: SetupGate.cpp
+ * Purpose: Holds the installer's per-user launch gate until commit or rollback.
+ *
+ * VibeWare: Human intent, AI execution, and plenty of tokens
+ * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+ *
+ * Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+ * Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+ *
+ * Copyright (c) 2026 Umberto Giacobbi
+ * SPDX-License-Identifier: MIT
+ *
+ * VBWR E */
+
 #include <windows.h>
 #include <msi.h>
 #include <msiquery.h>
@@ -12,6 +31,8 @@
 // exit. An installer crash therefore cannot leave a persistent "installing" flag.
 static HANDLE transactionGate = nullptr;
 
+/** Builds the per-user setup gate name from the effective Windows user SID.
+ */
 static std::wstring GateName() {
     HANDLE token = nullptr;
     if (!OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, TRUE, &token)) {
@@ -29,6 +50,8 @@ static std::wstring GateName() {
     return name;
 }
 
+/** Holds the per-user launch gate during installer file changes.
+ */
 extern "C" __declspec(dllexport) UINT __stdcall BeginSetup(MSIHANDLE) {
     try {
         const auto name = GateName();
@@ -42,6 +65,8 @@ extern "C" __declspec(dllexport) UINT __stdcall BeginSetup(MSIHANDLE) {
     catch (...) { return ERROR_INSTALL_FAILURE; }
 }
 
+/** Releases the installer launch gate on commit or rollback.
+ */
 extern "C" __declspec(dllexport) UINT __stdcall EndSetup(MSIHANDLE) {
     try {
         const auto name = GateName();
@@ -56,6 +81,10 @@ extern "C" __declspec(dllexport) UINT __stdcall EndSetup(MSIHANDLE) {
     catch (...) { return ERROR_INSTALL_FAILURE; }
 }
 
+/** Reads a bounded property from the current MSI session.
+ * @param installer Current MSI session handle supplied by Windows Installer.
+ * @param name Executable name or MSI property name used by this helper.
+ */
 static std::wstring SetupProperty(MSIHANDLE installer, const wchar_t* name) {
     DWORD length = 0;
     wchar_t empty = L'\0';
@@ -68,6 +97,10 @@ static std::wstring SetupProperty(MSIHANDLE installer, const wchar_t* name) {
     return value;
 }
 
+/** Checks whether an interactive successful-install completion action was selected.
+ * @param installer Current MSI session handle supplied by Windows Installer.
+ * @param option Exact successful-install checkbox property to inspect.
+ */
 static bool CompletionSelected(MSIHANDLE installer, const wchar_t* option) {
     return SetupProperty(installer, L"UILevel") == L"5" &&
         SetupProperty(installer, L"Installed").empty() &&
@@ -75,6 +108,10 @@ static bool CompletionSelected(MSIHANDLE installer, const wchar_t* option) {
         SetupProperty(installer, option) == L"1";
 }
 
+/** Shows a nonfatal warning for a requested completion action that could not open.
+ * @param installer Current MSI session handle supplied by Windows Installer.
+ * @param message User-facing failure or warning text without private runtime payloads.
+ */
 static void CompletionWarning(MSIHANDLE installer, const wchar_t* message) {
     MSIHANDLE record = MsiCreateRecord(0);
     if (!record) { return; }
@@ -83,6 +120,10 @@ static void CompletionWarning(MSIHANDLE installer, const wchar_t* message) {
     MsiCloseHandle(record);
 }
 
+/** Opens the fixed product or release target using the original interactive context.
+ * @param target Fixed installed-app path or fixed tagged Releases URL requested by the completion page.
+ * @param directory Verified directory to enumerate or use as the completion action's working directory.
+ */
 static bool OpenCompletionTarget(const std::wstring& target, const wchar_t* directory = nullptr) {
     SHELLEXECUTEINFOW execute{};
     execute.cbSize = sizeof(execute);
@@ -97,6 +138,9 @@ static bool OpenCompletionTarget(const std::wstring& target, const wchar_t* dire
     return opened != FALSE;
 }
 
+/** Starts the installed app only for the selected successful interactive completion.
+ * @param installer Current MSI session handle supplied by Windows Installer.
+ */
 extern "C" __declspec(dllexport) UINT __stdcall StartThermalrightVibeWareAfterInstall(MSIHANDLE installer) {
     try {
         if (!CompletionSelected(installer, L"TRV_START_AFTER_INSTALL")) { return ERROR_SUCCESS; }
@@ -110,6 +154,9 @@ extern "C" __declspec(dllexport) UINT __stdcall StartThermalrightVibeWareAfterIn
     return ERROR_SUCCESS;
 }
 
+/** Opens the fixed tagged Releases link only for the selected successful completion.
+ * @param installer Current MSI session handle supplied by Windows Installer.
+ */
 extern "C" __declspec(dllexport) UINT __stdcall SeeLatestThermalrightVibeWareNews(MSIHANDLE installer) {
     try {
         if (!CompletionSelected(installer, L"TRV_SEE_LATEST_NEWS")) { return ERROR_SUCCESS; }

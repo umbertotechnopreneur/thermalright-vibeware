@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: system_details.py
+# Purpose: Projects available sensor groups and rotating detail rows.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """Small groups of real readings for System pages, without per-core noise."""
 from __future__ import annotations
 
@@ -13,9 +32,13 @@ _CORE_READING = re.compile(r"\b(?:cpu\s+)?core\s*#\s*(\d+)\b", re.IGNORECASE)
 _UNITS = {"Voltage": "V", "Current": "A", "Power": "W", "Temperature": "°C", "Clock": "MHz", "Timing": "ns"}
 HARDWARE_KINDS = ("Power", "Voltage", "Current", "Clock")
 
-
 def core_heatmap_values(sensors, maximum=32):
-    """Return matched physical-core power/load values; average SMT load rows."""
+    """Return matched physical-core power/load values; average SMT load rows.
+
+    Args:
+        sensors: Hardware sensor snapshot already provided by the engine.
+        maximum: Upper setting bound, scale limit or item cap used by this helper.
+    """
     cpu = sensors.get("cpu") or {}
     grouped = {"Power": defaultdict(list), "Load": defaultdict(list)}
     for item in (cpu.get("readings") or [])[:256]:
@@ -36,8 +59,14 @@ def core_heatmap_values(sensors, maximum=32):
              sum(grouped["Load"][core]) / len(grouped["Load"][core]))
             for core in common]
 
-
 def reading_rows(raw, kinds, aggregate=False):
+    """Project finite readings of allowed types, optionally omitting core/thread rows.
+
+    Args:
+        raw: Raw observation dictionary received from the engine.
+        kinds: Allowed sensor types for this detail page.
+        aggregate: Whether to omit individual core/thread channels.
+    """
     groups = {kind: [] for kind in kinds}
     for item in (raw.get("readings") or [])[:256]:
         if not isinstance(item, dict) or item.get("type") not in kinds:
@@ -49,8 +78,12 @@ def reading_rows(raw, kinds, aggregate=False):
         groups[kind].append((name, value, _UNITS.get(kind, clean(item.get("unit")))))
     return [row for group in groups.values() for row in group]
 
-
 def hardware_devices(sensors):
+    """Enumerate available hardware groups with stable display keys.
+
+    Args:
+        sensors: Hardware sensor snapshot already provided by the engine.
+    """
     candidates = []
     cpu = sensors.get("cpu")
     if isinstance(cpu, dict):
@@ -63,8 +96,13 @@ def hardware_devices(sensors):
         candidates.append(("motherboard", "BOARD", board))
     return candidates
 
-
 def sensor_groups(sensors, kinds):
+    """Group available readings by hardware device and requested sensor types.
+
+    Args:
+        sensors: Hardware sensor snapshot already provided by the engine.
+        kinds: Allowed sensor types for this detail page.
+    """
     result = []
     for key, label, raw in hardware_devices(sensors):
         rows = reading_rows(raw, kinds, aggregate=key == "cpu")
@@ -78,8 +116,12 @@ def sensor_groups(sensors, kinds):
             result.append((key, label, clean(raw.get("name")), rows))
     return result
 
-
 def cooling_values(sensors):
+    """Select real fan and power readings for the cooling page.
+
+    Args:
+        sensors: Hardware sensor snapshot already provided by the engine.
+    """
     thermal, powers, electrical, fans = [], [], [], []
     for key, label, raw in hardware_devices(sensors):
         if optional_number(raw.get("temperatureC")) is not None:
@@ -95,6 +137,11 @@ def cooling_values(sensors):
             if isinstance(fan, dict) and (value := optional_number(fan.get("rpm"))) is not None:
                 fans.append((label + " · " + clean(fan.get("name")).removeprefix(prefix), value, "RPM"))
     def power_priority(row):
+        """Rank CPU/package power rows ahead of other available power readings.
+
+        Args:
+            row: Projected reading row being ranked for display.
+        """
         label = row[0].casefold()
         if label in ("cpu · package", "cpu · cpu package"):
             return 0
@@ -109,8 +156,12 @@ def cooling_values(sensors):
     fans.sort(key=lambda item: item[1] == 0)
     return thermal, powers, fans
 
-
 def spd_groups(sensors):
+    """Project separately labeled SPD module limits and identities.
+
+    Args:
+        sensors: Hardware sensor snapshot already provided by the engine.
+    """
     memory = sensors.get("memory") or {}
     modules = [module for module in (memory.get("spdModules") or [])[:16] if isinstance(module, dict)]
     groups = []
@@ -121,8 +172,13 @@ def spd_groups(sensors):
             groups.append((f"memory-spd-{index}", f"SPD LIMITS · SOURCE {index + 1}", clean(module.get("name")), rows))
     return groups
 
-
 def page_available(page_id, sensors):
+    """Decide whether a System page has enough available source data to show.
+
+    Args:
+        page_id: Stable manifest page identifier whose source availability is checked.
+        sensors: Hardware sensor snapshot already provided by the engine.
+    """
     kinds = {"electrical": HARDWARE_KINDS, "temperatures": ("Temperature",)}
     if page_id in kinds:
         return bool(sensor_groups(sensors, kinds[page_id]))
@@ -134,19 +190,33 @@ def page_available(page_id, sensors):
         return len(core_heatmap_values(sensors)) >= 8
     return True
 
-
 def value_text(value, unit):
+    """Format an available reading with the correct unit precision.
+
+    Args:
+        value: Available measured reading, or None for the unavailable marker.
+        unit: Reading unit shown alongside the available value.
+    """
     digits = 3 if unit == "V" else 2 if unit == "ns" else 1 if unit in ("A", "°C", "GiB") else 0
     return f"{value:.{digits}f} {unit}"
 
-
 def detail_step(s):
     # At most two groups per visit, with no new timer or sampling request.
+    """Read the shared theme page cycle used for detail rotation.
+
+    Args:
+        s: Current ThemeContext containing available data, palette and page timing.
+    """
     return s.page_cycle * 2 + min(1, int(s.page_progress * 2))
 
-
 def detail_rows(rows, step, maximum=4):
-    """Balance the last bank instead of leaving a lone trailing reading."""
+    """Balance the last bank instead of leaving a lone trailing reading.
+
+    Args:
+        rows: Available projected reading rows, preserving their source units.
+        step: Shared detail-rotation index; None uses the context's current page clock.
+        maximum: Upper setting bound, scale limit or item cap used by this helper.
+    """
     if not rows:
         return [], 0
     banks = (len(rows) + maximum - 1) // maximum
@@ -155,8 +225,12 @@ def detail_rows(rows, step, maximum=4):
     start = bank * size + min(bank, extra)
     return rows[start:start + size + (bank < extra)], start
 
-
 def memory_sections(sensors):
+    """Separate Windows RAM identities from independently reported SPD groups.
+
+    Args:
+        sensors: Hardware sensor snapshot already provided by the engine.
+    """
     memory = sensors.get("memory") or {}
     sections = []
     if (any(isinstance(module, dict) and module for module in memory.get("modules") or [])
@@ -168,8 +242,13 @@ def memory_sections(sensors):
         sections.append("spd")
     return sections
 
-
 def memory_view(sensors, step):
+    """Select rotating physical RAM and SPD sections without guessing slot matches.
+
+    Args:
+        sensors: Hardware sensor snapshot already provided by the engine.
+        step: Shared detail-rotation index; None uses the context's current page clock.
+    """
     sections = memory_sections(sensors)
     if not sections:
         return None, 0

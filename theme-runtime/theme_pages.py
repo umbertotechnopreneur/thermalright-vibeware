@@ -1,10 +1,33 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: theme_pages.py
+# Purpose: Resolves rotating theme pages and explicit page timing.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """Manifest-driven pages share the worker's single monotonic theme clock."""
 from __future__ import annotations
 
-
-
 def select_page(context, manifest):
+    """Validate page metadata and advance the shared clock across available pages.
+
+    Args:
+        context: Current per-frame ThemeContext; callers retain its ownership.
+        manifest: Selected theme's parsed manifest and optional page/palette metadata.
+    """
     pages = manifest.get("pages", [])
     if not isinstance(pages, list) or len(pages) > 8:
         raise ValueError("A theme may declare up to eight pages.")

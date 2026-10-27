@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: frame_transition.py
+# Purpose: Composes cached track/theme transitions with bounded in-memory images.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """Blend a changed page or track from the last visible frame; retain no frame queue."""
 from __future__ import annotations
 
@@ -6,15 +25,20 @@ import time
 
 import skia
 
-
 class FrameTransition:
     DURATION_SECONDS = 2.0
 
     def __init__(self, clock=time.monotonic):
+        """Initialize an empty bounded transition with the supplied monotonic clock.
+
+        Args:
+            clock: Monotonic clock callback used to time image transitions.
+        """
         self.clock = clock
         self.reset()
 
     def reset(self):
+        """Release cached transition images and clear the active transition scope."""
         self.scope = None
         self.track = None
         self.previous = None
@@ -22,6 +46,13 @@ class FrameTransition:
         self.started = 0.0
 
     def compose(self, image, scope, track):
+        """Cross-fade real images when the track/page changes within the same scope.
+
+        Args:
+            image: Current rendered Skia image retained only for the bounded transition.
+            scope: Identity of the theme, dimensions, appearance and controls for transition reuse.
+            track: Identity of the current track/page; a change starts a real-image transition.
+        """
         if scope != self.scope:
             self.reset()
             self.scope = scope

@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: worker.py
+# Purpose: Handles bounded JSON-lines requests and executes the selected local Python theme.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """Persistent, offscreen theme worker. stdin/stdout are JSON Lines protocol only."""
 from __future__ import annotations
 
@@ -35,8 +54,12 @@ try:
 except ImportError as exc:
     IMPORT_ERROR = str(exc)
 
-
 def load_theme(folder: pathlib.Path):
+    """Validate the manifest entry path and cache the local theme module by modification time.
+
+    Args:
+        folder: Resolved local folder containing the selected theme manifest and entry point.
+    """
     manifest = json.loads((folder / "theme.json").read_text(encoding="utf-8-sig"))
     if manifest.get("schema") != 1:
         raise ValueError("This theme needs an unsupported manifest version.")
@@ -59,8 +82,12 @@ def load_theme(folder: pathlib.Path):
         MODULES[key] = (stamp, module)
     return manifest, MODULES[key][1]
 
-
 def render(request: dict) -> dict:
+    """Render one local theme into a bounded JPEG response without USB access.
+
+    Args:
+        request: Validated worker request with dimensions, controls and theme selection.
+    """
     if IMPORT_ERROR:
         raise RuntimeError("Python theme dependencies are missing. Install theme-runtime/requirements.txt in the configured Python runtime. " + IMPORT_ERROR)
     if request.get("version", 1) != 1 or request.get("method", "render") != "render":
@@ -104,11 +131,13 @@ def render(request: dict) -> dict:
     scale = float(request.get("fontScale", 1))
     if not math.isfinite(scale):
         raise ValueError("Font scale must be finite.")
+    # Resolve local theme code only after validating controls and the output allocation limit.
     folder = pathlib.Path(request["themePath"]).resolve(strict=True)
     manifest, module = load_theme(folder)
     state = request.get("state") or {}
     if not isinstance(state, dict):
         raise ValueError("Theme state must be an object.")
+    # One context and one canvas belong to this frame; expensive reusable layers stay cached.
     context = ThemeContext(state, request, manifest)
     page_id = select_page(context, manifest)
     surface = skia.Surface(width, height)
@@ -146,8 +175,12 @@ def render(request: dict) -> dict:
                     "pageIndex": context.page_index, "pageCount": context.page_count}
     raise ValueError("Rendered frame exceeds the panel's 450,000-byte JPEG limit.")
 
-
 def dispatch(request: dict) -> dict:
+    """Route supported worker requests without mixing diagnostics into protocol stdout.
+
+    Args:
+        request: Validated worker request with dimensions, controls and theme selection.
+    """
     if request.get("version", 1) != 1:
         raise ValueError("Unsupported theme worker request.")
     method = request.get("method", "render")
@@ -161,8 +194,8 @@ def dispatch(request: dict) -> dict:
         return render(request)
     raise ValueError("Unsupported theme worker method.")
 
-
 def main():
+    """Read bounded stdio requests and keep theme output off protocol stdout."""
     if hasattr(sys.stdin, "reconfigure"):
         sys.stdin.reconfigure(encoding="utf-8")
         sys.stdout.reconfigure(encoding="utf-8", write_through=True)
@@ -187,7 +220,6 @@ def main():
                       "error": f"{type(exc).__name__}: {exc}"[:1000]}
         sys.stdout.write(json.dumps(result, ensure_ascii=True, separators=(",", ":")) + "\n")
         sys.stdout.flush()
-
 
 if __name__ == "__main__":
     main()

@@ -461,3 +461,28 @@ Static parsing found no syntax errors in the ten PowerShell scripts, the two
 Python tools and their changed test importer, or the two changed project XML
 files. No build, installer, automated test, antivirus scan or physical-device
 command was run for this change. The PDF was rendered and visually inspected.
+
+### Source maintenance and first launch - 27 October 2026
+
+First-party headers now describe file purpose and actual AI provenance. Studio,
+CLI, capture and Python drawing responsibilities are split into smaller files.
+Static inspection parsed 515 C# methods/constructors with matching XML parameter
+entries, 195 documented Python functions and ten PowerShell scripts. Python
+function bodies/signatures match their prior AST after excluding docstrings.
+Native installer code tokens match the prior source. Project/XAML XML and the
+App's explicit Compile entries were inspected. JavaScript syntax and the new
+first-launch check sources also parsed. These are source inspections, not test
+execution or runtime observations.
+
+The first-launch flag defaults to true. The loaded main page requests durable
+completion; only a successful settings save changes it to false. Later Windows
+launches start in the tray, with the existing reopen and missing-tray fallback.
+Offline checks were added for defaults, persistence, repeat completion and
+unwritable/damaged settings. They have not been executed. First-launch, tray,
+sign-in, administrator restart and installed behavior have not been observed.
+
+Restore and changed-file format verification could not start: global.json pins
+SDK 10.0.402 with roll-forward disabled, while the installed 10.0 patch is
+10.0.403. The pin was preserved. No Debug build, uninstall/reinstall, CI,
+publication, imported dependency, driver action or hardware trial was performed.
+This work does not establish Microsoft Store readiness.

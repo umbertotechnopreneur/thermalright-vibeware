@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: color_adjustments.py
+# Purpose: Validates and applies the single final Skia color filter pass.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """Full-frame native Skia color correction, before JPEG encoding.
 
 Matrix definitions follow the public W3C filter-effects specification:
@@ -16,8 +35,15 @@ from functools import lru_cache
 
 import skia
 
-
 def _finite_setting(value: float, name: str, minimum: float, maximum: float) -> float:
+    """Convert and validate one finite runtime filter setting.
+
+    Args:
+        value: Runtime setting to validate as a finite number within the supplied bounds.
+        name: Display heading or setting/reading name used by this helper.
+        minimum: Minimum allowed runtime setting value.
+        maximum: Upper setting bound, scale limit or item cap used by this helper.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{name} must be a finite number from {minimum:g} to {maximum:g}.")
     try:
@@ -27,7 +53,6 @@ def _finite_setting(value: float, name: str, minimum: float, maximum: float) -> 
     if not math.isfinite(result) or not minimum <= result <= maximum:
         raise ValueError(f"{name} must be a finite number from {minimum:g} to {maximum:g}.")
     return result
-
 
 @dataclass
 class ColorAdjustments:
@@ -60,6 +85,9 @@ class ColorAdjustments:
 
         Zero gives black, one keeps the current correction. Call once per frame
         after other color overrides. The final native filter still runs only once.
+
+        Args:
+            amount: Interpolation/fade fraction, with zero retaining the original value.
         """
         amount = _finite_setting(amount, "Fade", 0, 1)
         self.validate()
@@ -67,10 +95,17 @@ class ColorAdjustments:
         self.brightness_percent = amount * (self.brightness_percent + 50) - 50
         return self
 
-
 @lru_cache(maxsize=64)
 def _color_filter(saturation_percent: float, hue_degrees: float,
                   brightness_percent: float, contrast_percent: float) -> skia.ColorFilter:
+    """Build the cached Skia color matrix for the supplied runtime settings.
+
+    Args:
+        saturation_percent: Saturation from 0 to 200 percent; 100 is neutral.
+        hue_degrees: Hue rotation from -180 to 180 degrees; zero is neutral.
+        brightness_percent: Brightness offset from -100 to 100 percent; zero is neutral.
+        contrast_percent: Contrast from 0 to 200 percent; 100 is neutral.
+    """
     saturation = saturation_percent / 100.0
     contrast = contrast_percent / 100.0
     # Contrast pivots around 50% gray, then brightness adds a normalized offset.
@@ -112,7 +147,6 @@ def _color_filter(saturation_percent: float, hue_degrees: float,
         raise RuntimeError("Cannot create the native color filter.")
     return result
 
-
 def apply_color_adjustments(snapshot: skia.Image, saturation_percent: float,
                             hue_degrees: float, brightness_percent: float = 0,
                             contrast_percent: float = 100) -> skia.Image:
@@ -122,6 +156,13 @@ def apply_color_adjustments(snapshot: skia.Image, saturation_percent: float,
     0–200%. RGB grays stay neutral and alpha is unchanged. Contrast pivots at
     50% gray; brightness is added last. Out-of-gamut RGB is clamped by Skia.
     No frame is resized, no pixels are copied into Python, and no files are made.
+
+    Args:
+        snapshot: Native Skia frame image before the final color pass.
+        saturation_percent: Saturation from 0 to 200 percent; 100 is neutral.
+        hue_degrees: Hue rotation from -180 to 180 degrees; zero is neutral.
+        brightness_percent: Brightness offset from -100 to 100 percent; zero is neutral.
+        contrast_percent: Contrast from 0 to 200 percent; 100 is neutral.
     """
     settings = ColorAdjustments(saturation_percent, hue_degrees,
                                 brightness_percent, contrast_percent).validate()

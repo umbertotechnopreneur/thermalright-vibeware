@@ -1,4 +1,23 @@
-# VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT.
+# VBWR B
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: Render-ThemeReview.py
+# Purpose: Renders explicitly requested theme review images without physical USB output.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
+# VBWR E
+
 """One owner-approved, local 40-frame review. Never call from automated CI.
 
 Creates twenty themes x light/dark, using only original synthetic fixtures.
@@ -30,11 +49,14 @@ with contextlib.redirect_stdout(sys.stderr):
 WIDTH, HEIGHT, MAX_JPEG = 1280, 480, 450_000
 SAMPLING = skia.SamplingOptions(skia.FilterMode.kLinear)
 
-
 def tint(value):
+    """Parse the review fixture's hexadecimal RGB color.
+
+    Args:
+        value: Fixture RGB hex text converted into color channels.
+    """
     value = value.lstrip("#")
     return skia.ColorSetRGB(*[int(value[index:index + 2], 16) for index in (0, 2, 4)])
-
 
 def fixture_artwork():
     """An original geometric landscape drawn in memory, not an external image."""
@@ -64,8 +86,12 @@ def fixture_artwork():
     raw = bytes(encoded)
     return hashlib.sha256(raw).hexdigest(), base64.b64encode(raw).decode("ascii")
 
-
 def base_state(cover_key):
+    """Build explicit offline review data without reading host media or sensors.
+
+    Args:
+        cover_key: Explicit fixture artwork identity used to reuse its decoded cover.
+    """
     return {
         "preview": True,
         "media": {"title": "After the Blue Hour", "artist": "Demo Artist",
@@ -88,8 +114,12 @@ def base_state(cover_key):
                   ]},
     }
 
-
 def read_catalog(repo):
+    """Read the repository's local theme pack definitions for the requested review.
+
+    Args:
+        repo: Repository root containing the first-party theme manifests.
+    """
     result = []
     for pack, category in (("media", "multimedia"), ("codex", "codex")):
         root = (repo / "themes" / pack).resolve()
@@ -108,9 +138,15 @@ def read_catalog(repo):
         raise ValueError("Expected twenty distinct bundled themes.")
     return result
 
-
 class ReviewWorker:
     def __init__(self, python, script, timeout):
+        """Start one explicitly configured worker for offline review rendering.
+
+        Args:
+            python: Explicit Python executable used to start the review worker.
+            script: Explicit repository worker script path.
+            timeout: Maximum wait for one worker response in seconds.
+        """
         self.timeout = timeout
         self.lines = queue.Queue()
         self.diagnostics = deque(maxlen=12)
@@ -124,6 +160,7 @@ class ReviewWorker:
         threading.Thread(target=self._read_stderr, daemon=True).start()
 
     def _read_stdout(self):
+        """Drain worker protocol lines into the review process's bounded response queue."""
         try:
             while True:
                 line = self.process.stdout.readline(900_001)
@@ -138,6 +175,7 @@ class ReviewWorker:
             self.lines.put(exc)
 
     def _read_stderr(self):
+        """Drain worker diagnostics without blocking the review worker's stderr pipe."""
         try:
             for line in self.process.stderr:
                 self.diagnostics.append(line.rstrip()[:500])
@@ -145,6 +183,11 @@ class ReviewWorker:
             pass
 
     def request(self, payload):
+        """Send one bounded offline review request and wait for its correlated response.
+
+        Args:
+            payload: Untrusted hook input; only allow-listed activity fields are retained.
+        """
         self.process.stdin.write(json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n")
         self.process.stdin.flush()
         try:
@@ -159,6 +202,7 @@ class ReviewWorker:
         return response
 
     def close(self):
+        """Stop the owned review worker and release its pipes."""
         if self.process.poll() is None:
             self.process.terminate()
             try:
@@ -169,8 +213,13 @@ class ReviewWorker:
         for stream in (self.process.stdin, self.process.stdout, self.process.stderr):
             stream.close()
 
-
 def draw_contacts(output, results):
+    """Compose rendered theme review images into a labeled contact sheet.
+
+    Args:
+        output: Destination path for generated review images.
+        results: Rendered theme review images and labels to arrange on the contact sheet.
+    """
     sheets = []
     font = skia.Font(skia.Typeface.MakeFromName("monospace", skia.FontStyle.Normal()), 17)
     title_font = skia.Font(skia.Typeface.MakeFromName("monospace", skia.FontStyle.Bold()), 29)
@@ -208,8 +257,8 @@ def draw_contacts(output, results):
             sheets.append(filename)
     return sheets
 
-
 def main():
+    """Render the explicitly selected offline theme fixtures into review artifacts."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--output", type=Path)
@@ -322,7 +371,6 @@ def main():
         json.dump(summary, handle, ensure_ascii=False, indent=2)
     print(json.dumps(summary, ensure_ascii=True, separators=(",", ":")))
     return 0 if summary["complete"] else 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

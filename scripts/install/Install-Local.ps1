@@ -1,17 +1,47 @@
 # VBWR B
-# Project: ThermalrightVibeWare | https://umbertogiacobbi.biz/vibeware/manifesto
-# Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+#
+# Project: Thermalright VibeWare
+# Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+# Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+#
+# File: Install-Local.ps1
+# Purpose: Starts the local product installation workflow for the selected payload.
+#
+# VibeWare: Human intent, AI execution, and plenty of tokens
+# Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+#
+# Modified with AI: OpenAI Codex; source documentation and organization; 2026-10-27.
+# Human guidance: Umberto Giacobbi; maintainability and standard file headers.
+#
+# Copyright (c) 2026 Umberto Giacobbi
+# SPDX-License-Identifier: MIT
+#
 # VBWR E
+
 [CmdletBinding()]
 param([switch]$DisableStartup)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+<#
+.SYNOPSIS
+Resolves a local path to its normalized absolute form.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+#>
 function Get-NormalPath([string]$Path) {
     return [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]@('\', '/'))
 }
 
+<#
+.SYNOPSIS
+Rejects a path whose existing components traverse a reparse point.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+#>
 function Assert-NoReparsePath([string]$Path) {
     $current = Get-NormalPath $Path
     while (-not [string]::IsNullOrWhiteSpace($current)) {
@@ -27,6 +57,16 @@ function Assert-NoReparsePath([string]$Path) {
     }
 }
 
+<#
+.SYNOPSIS
+Rejects a path outside the explicitly managed root.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+
+.PARAMETER Root
+Resolved application root that bounds every managed file operation.
+#>
 function Assert-ChildPath([string]$Path, [string]$Root) {
     $prefix = (Get-NormalPath $Root) + [System.IO.Path]::DirectorySeparatorChar
     if (-not (Get-NormalPath $Path).StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
@@ -35,6 +75,19 @@ function Assert-ChildPath([string]$Path, [string]$Root) {
     Assert-NoReparsePath $Path
 }
 
+<#
+.SYNOPSIS
+Preserves existing shortcuts unless their ownership marker matches.
+
+.PARAMETER Shell
+Caller-owned Windows Script Host COM object used to manage shortcuts.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+
+.PARAMETER Marker
+Exact shortcut description identifying this application's owned shortcut.
+#>
 function Assert-ManagedShortcut([object]$Shell, [string]$Path, [string]$Marker) {
     Assert-NoReparsePath $Path
     if (Test-Path -LiteralPath $Path) {
@@ -48,6 +101,37 @@ function Assert-ManagedShortcut([object]$Shell, [string]$Path, [string]$Marker) 
     }
 }
 
+<#
+.SYNOPSIS
+Writes an owned shortcut atomically and preserves its previous version.
+
+.PARAMETER Shell
+Caller-owned Windows Script Host COM object used to manage shortcuts.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+
+.PARAMETER Marker
+Exact shortcut description identifying this application's owned shortcut.
+
+.PARAMETER Target
+Verified executable path referenced by the shortcut or stable launcher.
+
+.PARAMETER Directory
+Working directory saved in the managed shortcut.
+
+.PARAMETER Icon
+Product icon path saved in the managed shortcut.
+
+.PARAMETER Arguments
+Literal application launch arguments preserved in the shortcut.
+
+.PARAMETER WindowStyle
+Windows shortcut window-style value.
+
+.PARAMETER BackupDirectory
+Managed directory for pending shortcuts and prior shortcut backups.
+#>
 function Save-ManagedShortcut(
     [object]$Shell, [string]$Path, [string]$Marker,
     [string]$Target, [string]$Directory, [string]$Icon,
@@ -75,6 +159,19 @@ function Save-ManagedShortcut(
     else { Move-Item -LiteralPath $pendingPath -Destination $Path }
 }
 
+<#
+.SYNOPSIS
+Writes the stable launcher only inside the verified managed application root.
+
+.PARAMETER Path
+Literal local path being validated, read, written or removed by this helper.
+
+.PARAMETER Target
+Verified executable path referenced by the shortcut or stable launcher.
+
+.PARAMETER Root
+Resolved application root that bounds every managed file operation.
+#>
 function Save-StableLauncher([string]$Path, [string]$Target, [string]$Root) {
     Assert-ChildPath $Path $Root
     Assert-ChildPath $Target $Root
