@@ -1,93 +1,13 @@
-# My choices
+# Project choices
 
-- I separate Windows and Linux sensor backends behind the same read-only contract.
-  Linux uses kernel-exposed readings, keeps missing values unavailable, and does
-  not inherit Windows chip-channel mappings. USB is a later stage.
-- I'm Umberto Giacobbi. I made Thermalright VibeWare. VibeWare is my initiative.
-- I offer a real per-user Windows MSI as well as the portable ZIP. After a requested build, I keep only its final MSI and remove generated build folders from the repository.
-- I choose which Music, Codex and System screens may appear on the display.
-- I use the music details Windows already has. No Spotify login.
-- People can make their own themes.
-- I reuse pictures and backgrounds to save work.
-- I can turn color filters off to skip that extra work. My slider values stay saved.
-- Color guides use the theme's existing accent. The preview stays flat, without elevation or shadow.
-- I use type and space to organize the UI, not cards inside cards.
-- I keep my name and About under the title, with VibeWare at the top right.
-- I open a larger, centered window. The preview fits the space; only the theme list scrolls.
-- If a detail is missing, I don't make it up.
-- System themes hide missing fields and empty CPU, GPU or RAM sections. Zero remains a real value. I leave swap out.
-- I use the original Open Hardware Monitor as my only Windows sensor source, at most once a second. I approved its own WinRing0 driver lifecycle on 17 October 2026.
-- I rebuild its pinned source for .NET 10. A successful build of an old DLL did not prove it could read sensors. I include the changed library sources with the portable ZIP.
-- System offers an explicit administrator restart on Windows. I save the choices and reopen in preview. Canceling leaves the current studio running. I do not change future launches to require administrator rights.
-- Codex screens skip a closed Codex process. If no screen is eligible, I send a black frame within the active display session.
-- I use the PC's sound for the bars. I don't record it or use the microphone.
-- Preparing the Codex plugin does not install it or trust its hooks. That choice stays inside Codex.
-- A picture on my PC does not prove it works on the USB screen.
-- I ask before each test, hardware trial or new branch or workspace.
-- On Windows, a separate guard stops the app and its children above 1 GB of private memory. It shows an alert first and does not wait for a click.
-- I free native message strings after use and send preview JPEGs as data, outside the JavaScript eval bridge.
-- I wait for each preview to be drawn, then close its decoded bitmap. The UI keeps two canvases for theme fades.
-- I keep the web view's visibility in sync when the studio hides, minimizes or reopens.
-- Page, track and cover changes blend for two seconds in the renderer. Preview and USB share each blended JPEG. I keep no queue of old tracks.
-- A drawn canvas can still have no visible height. I check its on-screen bounds and a captured image as well.
-- The Python worker uses one native NumPy thread. Tiny palette arrays do not need a large thread pool.
-- I refresh the USB list every ten seconds. Reconnecting a screen does not start output.
-- At Windows sign-in I start the saved screen and theme in the tray. Opening the studio normally keeps the preview. Stop cancels a startup wait.
-- I keep one current setup. Closing saves its theme and settings, including pending slider changes. Reopening restores them in the preview.
-- I keep Python artwork and backgrounds in a small memory cache. I check image dimensions before decoding them.
-- I load bundled scripts only from the engine folder, including in local builds.
-- I still need to check memory, speed and security. [My list](cave.md).
-- My MSI shows progress and closes verified app processes before replacing files. I check that my sensor driver has stopped, its service is gone, and its generated file is removed. A successful file read does not prove that a loaded driver can be deleted.
-- I use the selected Visual Studio installation's default toolset for Photino. New Windows runners may omit older ARM64 compilers.
-- I never wait for a browser preview before requesting the next display frame. A hidden or minimized WebView can delay image callbacks. I keep one preview decode with no queue and skip hidden previews while active display output continues.
-- I keep preferences, startup and the display loop in a UI-independent studio model. Views send commands and read the latest snapshot; hiding or blocking a view does not own the output lifetime.
-- I hold the single-instance lock until the engine has finished closing. Setup blocks new launches until commit or rollback. A maximized window stays maximized when restored from the tray.
-- Themes share five named palette colors. Personal overrides belong to the theme and its light/dark appearance, outside the installed files.
-- I read named motherboard and fan sensors from the same Libre Hardware Monitor instance. I attach a board fan to CPU only when its sensor name says CPU. I never infer fan speed from load.
-- I use the official compiled LibreHardwareMonitorLib package. PawnIO is an external prerequisite; I never install it from the app or weaken Windows security. Physical RAM totals use Windows. Owner-approved SPD readings use the NDD dependency and the library's existing PawnIO adapter.
-- Thermal themes put measured temperatures first and show used physical RAM over total. Missing temperatures and RPM are omitted; generic board sensors keep their names.
-
-- I commit preferences, screens and palettes together. Each rendered frame reads one detached state. A stale rotation cannot replace a newer user edit.
-- I keep settings storage separate from the model, with a version, an atomic replacement and a last-good backup. Unknown formats stay untouched.
-- I keep data records and provider interfaces in plain .NET. The Windows host supplies its implementations; offline checks supply fakes. [Architecture](docs/studio-architecture.md).
-- The installer owns the single Start entry. I disable unused Photino toast registration, which otherwise creates a second shortcut from the window title.
-- Every local compilation uses the current source in Debug and finishes through my reinstall command. It removes the previous app, clears generated files, increments the MSI version and builds a new package. It compares installed files with that package and then keeps only the final MSI.
-- MSI cleanup removes my old script registration from the original user's registry views and verifies removal. Major upgrades remove the old MSI before installing new files. Settings and personal themes stay outside the app folder.
-- Sensor Debug exposes the library's device tree and raw sensor names, units, current/min/max values and missing readings. It refreshes on demand through the existing engine, with no sensor setters. CPU clock averages keep effective and nominal clocks separate.
-
-- System themes share one composition path; omit absent fields and remove superseded renderers. Keep CPU/GPU identity, clock and thermal data in reserved regions. The owner requested automatic output on each Windows launch; Stop still cancels the initial wait.
-
-- I use one Python page clock and one frame compositor for page and track fades. System graphs retain only timestamped readings; artist facts need attributed sources. Missing profiles skip the artist page.
-- Small Windows icons use a first-party display and sensor trace. Larger frames use a separate gradient drawing. The VibeWare initiative logo stays separate.
-- Cooling pages use watt readouts and named fan instruments. Outline rotors turn only for positive measured RPM and stay still at zero. Their visual speed is capped; it is not physical rotor speed. Animations share the theme clock and the selected frame refresh.
-- Codex work dots pulse only during received live work. Idle, stale, stopped and approval states keep their own still symbols.
-- I build each package from the current source. First-import scans are explicit preparation; builds only verify saved hashes. Scan evidence survives output cleanup. Generated app files and installers are not external imports.
-- I use one theme-to-amber-to-red scale for every circular and linear progress indicator in all current and future themes, in every category, layout and appearance. Custom meters use the same shared helper. Colors follow each displayed range; decorative rings keep their own meaning.
-- Setup's successful Finish page has two checked choices for starting the app and opening release news. They are independent and run only after interactive installation completes. Release links use fixed UTM campaign tags.
-- I request administrator access before starting Windows child processes. A canceled request shows a warning and leaves missing sensors unavailable. Sign-in and tray arguments survive elevation.
-- I keep one running fan visible while other named channels rotate, including measured zeroes. A stopped-only page must not make available running fans appear to have disappeared.
-- I show short status summaries and primary actions first. Setup text, paths, advanced controls and diagnostic trees open on demand without changing saved settings.
-- I hide fan channels from themes until their sensor ID has reported positive RPM in the current engine session. A later measured zero stays visible as a stopped fan. Page/theme changes and renderer restarts do not erase that observation. Sensor Debug keeps raw channels.
-- I group System details into CPU, GPU, board and RAM pages, with at most four readings per detail card. I show aggregate clocks and omit individual cores. Empty detail pages stay hidden.
-- I keep up to seven System pages. A core heatmap appears only with matched power and load for at least eight cores, averages thread load by physical core and stops at 32. Power, voltage, current and aggregate clocks share one hardware page; RAM identities and SPD timing limits share the memory page without inventing a DIMM-to-SPD assignment.
-- I put each RAM model code first and an available serial below in smaller type. Physical slot/bank labels come from firmware; an SPD index is not a slot. Identical modules keep their SPD timing limits separate.
-- I disable storage collection and keep only verified physical Ethernet/Wi-Fi in network diagnostics. Filtering happens before updates and device limits. I visit child sensor chips before later devices fill the budget.
-- I contribute sensor decoder fixes upstream. Board labels keep their chip source names outside exact, owner-approved display profiles. A display profile preserves raw diagnostics and never changes calibration or filters by a guessed temperature threshold.
-- I build the pinned LibreHardwareMonitor fork with the app and ship its MPL-covered source. Each RAM module shows its reported type and configured rate alongside its own model and physical identity.
-- Cooling cards show measured aggregate CPU power alongside available CPU voltage and current. They keep the package visible while other readings rotate, without treating limits as consumption.
-- Electrical and temperature detail rows pair each reading with a thin, smoothed trend of its recent measured samples. The displayed extrema cover that same bounded window.
-- Thermal Atlas omits Power & cooling, holds Live activity first for fifteen seconds and Temperature channels second for twenty seconds. Later pages use eight seconds. Per-page durations share the existing clock; unavailable pages add no time to the cycle.
-- I show separate THEME and PAGE navigation under the preview. Each names the rendered item and shows its own position. A manual page choice restarts that page's interval, then automatic page rotation continues; changing theme returns to its first available page.
-- On 21 October 2026 I renamed the product to Thermalright VibeWare, the GitHub repository to `thermalright-vibeware`, code identifiers to `ThermalrightVibeWare` and the CLI to `trv`. There are no old-name aliases or settings migrations. The new MSI has its own upgrade identity. Old user data is preserved outside the new app's settings directory.
-- The product uses its own display-and-sensor icon. Thermalright's logo is not used. The VibeWare initiative mark and author remain unchanged. Public pages disclose the independent project and lack of employment, affiliation, sponsorship or endorsement.
-- The README uses real owner-supplied captures with conventional cropping, resizing and mild sharpening, and asks for volunteer Linux/macOS guinea pigs. Historical evidence keeps its original filenames and measurements.
-
-- I keep only Reinstall.ps1 and Publish.ps1 at the scripts root. Supporting scripts live in build, install, maintenance and tools folders; repository-relative paths and CI references move together. Portable install scripts still resolve their own extracted package folder.
-
-- I group studio partials, CLI commands and Python drawing modules by responsibility. Method comments explain inputs and ownership; file headers record purpose and actual provenance. The source map lives in `docs/code-maintenance.md`.
-- First launch uses a persisted `IsFirstRun = true`. I show the studio once, then save false only after its main page loads. Later Windows launches start in the tray. A failed save preserves first-launch visibility; the tray can always reopen the window.
-### Diagnostic defaults and startup status — 1 November 2026
-
-Default local diagnostics to on while honoring an explicit off. Preview status
-must not overwrite a pending saved-device wait. Select stable .NET 10 SDKs
-without rolling forward to .NET 11.
+- Thermalright VibeWare is Umberto Giacobbi's independent hobby project. VibeWare is his initiative.
+- Ship a Windows MSI and a portable ZIP built from current source. Keep settings and personal themes outside installed files.
+- Use .NET 10, OpenSilver and Photino for the studio, and Python/Skia for themes. The engine owns USB communication; the UI uses its versioned local protocol.
+- Restore the saved display and theme on Windows startup. Stop cancels a pending startup wait. Keep preview rendering independent of display output.
+- Use local Windows media and available sensor readings. Do not invent missing values, record audio or integrate directly with Spotify.
+- Use the source-built LibreHardwareMonitor fork and ship its source. Do not install a sensor driver or monitoring suite from the app.
+- Keep themes customizable, and make clear that they run code. Use the shared accent-to-amber-to-red scale for progress indicators.
+- Keep the studio flat, with primary actions visible and advanced details available on demand. Preserve saved choices when controls are hidden.
+- Enable local diagnostic logging by default and preserve an explicit choice to turn it off. Keep the saved-display waiting status visible during preview.
+- Select an installed stable .NET 10 SDK without rolling forward to .NET 11.
+- Keep current limitations in [cave.md](cave.md), without accumulating a development history.

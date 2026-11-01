@@ -59,13 +59,13 @@ I am Umberto Giacobbi. Thermalright VibeWare is my MIT-licensed holiday hobby pr
 - Open a larger, centered studio within the monitor work area. Let the preview fit its viewport; only the theme list scrolls. Keep the preview flat, with a solid backing and no elevation, shadow or blur effect on its backing or changing image.
 - Put the author and About below the product title. Keep the unchanged VibeWare logo and manifesto at the top right, and Terms/Privacy visible below. Keep the product icon separate from the initiative logo.
 - Keep the approved VibeWare floppy unchanged and a brief initiative link at the bottom of the README: `https://umbertogiacobbi.biz/vibeware/manifesto`. Omit the tagline and slogans from public project notes.
-- Keep the hobby/as-is/no-warranty disclosure short. Do not promise support, compatibility, verified security or performance. Record decisions in `lesson.md` and limits/evidence in `cave.md`.
+- Keep the hobby/as-is/no-warranty disclosure short. Do not promise support, compatibility, verified security or performance. Keep current decisions in `lesson.md` and current limits in `cave.md`; retain only the latest validation round, not a running history of work, CI or pull requests.
 - Preserve the VibeWare markers `VBWR B` and `VBWR E` in first-party source and project files.
 - The ThermalrightVibeWare name and visual identity are not granted by the MIT license; see `TRADEMARKS.md`.
 
 ## Delivery and validation
 
-- For owner-authorized documentation-only or repository-instruction-only delivery, commit and push directly on the current branch with `[skip ci]`. Do not create a branch or pull request, start CI, or include unrelated local commits.
+- For owner-authorized documentation-only or repository-instruction-only delivery, commit and push directly to `main` with `[skip ci]`. Do not create a branch or pull request, start CI, or include unrelated local commits.
 - For other changes, keep `main` protected. Stay on the current branch unless the owner approves a new one; merge through reviewed pull requests after required checks pass.
 - For owner-authorized delivery of other changes, create or reuse an open pull request for the current branch. Always assign it to `umbertotechnopreneur` and apply the relevant repository labels.
 - CI priority is Windows, Linux, then macOS. The owner authorizes an administrator override only for a failed, cancelled, unavailable or stalled macOS-only check when Windows, Linux, other required checks and review requirements pass. Preserve protections and report that limitation. This does not authorize starting tests, builds, Git delivery, installation or publication by itself.
