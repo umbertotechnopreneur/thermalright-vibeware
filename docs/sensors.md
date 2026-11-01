@@ -32,8 +32,9 @@ administrator rights and some readings may be unavailable. **Sensor access** and
 The request keeps the saved display session and tray choice. Elevation does not install a missing
 driver or bypass a Windows security block. Windows ARM64 CPU/motherboard access remains
 disabled pending implementation evidence. A separate [Linux sensor backend](linux-sensors.md)
-is available in source for CLI and stdio diagnostics. It has not been validated on
-hardware. Linux USB, audio and the complete studio are not implemented. macOS has
+provides CLI and stdio diagnostics from kernel interfaces. Coverage depends on
+kernel drivers and access permissions. Linux USB, audio and the complete studio
+are not implemented. macOS has
 no sensor provider.
 
 ## Sensor Debug

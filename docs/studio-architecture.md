@@ -45,5 +45,6 @@ sensor-only stdio surface. Other operations fail before starting providers. Wind
 is excluded. The UI still blocks starting a non-Windows engine: this stage does not
 provide a complete Linux studio. See [Linux sensors](linux-sensors.md).
 
-Linux sensor runtime behavior and Windows regression behavior still need validation.
-Tests and runtime trials require owner approval.
+Linux sensor coverage depends on kernel drivers and access permissions. Windows
+runtime regression behavior remains unverified for this separation. Tests and
+runtime trials require owner approval.

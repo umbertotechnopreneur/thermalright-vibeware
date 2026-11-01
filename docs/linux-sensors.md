@@ -9,8 +9,8 @@ VBWR E -->
 # Linux sensors
 
 This stage adds a read-only Linux sensor backend in source. It does not add Linux
-USB output, audio, media sessions or a working Linux studio. It has not been
-validated on physical hardware.
+USB output, audio, media sessions or a working Linux studio. Available readings
+depend on the installed kernel drivers and the current user's permissions.
 
 Windows keeps its existing LibreHardwareMonitor fork, PawnIO integration and RAM
 reader in `ThermalrightVibeWare.Backends.Windows`. Linux uses a separate

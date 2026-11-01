@@ -4,7 +4,8 @@
 
 Windows and Linux providers are separated in source. Linux adds read-only
 procfs/sysfs sensors with the existing snapshot and debug contracts. Linux sensor
-runtime behavior and Windows regression behavior still need validation. The Linux
+coverage depends on kernel drivers and access permissions. Windows runtime
+regression behavior remains unverified for this separation. The Linux
 studio, USB and audio backends remain incomplete. [Scope and limits](docs/linux-sensors.md).
 
 On 19 October, the old MSI and stale script registration were removed before a
