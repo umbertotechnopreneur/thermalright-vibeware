@@ -57,3 +57,16 @@ Packaging downloads an isolated Python runtime and the pinned theme dependencies
 The CLI output contains its own `themes`, `theme-runtime` and `plugins` folders, in local builds too. The engine never searches parent folders for bundled code. In a ZIP these folders live under `engine/`.
 
 Tests and hardware trials need the owner's approval before each run. Read [AGENTS.md](../AGENTS.md).
+
+## Linux sensor development
+
+Core and CLI have a separate `net10.0` target for Linux sensors. Select it
+explicitly; the Windows target remains `net10.0-windows10.0.19041.0`.
+For a Linux-only restore, set `-p:TargetFramework=net10.0`; for a build, select
+`--framework net10.0 --configuration Debug`. Keep new SDK and package imports
+outside the repository until the required ClamAV scan is clean.
+
+The local Debug/reinstall rule still applies. Ask for an owner-approved exception
+before compiling this Linux-only stage without the Windows MSI reinstall flow.
+The current scope is [sensor diagnostics](linux-sensors.md), not a Linux studio
+or USB package. Runtime trials require separate approval.

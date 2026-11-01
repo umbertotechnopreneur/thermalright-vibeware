@@ -1,6 +1,6 @@
 # System sensors
 
-Thermalright VibeWare builds its CPU, GPU and motherboard reader from
+On Windows, Thermalright VibeWare builds its CPU, GPU and motherboard reader from
 [LibreHardwareMonitor fork e5fa436](https://github.com/umbertotechnopreneur/LibreHardwareMonitor/tree/e5fa436eae6cb9ad5e8693d9909cd81ddf473629).
 This includes the NCT6792D decoder repair and ASRock B550M-ITX/ac source mapping.
 The MPL-2.0 library source is in `third_party/LibreHardwareMonitor`, and distributions
@@ -31,7 +31,10 @@ administrator rights and some readings may be unavailable. **Sensor access** and
 **Sensor Debug** offer **Reopen as administrator**. Themes run with the app's rights.
 The request keeps the saved display session and tray choice. Elevation does not install a missing
 driver or bypass a Windows security block. Windows ARM64 CPU/motherboard access remains
-disabled pending implementation evidence. Linux/macOS sensor providers are not implemented.
+disabled pending implementation evidence. A separate [Linux sensor backend](linux-sensors.md)
+is available in source for CLI and stdio diagnostics. It has not been validated on
+hardware. Linux USB, audio and the complete studio are not implemented. macOS has
+no sensor provider.
 
 ## Sensor Debug
 

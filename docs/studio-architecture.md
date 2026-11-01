@@ -31,6 +31,19 @@ See [Code maintenance](code-maintenance.md) for the source file map and document
 
 ## Platform boundary
 
-`ThermalrightVibeWare.Data` targets plain `net10.0`. It holds data records, provider interfaces and the shared collection service. It references no Windows APIs or hardware libraries.  `WindowsDashboardProviders` is the Windows composition root. The host explicitly supplies these providers; constructing the data service does not choose or open hardware. Disabled features do not read their providers. A failed playback provider cannot discard available media or sensor results.
+`ThermalrightVibeWare.Data` targets plain `net10.0`. It holds data records, provider interfaces and the shared collection service. It references Contracts, with no Windows APIs or hardware libraries. `ISensorProvider` adds raw diagnostics and access metadata to `IMetricsProvider`. The host selects adapters through `PlatformDashboardProviders`; constructing them does not open or sample hardware. Disabled features do not read their providers. A failed playback provider cannot discard available media or sensor results.
 
-This is a portable data boundary, not a Linux or macOS hardware backend. The engine host, USB transport, system providers and raster conversion remain Windows-specific. The non-Windows desktop runtime is not yet a complete working studio. Linux CI builds the UI and executes model, persistence and fake-provider checks. No test opens USB, sensors or audio. These checks do not establish physical-device or installer behavior.
+`ThermalrightVibeWare.Backends.Windows` owns the existing Windows sensor, media,
+volume and loopback implementations. Only the Windows engine target references it
+and the pinned LibreHardwareMonitor fork. `WindowsDashboardProviders` keeps the
+Windows composition and optional artist provider.
+
+`ThermalrightVibeWare.Backends.Linux` reads Linux sensors through procfs and sysfs.
+It has no monitoring-library dependency. Core and CLI have separate `net10.0` and
+Windows targets. The Linux target accepts only sensor commands, help and the
+sensor-only stdio surface. Other operations fail before starting providers. Windows raster conversion
+is excluded. The UI still blocks starting a non-Windows engine: this stage does not
+provide a complete Linux studio. See [Linux sensors](linux-sensors.md).
+
+Linux sensor runtime behavior and Windows regression behavior still need validation.
+Tests and runtime trials require owner approval.

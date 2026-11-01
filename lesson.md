@@ -1,5 +1,8 @@
 # My choices
 
+- I separate Windows and Linux sensor backends behind the same read-only contract.
+  Linux uses kernel-exposed readings, keeps missing values unavailable, and does
+  not inherit Windows chip-channel mappings. USB is a later stage.
 - I'm Umberto Giacobbi. I made Thermalright VibeWare. VibeWare is my initiative.
 - I offer a real per-user Windows MSI as well as the portable ZIP. After a requested build, I keep only its final MSI and remove generated build folders from the repository.
 - I choose which Music, Codex and System screens may appear on the display.
