@@ -504,3 +504,14 @@ were built from source. Read-only MSI metadata confirmed version 0.1.24,
 is `372D236C025EA8F3F406CF9E965A7692C4F6A4D186347A9DB5B4C9439C0BFA82`.
 The installed version remained 0.1.23. Installation and testing were left to the
 owner; no application launch, automated test or physical-device trial ran.
+### Local Debug installation — 1 November 2026
+
+SDK selection now uses the latest stable installed .NET 10 feature band.
+Local diagnostics default to on when no preference exists; an explicit off is
+preserved. Preview frames no longer overwrite the saved-device waiting status.
+The x64 Debug MSI 0.1.26 was built from current source and installed visibly.
+The installed registration and 1,842 payload files were checked; all matched.
+New .NET 10.0.14 NuGet inputs and the changed WiX launcher were scanned on first
+import without detections; evidence is in the local first-import scan ledger.
+Restore and changed-file format verification passed. No tests, app launch,
+physical-device trial or USB write were performed for this change.

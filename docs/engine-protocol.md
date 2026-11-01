@@ -84,7 +84,7 @@ Codex themes read optional local hook activity. The latest twelve observed event
 
 `codex.status` reads the local plugin, personal marketplace and latest event. It does not prove hooks are enabled or trusted. `codex.prepare` stages the bundled plugin and lists it locally, only after an explicit UI click or CLI command. The user must finish installation and review the hooks inside Codex. No extra account login is used.
 
-`diagnostics.status` returns `enabled` and `logPath`. `diagnostics.set` takes `{ "enabled": true }` or false. It starts off and remembers the choice. `diagnostics.open` opens the known local log on request. Logs are limited to 512 KiB plus one backup. They contain technical event metadata, not request payloads, song titles, prompts or audio.
+`diagnostics.status` returns `enabled` and `logPath`. `diagnostics.set` takes `{ "enabled": true }` or false. Logging starts on by default and remembers the choice. `diagnostics.open` opens the known local log on request. Logs are limited to 512 KiB plus one backup. They contain technical event metadata, not request payloads, song titles, prompts or audio.
 
 The engine caches that preference. If a separate CLI changes it while the GUI is open, reopen the GUI to pick it up.
 

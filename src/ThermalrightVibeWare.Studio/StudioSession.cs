@@ -296,7 +296,7 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
                     var active = Snapshot.DisplayActive;
                     var frame = await client.RequestAsync<PanelState>(active ? "present" : "state", options, lifetime.Token).ConfigureAwait(false);
                     delay = frame.NextFrameMilliseconds is >= 25 and <= 1000 ? Math.Min(delay, frame.NextFrameMilliseconds.Value) : delay;
-                    Publish(s => s with { Frame = frame, FrameRevision = s.FrameRevision + 1, DisplayActive = active && !outputFaulted && frame.DisplayRunning, Status = outputFaulted ? s.Status : frame.Status });
+                    Publish(s => s with { Frame = frame, FrameRevision = s.FrameRevision + 1, DisplayActive = active && !outputFaulted && frame.DisplayRunning, Status = outputFaulted || s.StartupPending ? s.Status : frame.Status });
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 { if (Snapshot.DisplayActive) { outputFaulted = true; } Publish(s => s with { DisplayActive = false, Status = error.Message }); delay = 1000; }

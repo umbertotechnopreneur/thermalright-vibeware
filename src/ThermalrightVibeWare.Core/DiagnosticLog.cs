@@ -5,7 +5,7 @@
  * Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
  *
  * File: DiagnosticLog.cs
- * Purpose: Writes opt-in bounded local diagnostics without private request payloads.
+ * Purpose: Writes bounded local diagnostics without private request payloads.
  *
  * VibeWare: Human intent, AI execution, and plenty of tokens
  * Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
@@ -25,7 +25,7 @@ using ThermalrightVibeWare.Contracts;
 
 namespace ThermalrightVibeWare.Core;
 
-/// <summary>Opt-in, bounded local diagnostics. Never writes protocol bodies or exception messages.</summary>
+/// <summary>Bounded local diagnostics, enabled by default. Never writes protocol bodies or exception messages.</summary>
 public static class DiagnosticLog
 {
     private const long MaximumBytes = 512 * 1024;
@@ -43,7 +43,7 @@ public static class DiagnosticLog
     }
 
     /// <summary>Persists whether local diagnostic logging is enabled.</summary>
-    /// <param name="value">Whether local opt-in diagnostic logging should be enabled.</param>
+    /// <param name="value">Whether local diagnostic logging should be enabled.</param>
     public static DiagnosticsStatus SetEnabled(bool value)
     {
         lock (Sync)
@@ -130,11 +130,12 @@ public static class DiagnosticLog
     {
         if (initialized) { return enabled; }
         initialized = true;
-        enabled = false;
+        enabled = true;
         try
         {
             var file = new FileInfo(SettingsPath);
-            if (!file.Exists || file.Length > 256) { return false; }
+            if (!file.Exists) { return true; }
+            if (file.Length > 256) { return enabled = false; }
             using var stream = file.OpenRead();
             using var settings = JsonDocument.Parse(stream);
             enabled = settings.RootElement.TryGetProperty("enabled", out var value) && value.ValueKind == JsonValueKind.True;

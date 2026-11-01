@@ -83,3 +83,8 @@
 
 - I group studio partials, CLI commands and Python drawing modules by responsibility. Method comments explain inputs and ownership; file headers record purpose and actual provenance. The source map lives in `docs/code-maintenance.md`.
 - First launch uses a persisted `IsFirstRun = true`. I show the studio once, then save false only after its main page loads. Later Windows launches start in the tray. A failed save preserves first-launch visibility; the tray can always reopen the window.
+### Diagnostic defaults and startup status — 1 November 2026
+
+Default local diagnostics to on while honoring an explicit off. Preview status
+must not overwrite a pending saved-device wait. Select stable .NET 10 SDKs
+without rolling forward to .NET 11.

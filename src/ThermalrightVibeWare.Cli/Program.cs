@@ -168,7 +168,7 @@ internal static partial class ThermalrightVibeWareCli
         commands.AddRow("trv themes", "List installed Multimedia and OpenAI Codex themes from their folders.");
         commands.AddRow("trv fonts", "List installed monospace families available to the Python/Skia renderer.");
         commands.AddRow("trv codex status|prepare", "Check or prepare my optional Codex plugin. Trust its hooks in Codex.");
-        commands.AddRow("trv diagnostics status|on|off|open", "Opt-in local error log, capped at 512 KiB plus one backup.");
+        commands.AddRow("trv diagnostics status|on|off|open", "Local diagnostics, on by default, capped at 512 KiB plus one backup.");
         commands.AddRow("trv sensors [--diagnose|--all]", "Read hardware once. --all returns the raw device/sensor tree; --diagnose prints initialization details. No audio or USB.");
         commands.AddRow("trv gui", "Open the desktop window from the portable folder.");
         commands.AddRow("trv gui --start-minimized", "Start in the Windows tray. Reuses the existing studio instance.");
