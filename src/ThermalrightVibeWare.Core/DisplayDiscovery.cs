@@ -29,6 +29,8 @@ public static class DisplayDiscovery
     /// <summary>Lists validated HID interfaces first, followed by exposed WinUSB interfaces.</summary>
     public static IReadOnlyList<DisplayDevice> FindDevices()
     {
+        if (!OperatingSystem.IsWindows())
+        { throw new PlatformNotSupportedException("Linux USB display transport is not implemented yet. No USB device was opened or probed."); }
         Native.HidD_GetHidGuid(out var guid);
         var devices = InterfacePaths(guid)
             .Where(path => path.Contains("vid_0416&pid_5302&mi_00", StringComparison.OrdinalIgnoreCase))

@@ -39,9 +39,9 @@ foreach ($name in @('Cli', 'Photino')) {
     if ($LASTEXITCODE -ne 0) { throw "Restore failed: $name" }
 }
 & "$PSScriptRoot/maintenance/Assert-DefenderClean.ps1" -Path $env:NUGET_PACKAGES -Source 'https://api.nuget.org/v3/index.json; restored package archives and extracted dependencies'
-foreach ($target in @(@{ Project = 'Cli'; Folder = $engine }, @{ Project = 'Photino'; Folder = $destination })) {
+foreach ($target in @(@{ Project = 'Cli'; Framework = 'net10.0-windows10.0.19041.0'; Folder = $engine }, @{ Project = 'Photino'; Framework = 'net10.0'; Folder = $destination })) {
     $project = Join-Path $repo "src/ThermalrightVibeWare.$($target.Project)/ThermalrightVibeWare.$($target.Project).csproj"
-    dotnet publish $project --no-restore --disable-build-servers --configuration $Configuration --runtime $runtime --self-contained true -p:Platform=$Architecture --output $target.Folder --warnaserror
+    dotnet publish $project --framework $target.Framework --no-restore --disable-build-servers --configuration $Configuration --runtime $runtime --self-contained true -p:Platform=$Architecture --output $target.Folder --warnaserror
     if ($LASTEXITCODE -ne 0) { throw "Publish failed: $($target.Project) / $runtime" }
 }
 & (Join-Path $PSScriptRoot 'build/Bundle-Python.ps1') -Architecture $Architecture -Destination $destination -HostPython $HostPython

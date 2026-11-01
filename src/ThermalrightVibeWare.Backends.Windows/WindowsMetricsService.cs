@@ -30,7 +30,7 @@ namespace ThermalrightVibeWare.Core;
 /// Construction opens no hardware. This adapter never installs, extracts or removes a sensor driver.
 /// </summary>
 /// <param name="allowHardwareAccess">Whether explicit reads may open the configured hardware provider; construction opens no hardware.</param>
-public sealed partial class WindowsMetricsService(bool allowHardwareAccess = false) : IMetricsProvider
+public sealed partial class WindowsMetricsService(bool allowHardwareAccess = false) : ISensorProvider
 {
     private const int MaximumHardware = 64;
     private const int MaximumDepth = 8;
@@ -56,6 +56,9 @@ public sealed partial class WindowsMetricsService(bool allowHardwareAccess = fal
 
     /// <summary>Returns the last driver status without starting or sampling the sensor library.</summary>
     public HardwareDriverStatus DriverStatus { get { lock (sync) { return driverStatus; } } }
+
+    /// <summary>Reads existing driver registration without opening or sampling sensor hardware.</summary>
+    public HardwareDriverStatus ReadDriverStatus() => ReadDriverInstallationStatus();
 
     /// <summary>Checks existing registration only. A found installation does not prove usable sensor access.</summary>
     public static HardwareDriverStatus ReadDriverInstallationStatus()

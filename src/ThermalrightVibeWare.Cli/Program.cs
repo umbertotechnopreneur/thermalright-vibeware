@@ -33,9 +33,12 @@ internal static partial class ThermalrightVibeWareCli
     {
         try
         {
+            var command = args.FirstOrDefault()?.ToLowerInvariant();
+            if (OperatingSystem.IsLinux() && command is not ("sensors" or "help" or "--help" or "-h" or null))
+            { return Task.FromResult(Fail("The Linux engine currently supports only trv sensors [--diagnose|--all] and trv help.")); }
             Console.OutputEncoding = Encoding.UTF8;
-            if (!string.Equals(args.FirstOrDefault(), "sensors", StringComparison.OrdinalIgnoreCase)) { Banner(); }
-            return Task.FromResult(args.FirstOrDefault()?.ToLowerInvariant() switch
+            if (command != "sensors") { Banner(); }
+            return Task.FromResult(command switch
             {
                 "discover" => Discover(),
                 "profiles" => Profiles(),
@@ -159,6 +162,17 @@ internal static partial class ThermalrightVibeWareCli
     /// <summary>Prints CLI usage and the commands that write to physical devices.</summary>
     private static int Help()
     {
+        if (OperatingSystem.IsLinux())
+        {
+            Console.WriteLine("Linux sensor diagnostics:");
+            Console.WriteLine("trv sensors              Read the current hardware snapshot once.");
+            Console.WriteLine("trv sensors --diagnose   Read once and print initialization failure details when present.");
+            Console.WriteLine("trv sensors --all        Read the raw device and sensor tree once.");
+            Console.WriteLine("trv help                 Show the commands available in this Linux stage.");
+            Console.WriteLine("trv --stdio              JSON-lines engine v1: hello, sensors.debug, sensors.driver.status, stop.");
+            Console.WriteLine("Sensor reads do not open USB or audio devices. USB output, studio engine access, media, audio and theme rendering are not implemented on Linux yet.");
+            return 0;
+        }
         var commands = new Table().Border(TableBorder.Rounded).AddColumn("Command").AddColumn("What it does");
         commands.AddRow("[bold]trv dashboard[/]", "Now playing, app volumes, CPU / GPU. No USB writes.");
         commands.AddRow("trv dashboard --watch", "Refresh the terminal every 2 seconds. Ctrl+C stops.");

@@ -81,7 +81,7 @@ internal static partial class ThermalrightVibeWareCli
         var profile = DisplayProfileCatalog.GetRequired(GetOption(args, "--profile") ?? "wide-1280x480") with { Encoding = PanelPixelEncoding.Jpeg, WireRotation = 0 };
         var path = Path.GetFullPath(export!);
         if (File.Exists(path)) { throw new IOException("The export file already exists. Choose a new path."); }
-        using var service = new DashboardService(WindowsDashboardProviders.Create());
+        using var service = new DashboardService(PlatformDashboardProviders.Create());
         using var renderer = new PythonThemeRenderer();
         var snapshot = service.ReadAsync(includeSystem: false, includeMedia: theme.Category == "multimedia",
             includeSensors: theme.Category == "system").GetAwaiter().GetResult();

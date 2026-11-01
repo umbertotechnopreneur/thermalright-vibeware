@@ -65,6 +65,8 @@ public static class DiagnosticLog
     /// <summary>Opens the local diagnostic log through the Windows shell.</summary>
     public static bool Open()
     {
+        if (!OperatingSystem.IsWindows())
+        { throw new PlatformNotSupportedException("Opening the diagnostic log from the Linux engine is not implemented yet."); }
         if (!File.Exists(LogPath)) { return false; }
         var start = new ProcessStartInfo("notepad.exe") { UseShellExecute = false, CreateNoWindow = false };
         start.ArgumentList.Add(LogPath);

@@ -34,6 +34,8 @@ public sealed class PanelSession : IDisposable
     /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
     private PanelSession(DisplayDevice device)
     {
+        if (!OperatingSystem.IsWindows())
+        { throw new PlatformNotSupportedException("Linux USB display transport is not implemented yet. No USB device was opened or probed."); }
         this.device = device;
         if (device.Transport == PanelTransportKind.WinUsb)
         {

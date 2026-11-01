@@ -1,0 +1,16 @@
+<!-- VBWR B
+  Project: Thermalright VibeWare
+  Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+  Purpose: Builds read-only Linux providers without Windows hardware dependencies.
+  Copyright (c) 2026 Umberto Giacobbi | SPDX-License-Identifier: MIT
+VBWR E -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ThermalrightVibeWare.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ThermalrightVibeWare.Data/ThermalrightVibeWare.Data.csproj" />
+    <ProjectReference Include="../ThermalrightVibeWare.Contracts/ThermalrightVibeWare.Contracts.csproj" />
+  </ItemGroup>
+</Project>

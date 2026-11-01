@@ -18,10 +18,12 @@
  *
  * VBWR E */
 
+#if WINDOWS
 using System.Drawing;
+using Microsoft.Win32;
+#endif
 using System.Globalization;
 using System.Text.Json;
-using Microsoft.Win32;
 
 namespace ThermalrightVibeWare.Core;
 
@@ -29,13 +31,16 @@ namespace ThermalrightVibeWare.Core;
 internal sealed class ThemeEnvironment
 {
     private string[] palette = ["#523F79", "#285A6D", "#6F3D68", "#2B324C"];
+#if WINDOWS
     private string? wallpaperKey;
     private long nextWallpaperRead;
+#endif
     private readonly Queue<(string Key, object Activity)> history = new();
 
     /// <summary>Returns a cached wallpaper palette for theme rendering.</summary>
     public IReadOnlyList<string> DesktopPalette()
     {
+#if WINDOWS
         if (Environment.TickCount64 < nextWallpaperRead) { return palette; }
         nextWallpaperRead = Environment.TickCount64 + 30_000;
         try
@@ -64,6 +69,7 @@ internal sealed class ThemeEnvironment
             wallpaperKey = key;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or OutOfMemoryException) { }
+#endif
         return palette;
     }
 

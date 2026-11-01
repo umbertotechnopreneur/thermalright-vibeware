@@ -36,7 +36,7 @@ internal static partial class ThermalrightVibeWareCli
         try
         {
             if (args.Skip(1).Any(argument => argument != "--watch")) { throw new ArgumentException("Usage: trv dashboard [--watch]. Use trv theme <id> for rendering and display output."); }
-            using var service = new DashboardService(WindowsDashboardProviders.Create());
+            using var service = new DashboardService(PlatformDashboardProviders.Create());
             do
             {
                 var snapshot = service.ReadAsync().GetAwaiter().GetResult();
@@ -86,21 +86,22 @@ internal static partial class ThermalrightVibeWareCli
         AnsiConsole.Write(table);
     }
 
-    /// <summary>Parses and sends an explicitly requested Windows playback command.</summary>
+    /// <summary>Parses and sends an explicitly requested local playback command.</summary>
     /// <param name="args">Command-line arguments including the command name.</param>
     private static int Media(IReadOnlyList<string> args)
     {
         if (args.Count != 2) { return Fail("Usage: trv media toggle|play|pause|next|previous"); }
-        new WindowsMediaService().ControlAsync(args[1]).GetAwaiter().GetResult();
-        AnsiConsole.WriteLine("Media command accepted by the selected Windows session.");
+        using var service = new DashboardService(PlatformDashboardProviders.Create());
+        service.Media.ControlAsync(args[1]).GetAwaiter().GetResult();
+        AnsiConsole.WriteLine("Media command accepted by the selected local session.");
         return 0;
     }
 
-    /// <summary>Prints currently available Windows audio session levels.</summary>
+    /// <summary>Prints currently available audio session levels.</summary>
     private static int Volumes()
     {
-        using var service = new WindowsVolumeService();
-        ShowVolumes(service.Read());
+        using var service = new DashboardService(PlatformDashboardProviders.Create());
+        ShowVolumes(service.Audio.Read());
         AnsiConsole.WriteLine("Read-only. Volume is the configured gain; the meter shows instantaneous playback level.");
         return 0;
     }

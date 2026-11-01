@@ -28,11 +28,11 @@ using ThermalrightVibeWare.Core;
 /// <summary>Small allow-listed local protocol. USB writes require an explicit start request.</summary>
 internal sealed partial class EngineServer : IDisposable
 {
-    private readonly WindowsMetricsService metrics = new(allowHardwareAccess: true);
-    private readonly DashboardService dashboard;
+    private readonly ISensorProvider metrics = PlatformDashboardProviders.CreateSensors();
+    private readonly Lazy<DashboardService> dashboard;
 
-    /// <summary>Creates the engine's Windows data providers without starting display output.</summary>
-    public EngineServer() => dashboard = new(WindowsDashboardProviders.Create(metrics));
+    /// <summary>Creates the sensor adapter and defers dashboard construction until first use.</summary>
+    public EngineServer() => dashboard = new(() => new DashboardService(PlatformDashboardProviders.Create(metrics)));
     private readonly PythonThemeRenderer themeRenderer = new();
     private readonly CodexProcessMonitor codexProcess = new();
     private readonly Dictionary<string, DisplayDevice> devices = [];
@@ -109,9 +109,11 @@ internal sealed partial class EngineServer : IDisposable
     /// <param name="request">Versioned engine request containing a method, correlation ID and optional JSON parameters.</param>
     private async Task<object> HandleAsync(EngineRequest request)
     {
+        if (OperatingSystem.IsLinux() && request.Method is not ("hello" or "sensors.debug" or "sensors.driver.status" or "stop"))
+        { throw new PlatformNotSupportedException("The Linux engine currently supports only hello, sensors.debug, sensors.driver.status and stop. No requested provider or renderer was started."); }
         switch (request.Method)
         {
-            case "hello": return new { protocol = PanelContract.Version, platform = "windows", usbWritesRequireStart = true, themeMirror = true };
+            case "hello": return new { protocol = PanelContract.Version, platform = PlatformDashboardProviders.PlatformName, usbWritesRequireStart = true, themeMirror = OperatingSystem.IsWindows() };
             case "themes":
                 themeCatalog = ThemeCatalog.Read();
                 // An explicit refresh can replace a pack at the same ID; discard frames from the previous catalog.
@@ -128,8 +130,10 @@ internal sealed partial class EngineServer : IDisposable
             case "devices":
                 DiscoverDevices();
                 return DeviceChoices();
-            case "levels": return dashboard.Audio.ReadLevels();
+            case "levels": return dashboard.Value.Audio.ReadLevels();
             case "start":
+                if (!OperatingSystem.IsWindows())
+                { throw new PlatformNotSupportedException("Linux USB display output is not implemented yet. No USB device was opened or probed."); }
                 var options = Parameters<StartOptions>(request);
                 if (themeOutput is not null) { throw new InvalidOperationException("Stop the current display session first."); }
                 if (!devices.TryGetValue(options.DeviceId, out var selected)) { throw new ArgumentException("Refresh and choose a connected panel."); }
@@ -147,7 +151,7 @@ internal sealed partial class EngineServer : IDisposable
                 return new DisplayStartResult(true, themeOutput.Profile.Id);
             case "stop": await StopAsync(); return new { stopped = true };
             case "media":
-                await dashboard.Media.ControlAsync(Parameters<MediaOptions>(request).Action);
+                await dashboard.Value.Media.ControlAsync(Parameters<MediaOptions>(request).Action);
                 return new { accepted = true };
             case "codex.status": return CodexIntegration.Status();
             case "codex.prepare": return await CodexIntegration.PrepareAsync();
@@ -165,13 +169,14 @@ internal sealed partial class EngineServer : IDisposable
     private SensorDriverDto SensorDriverStatus()
     {
         // Registry/cached metadata only. Opening this panel must not open hardware.
-        var driver = sensorDriver ?? WindowsMetricsService.ReadDriverInstallationStatus();
+        var driver = sensorDriver ?? metrics.ReadDriverStatus();
         return new(driver.Available, driver.Path, driver.Notice, driver.Path is not null && File.Exists(driver.Path));
     }
 
     /// <summary>Shows a verified driver path in Windows Explorer.</summary>
     private bool OpenSensorDriverFolder()
     {
+        if (!OperatingSystem.IsWindows()) { return false; }
         var driver = SensorDriverStatus();
         if (driver.Path is not { } path || !Path.IsPathFullyQualified(path)) { return false; }
         var directory = Path.GetDirectoryName(path);
@@ -277,5 +282,17 @@ internal sealed partial class EngineServer : IDisposable
         request.Parameters?.Deserialize<T>(PanelContract.Json) ?? fallback ?? throw new ArgumentException("Missing parameters.");
 
     /// <summary>Releases resources owned by this instance.</summary>
-    public void Dispose() { CloseThemeOutput(); themeRenderer.Dispose(); dashboard.Dispose(); }
+    public void Dispose()
+    {
+        try { CloseThemeOutput(); }
+        finally
+        {
+            try { themeRenderer.Dispose(); }
+            finally
+            {
+                if (dashboard.IsValueCreated) { dashboard.Value.Dispose(); }
+                else { metrics.Dispose(); }
+            }
+        }
+    }
 }

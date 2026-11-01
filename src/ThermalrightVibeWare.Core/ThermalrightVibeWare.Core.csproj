@@ -20,7 +20,7 @@ VBWR E -->
 
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-windows10.0.19041.0</TargetFrameworks>
     <RootNamespace>ThermalrightVibeWare.Core</RootNamespace>
     <AssemblyName>ThermalrightVibeWare.Core</AssemblyName>
     <Platforms>x64;ARM64</Platforms>
@@ -28,11 +28,14 @@ VBWR E -->
   <ItemGroup>
     <ProjectReference Include="../ThermalrightVibeWare.Data/ThermalrightVibeWare.Data.csproj" />
     <ProjectReference Include="../ThermalrightVibeWare.Contracts/ThermalrightVibeWare.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.19041.0'">
+    <ProjectReference Include="../ThermalrightVibeWare.Backends.Windows/ThermalrightVibeWare.Backends.Windows.csproj" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.10" />
-    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
-    <!-- Pinned MPL-2.0 fork source; includes the NCT6792D decoder correction. -->
-    <ProjectReference Include="../../third_party/LibreHardwareMonitor/LibreHardwareMonitorLib.csproj" />
-    <!-- The sensor library uses this internally for SMBIOS. -->
-    <PackageReference Include="System.Management" Version="10.0.13" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <ProjectReference Include="../ThermalrightVibeWare.Backends.Linux/ThermalrightVibeWare.Backends.Linux.csproj" />
+    <!-- Windows drawing and artist integration stay out of the Linux sensor engine. -->
+    <Compile Remove="PanelFrameRenderer.cs;RasterImage.cs;OnlineArtistProvider.cs;WindowsDashboardProviders.cs" />
   </ItemGroup>
 </Project>
