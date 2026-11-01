@@ -51,7 +51,7 @@ public sealed record HardwareMotherboardSensors(string Name, double? Temperature
 /// <summary>A reported temperature name is kept even when the library cannot identify its physical location.</summary>
 public sealed record HardwareTemperatureSensors(string Name, double TemperatureC);
 
-/// <summary>The existing PawnIO installation; registration alone does not prove usable sensor access.</summary>
+/// <summary>Platform sensor-access metadata; availability alone does not prove usable sensor readings.</summary>
 public sealed record HardwareDriverStatus(bool Available, string? Path, string? Notice = null);
 
 /// <summary>Physical memory in GiB (2^30 bytes); excludes swap and committed virtual memory.</summary>
