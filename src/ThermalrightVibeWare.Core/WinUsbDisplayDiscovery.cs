@@ -30,6 +30,8 @@ public static class WinUsbDisplayDiscovery
     /// <summary>Returns present 0416:5302 WinUSB interfaces.</summary>
     public static IReadOnlyList<DisplayDevice> FindSupportedDevices()
     {
+        if (!OperatingSystem.IsWindows())
+        { throw new PlatformNotSupportedException("Linux USB display transport is not implemented yet. No USB device was opened or probed."); }
         var devices = new List<DisplayDevice>();
         // A registry child name is not evidence of a published device interface.
         // Enumerate the classes Windows has actually registered and filter their real paths.
@@ -45,6 +47,8 @@ public static class WinUsbDisplayDiscovery
     /// <summary>Finds matching panels that Windows has enumerated but may not yet expose to WinUSB applications.</summary>
     public static IReadOnlyList<DetectedPanel> FindAttachedPanels()
     {
+        if (!OperatingSystem.IsWindows())
+        { throw new PlatformNotSupportedException("Linux USB display transport is not implemented yet. No USB device was opened or probed."); }
         var deviceSet = Native.SetupDiGetClassDevsForEnumerator(IntPtr.Zero, "USB", IntPtr.Zero, Native.DigcfPresent | Native.DigcfAllClasses);
         if (deviceSet == new IntPtr(-1))
         {

@@ -24,7 +24,9 @@ Keep each file focused on one job. Describe inputs where they are used, and keep
 | Studio state | `StudioModel` owns transactions and persistence. `StudioSession` owns the worker and frame scheduling. `StudioViewModel` owns selection commands. |
 | CLI | `Program.cs` dispatches commands and parses shared options. `Commands.Dashboard`, `Commands.Display`, `Commands.Integrations` and `Commands.Theme` keep each command group together. |
 | Engine | `EngineServer.cs` dispatches stdio requests and owns the session. `EngineServer.Preview.cs` validates preview options and builds observations without sending USB frames. |
-| Output analysis | `WindowsPlaybackAnalyzer.cs` manages endpoint/session lifetime. Its Capture partial owns sample decoding, FFT windows and measured stereo levels. |
+| Platform selection | Core's `PlatformDashboardProviders` selects compiled host adapters. Data's `ISensorProvider` shares snapshots, raw diagnostics and metadata without OS APIs. |
+| Windows backend | `Backends.Windows` owns the Windows sensor partials, media and volume readers. `WindowsPlaybackAnalyzer.cs` manages endpoint/session lifetime; its Capture partial owns sample decoding, FFT windows and stereo levels. |
+| Linux sensors | `Backends.Linux` owns bounded, read-only procfs/sysfs acquisition. Unsupported operations fail explicitly; missing hardware readings remain unavailable. |
 | Theme API | `canvas.py` remains the entry point for `Canvas`, `ThemeContext` and the shared helpers used by themes. It retains the theme clock and measured display smoothing. |
 | Drawing | `drawing_support.py` owns value/color conversions and the bounded layer cache. `theme_styles.py` holds fixed style data. `canvas_audio`, `canvas_media` and `canvas_composition` provide compositions through the Canvas primitive API, without importing the Canvas facade. |
 

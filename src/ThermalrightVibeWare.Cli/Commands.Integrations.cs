@@ -30,6 +30,8 @@ internal static partial class ThermalrightVibeWareCli
     /// <param name="args">Command-line arguments including the command name.</param>
     private static int Gui(IReadOnlyList<string> args)
     {
+        if (!OperatingSystem.IsWindows())
+        { return Fail("The Linux studio does not have an engine connection yet. Use trv sensors for Linux sensor diagnostics."); }
         if (args.Count > 2 || args.Count == 2 && args[1] != "--start-minimized")
         { return Fail("Usage: trv gui [--start-minimized]"); }
         var executable = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "ThermalrightVibeWare.exe"));
@@ -113,7 +115,7 @@ internal static partial class ThermalrightVibeWareCli
     {
         if (args.Count > 2 || args.Count == 2 && args[1] is not ("--diagnose" or "--all"))
         { return Fail("Usage: trv sensors [--diagnose|--all]"); }
-        using var sensors = new WindowsMetricsService(allowHardwareAccess: true);
+        using var sensors = PlatformDashboardProviders.CreateSensors();
         if (args.Contains("--all"))
         {
             Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(sensors.ReadSensorDebug(), ThermalrightVibeWare.Contracts.PanelContract.Json));

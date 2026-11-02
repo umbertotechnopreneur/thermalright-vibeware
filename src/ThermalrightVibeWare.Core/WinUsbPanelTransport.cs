@@ -44,6 +44,8 @@ public sealed class WinUsbPanelTransport : IDisposable
     /// <param name="device">Explicitly selected discovered display descriptor; no automatic device selection occurs here.</param>
     public static WinUsbPanelTransport Open(DisplayDevice device)
     {
+        if (!OperatingSystem.IsWindows())
+        { throw new PlatformNotSupportedException("Linux USB display transport is not implemented yet. No USB device was opened or probed."); }
         ArgumentNullException.ThrowIfNull(device);
         var fileHandle = Native.CreateFile(device.DevicePath, Native.GenericRead | Native.GenericWrite, Native.FileShareRead | Native.FileShareWrite, IntPtr.Zero, Native.OpenExisting, Native.FileFlagOverlapped, IntPtr.Zero);
         if (fileHandle.IsInvalid)

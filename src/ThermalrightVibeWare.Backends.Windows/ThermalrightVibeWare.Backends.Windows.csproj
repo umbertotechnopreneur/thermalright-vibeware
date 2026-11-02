@@ -1,0 +1,35 @@
+<!-- VBWR B
+
+  Project: Thermalright VibeWare
+  Repository: https://github.com/umbertotechnopreneur/thermalright-vibeware
+  Creator: Umberto Giacobbi | https://umbertogiacobbi.biz
+
+  File: ThermalrightVibeWare.Backends.Windows.csproj
+  Purpose: Defines build inputs and dependencies for the Windows backend.
+
+  VibeWare: Human intent, AI execution, and plenty of tokens
+  Manifesto: https://umbertogiacobbi.biz/vibeware/manifesto
+
+  Created with AI: OpenAI Codex; platform backend separation; 2026-11-02.
+  Human guidance: Umberto Giacobbi; separate Linux sensors and preserve Windows behavior.
+
+  Copyright (c) 2026 Umberto Giacobbi
+  SPDX-License-Identifier: MIT
+
+VBWR E -->
+
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RootNamespace>ThermalrightVibeWare.Core</RootNamespace>
+    <Platforms>x64;ARM64</Platforms>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ThermalrightVibeWare.Data/ThermalrightVibeWare.Data.csproj" />
+    <ProjectReference Include="../ThermalrightVibeWare.Contracts/ThermalrightVibeWare.Contracts.csproj" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <!-- Pinned MPL-2.0 source containing the NCT6792D decoder correction. -->
+    <ProjectReference Include="../../third_party/LibreHardwareMonitor/LibreHardwareMonitorLib.csproj" />
+    <PackageReference Include="System.Management" Version="10.0.13" />
+  </ItemGroup>
+</Project>

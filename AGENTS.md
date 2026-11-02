@@ -2,9 +2,14 @@
 
 ## Owner approval comes first
 
-- Tests may be created or updated locally, but every execution requires explicit owner approval first. A request to implement, fix, or continue work is not permission to run tests, smoke tests, or physical-device trials.
+- During pre-beta development, focus on implementation. Ask the owner before creating or running tests, smoke tests, or physical-device trials. A request to implement, fix, or continue work is not permission to do these.
 - Ask the owner before creating any branch, workspace, checkout, or worktree. Do not infer this permission from a generic implementation or continuation request.
 - Keep current work on the existing branch unless the owner explicitly approves a change of working location.
+
+## Pre-beta development
+
+- Do not add backward-compatibility layers, legacy aliases, migrations or silent fallbacks. Fail fast with a clear error for unsupported operations or invalid configuration. Missing hardware readings remain explicitly unavailable.
+- Keep notes focused on current behavior and remaining limits. Do not add retrospective lists of completed tests or resolved errors. Broader validation and beta planning wait for the owner's request.
 
 ## Purpose
 

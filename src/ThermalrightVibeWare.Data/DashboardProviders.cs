@@ -25,8 +25,8 @@ public interface IMediaProvider
     /// <summary>Reads the selected media session's metadata and playback state.</summary>
     Task<NowPlaying> ReadAsync();
 
-    /// <summary>Sends an allowed playback command to the selected Windows media session.</summary>
-    /// <param name="action">Allowed Windows media playback command.</param>
+    /// <summary>Sends an allowed playback command to the selected OS media session.</summary>
+    /// <param name="action">Allowed media playback command.</param>
     Task ControlAsync(string action);
 }
 public interface IVolumeProvider : IDisposable
@@ -59,7 +59,7 @@ public interface IPlaybackProvider : IDisposable
 public interface IArtistProvider : IDisposable
 {
     /// <summary>Returns cached artist facts and permits a bounded public-source lookup.</summary>
-    /// <param name="media">Current Windows media observation used for artist lookup or artwork.</param>
+    /// <param name="media">Current media observation used for artist lookup or artwork.</param>
     ArtistProfile? Read(NowPlaying media);
 }
 

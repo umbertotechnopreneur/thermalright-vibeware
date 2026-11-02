@@ -6,6 +6,11 @@
     <Platform Name="ARM64" />
   </Configurations>
   <Project Path="src/ThermalrightVibeWare.Data/ThermalrightVibeWare.Data.csproj" />
+  <Project Path="src/ThermalrightVibeWare.Backends.Linux/ThermalrightVibeWare.Backends.Linux.csproj" />
+  <Project Path="src/ThermalrightVibeWare.Backends.Windows/ThermalrightVibeWare.Backends.Windows.csproj">
+    <Platform Solution="*|x64" Project="x64" />
+    <Platform Solution="*|ARM64" Project="ARM64" />
+  </Project>
   <Project Path="src/ThermalrightVibeWare.Studio/ThermalrightVibeWare.Studio.csproj" />
   <Project Path="src/ThermalrightVibeWare.Contracts/ThermalrightVibeWare.Contracts.csproj" />
   <Project Path="src/ThermalrightVibeWare.Photino/ThermalrightVibeWare.Photino.csproj">

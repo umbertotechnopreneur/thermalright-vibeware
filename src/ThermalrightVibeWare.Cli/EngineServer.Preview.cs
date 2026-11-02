@@ -44,7 +44,7 @@ internal sealed partial class EngineServer
         if (lastSnapshot is null || snapshotIncludesSystem != includeSystem || snapshotIncludesMedia != includeMedia || snapshotIncludesSensors != includeSensors
             || Environment.TickCount64 - snapshotAt >= options.RefreshIntervalMilliseconds)
         {
-            lastSnapshot = await dashboard.ReadAsync(includeSystem, includeMedia, analyzePlayback: theme.Category == "multimedia", includeSensors: includeSensors);
+            lastSnapshot = await dashboard.Value.ReadAsync(includeSystem, includeMedia, analyzePlayback: theme.Category == "multimedia", includeSensors: includeSensors);
             snapshotAt = Environment.TickCount64;
             snapshotIncludesSystem = includeSystem;
             snapshotIncludesMedia = includeMedia;

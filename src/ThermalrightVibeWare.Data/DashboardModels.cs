@@ -20,14 +20,14 @@
 
 namespace ThermalrightVibeWare.Core;
 
-/// <summary>Contains the current Windows media-session information without an external account.</summary>
+/// <summary>Contains the current OS media-session information without an external account.</summary>
 public sealed record NowPlaying(string Title, string Artist, string Album, string Source,
     bool Playing, byte[]? Artwork, double PositionSeconds, double DurationSeconds, bool? Shuffle = null, string? PlaybackStatus = null)
 {
     public static NowPlaying Empty { get; } = new("Nothing playing yet", "Open a media player", "", "", false, null, 0, 0);
 }
 
-/// <summary>Read-only volume and instantaneous peak of one Windows playback session, never microphone audio.</summary>
+/// <summary>Read-only volume and instantaneous peak of one playback session, never microphone audio.</summary>
 public sealed record AppVolume(string Key, string Name, int ProcessId, double Percent, bool Muted, double? Peak = null);
 
 /// <summary>Labels missing sensor data explicitly and records the source of available values.</summary>
