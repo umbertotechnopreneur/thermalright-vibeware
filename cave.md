@@ -12,4 +12,4 @@ This is a hobby project, provided as is, without warranty.
 
 ## Latest local build
 
-The Windows x64 Debug MSI 0.1.26 was built and installed. Its 1,842 installed payload files matched the build. Restore and changed-file format verification passed. The app was not launched, and no tests or physical-device trials were performed for this change.
+The Windows x64 Debug MSI 0.1.27 was built and installed. Its 1,845 installed payload files matched the build. Restore and changed-file format verification passed. The new tab layout and light/dark behavior still need a visual check. No tests or physical-device trials were performed for this change.
