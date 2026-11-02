@@ -49,7 +49,7 @@ VBWR E -->
                 <Image x:Name="ProductIcon" Source="/ThermalrightVibeWare.UI;component/Assets/thermalright-vibeware-icon.png" Width="62" Height="62" Stretch="Uniform" Margin="0,0,14,0"/>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="Eyebrow" Text="D I S P L A Y   S T U D I O" FontSize="9"/>
-                    <TextBlock x:Name="Heading" FontFamily="Cascadia Mono, Consolas, monospace" Text="Thermalright VibeWare" FontSize="28" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="Heading" FontFamily="Cascadia Mono, Consolas, monospace" Text="TermalRight VibeWare" FontSize="28" FontWeight="SemiBold" Margin="0,4,0,0"/>
                     <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
                         <TextBlock x:Name="Author" Text="by Umberto Giacobbi" FontSize="10" VerticalAlignment="Center"/>
                         <TextBlock x:Name="HeaderDot" Text="·" FontSize="10" Margin="10,0" VerticalAlignment="Center"/>
@@ -410,7 +410,7 @@ VBWR E -->
                             <TextBlock x:Name="SensorDriverText" Text="CPU and motherboard temperatures and fan RPM need the PawnIO driver. Checking its installation…" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"/>
                             <TextBox x:Name="SensorDriverPath" IsReadOnly="True" TextWrapping="Wrap" FontSize="9" Margin="0,8,0,0" MaxHeight="62" BorderThickness="0" Background="Transparent" Visibility="Collapsed"/>
                             <Button x:Name="SensorDriverFolderButton" Content="Open driver folder" Click="SensorDriverFolder_Click" Height="30" FontSize="11" Margin="0,10,0,0" IsEnabled="False" ToolTipService.ToolTip="Select the driver in File Explorer. This does not install or allow it."/>
-                            <TextBlock x:Name="SensorDriverHelp" Text="Install PawnIO separately, then restart. Thermalright VibeWare does not install drivers." FontSize="9" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="SensorDriverHelp" Text="Install PawnIO separately, then restart. TermalRight VibeWare does not install drivers." FontSize="9" TextWrapping="Wrap" Margin="0,8,0,0"/>
                             <StackPanel x:Name="AdministratorPanel" Visibility="Collapsed" Margin="0,10,0,0">
                                 <TextBlock x:Name="AdministratorHelp" Text="Running without administrator access." FontSize="10" TextWrapping="Wrap"/>
                                 <Button x:Name="AdministratorButton" Content="Reopen as administrator" Click="Administrator_Click" Height="30" Padding="10,0" FontSize="11" Margin="0,8,0,0" ToolTipService.ToolTip="Save your choices and reopen. Themes also run as administrator."/>
@@ -529,14 +529,14 @@ VBWR E -->
         <Grid x:Name="AboutOverlay" Grid.RowSpan="4" Background="#B0000000" Visibility="Collapsed">
             <Border x:Name="AboutFrame" Width="550" MaxWidth="600" Padding="30" CornerRadius="20" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20">
                 <StackPanel>
-                    <TextBlock x:Name="AboutHeading" Text="Thermalright VibeWare" FontSize="28" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="AboutHeading" Text="TermalRight VibeWare" FontSize="28" FontWeight="SemiBold"/>
                     <TextBlock x:Name="AboutVersion" Text="Display studio" FontSize="11" Margin="0,7,0,20"/>
-                    <TextBlock x:Name="AboutAuthor" Text="I am Umberto Giacobbi. I created Thermalright VibeWare to make my small display useful, personal and beautiful." TextWrapping="Wrap" FontSize="13"/>
+                    <TextBlock x:Name="AboutAuthor" Text="I am Umberto Giacobbi. I created TermalRight VibeWare to make my small display useful, personal and beautiful." TextWrapping="Wrap" FontSize="13"/>
                     <TextBlock x:Name="AboutDisclosureHeading" Text="This is VibeWare" FontSize="16" FontWeight="SemiBold" Margin="0,22,0,10"/>
                     <TextBlock x:Name="AboutDisclosure" Text="I created this software with AI assistance. I define its purpose, guide the implementation, and take responsibility for checking functionality, performance, and security." TextWrapping="Wrap" FontSize="12"/>
                     <TextBlock x:Name="AboutInitiative" Text="An independent hobby project, provided as is without warranty. I do not work for Thermalright and am not affiliated with or sponsored by it. All trademarks and registered trademarks belong to their respective owners." TextWrapping="Wrap" FontSize="12" Margin="0,12,0,14"/>
                     <HyperlinkButton x:Name="AboutManifesto" Content="Read the VibeWare manifesto" NavigateUri="https://umbertogiacobbi.biz/vibeware/manifesto" TargetName="_blank" HorizontalAlignment="Left" FontSize="12"/>
-                    <HyperlinkButton x:Name="ProjectLink" Content="Thermalright VibeWare on GitHub" NavigateUri="https://github.com/umbertotechnopreneur/thermalright-vibeware" TargetName="_blank" HorizontalAlignment="Left" FontSize="12" Margin="0,10,0,0"/>
+                    <HyperlinkButton x:Name="ProjectLink" Content="TermalRight VibeWare on GitHub" NavigateUri="https://github.com/umbertotechnopreneur/thermalright-vibeware" TargetName="_blank" HorizontalAlignment="Left" FontSize="12" Margin="0,10,0,0"/>
                     <HyperlinkButton x:Name="InitiativeLink" Content="VibeWare on GitHub" NavigateUri="https://github.com/umbertotechnopreneur/VibeWare" TargetName="_blank" HorizontalAlignment="Left" FontSize="12" Margin="0,6,0,0"/>
                     <HyperlinkButton x:Name="WebsiteLink" Content="umbertogiacobbi.biz" NavigateUri="https://umbertogiacobbi.biz" TargetName="_blank" HorizontalAlignment="Left" FontSize="12" Margin="0,6,0,0"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,22,0,16">
@@ -550,7 +550,7 @@ VBWR E -->
         <Grid x:Name="CloseOverlay" Grid.RowSpan="4" Background="#B0000000" Visibility="Collapsed">
             <Border x:Name="CloseFrame" Width="480" Padding="24" CornerRadius="12" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20">
                 <StackPanel>
-                    <TextBlock x:Name="CloseHeading" Text="Close Thermalright VibeWare?" FontSize="22" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="CloseHeading" Text="Close TermalRight VibeWare?" FontSize="22" FontWeight="SemiBold"/>
                     <TextBlock x:Name="CloseDescription" Text="Minimize to tray keeps your display running. Close app stops it." FontSize="13" TextWrapping="Wrap" Margin="0,12,0,24"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="CancelCloseButton" Content="Cancel" Click="CancelClose_Click" Height="34" Padding="12,0" Margin="0,0,8,0"/>

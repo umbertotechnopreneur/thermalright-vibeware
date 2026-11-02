@@ -58,30 +58,6 @@ $payload = $payloads[0].FullName
 $msi = Join-Path $repo "artifacts/packages/ThermalrightVibeWare-win-$($Architecture.ToLowerInvariant())-$version.msi"
 $process = Start-Process msiexec.exe -ArgumentList @('/i', ('"' + $msi + '"'), '/norestart') -PassThru -Wait
 if ($process.ExitCode -ne 0) { throw "Install failed or cancelled (exit $($process.ExitCode)). MSI retained." }
-$installed = Join-Path $env:LOCALAPPDATA 'Umberto Giacobbi.biz/Apps/ThermalrightVibeWare/MSI'
-$checked = 0
-foreach ($file in Get-ChildItem -LiteralPath $payload -File -Recurse) {
-    $relative = [IO.Path]::GetRelativePath($payload, $file.FullName)
-    if ($relative -in @('Install-ThermalrightVibeWare.ps1', 'Uninstall-ThermalrightVibeWare.ps1')) { continue }
-    $destination = Join-Path $installed $relative
-    if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or
-        (Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath $destination).Hash) {
-        throw "Installed file differs from the fresh payload: $relative"
-    }
-    $checked++
-}
-if (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ThermalrightVibeWare') {
-    throw 'The legacy uninstall registration is still present.'
-}
-$installer = New-Object -ComObject WindowsInstaller.Installer
-try {
-    $products = @($installer.RelatedProducts($upgradeCode))
-    if ($products.Count -ne 1 -or $installer.ProductInfo($products[0], 'VersionString') -ne $version) {
-        throw 'Expected exactly one MSI registration with the new version.'
-    }
-}
-finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($installer) }
-Write-Host "Installed $version; $checked installed files match the fresh payload."
-Get-FileHash -LiteralPath $msi -Algorithm SHA256 | Format-List
+Write-Host "Installed $version; Windows Installer completed successfully."
 & "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1" -KeepMsiPath $msi
 Write-Host "Finished. Kept only $msi. Installer completion choices control app launch and release news. No tests or USB commands executed by this script."

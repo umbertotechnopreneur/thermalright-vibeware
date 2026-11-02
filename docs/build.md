@@ -14,9 +14,9 @@ From the repository folder:
 For a local reinstall, use this command. It uninstalls registered Thermalright VibeWare
 packages, clears `artifacts`, `bin`, `obj` and generated web files, increments
 `installer/Version.txt`, builds a fresh Debug MSI and opens its normal installer UI.
-After installation it compares every installed payload file with the new build
-and removes build output, keeping only the final MSI. Settings and personal
-themes stay in their user folders. Cancellation or any failed step stops it.
+After installation it uses the installer result and removes build output, keeping
+only the final MSI. It does not audit the installed files or registration. Settings
+and personal themes stay in their user folders. Cancellation or failure stops it.
 
 ```powershell
 pwsh -NoProfile -File ./scripts/Reinstall.ps1 -Architecture x64

@@ -60,16 +60,16 @@ internal static class WindowsElevation
         { failure = "Windows could not request administrator access."; Console.Error.WriteLine(error.Message); }
         _ = MessageBox(IntPtr.Zero,
             (failure is null ? "Administrator access was canceled." : failure) +
-            "\n\nThermalright VibeWare is not running as administrator. Some CPU, motherboard and fan readings may be unavailable." +
+            "\n\nTermalRight VibeWare is not running as administrator. Some CPU, motherboard and fan readings may be unavailable." +
             "\n\nYou can reopen as administrator under Sensor access.",
-            "Thermalright VibeWare - administrator access", 0x00010030);
+            "TermalRight VibeWare - administrator access", 0x00010030);
         return false;
     }
 
     /// <summary>Warns that the previous studio session could not be released.</summary>
     internal static void ShowSessionUnavailable() => _ = MessageBox(IntPtr.Zero,
-        "Thermalright VibeWare could not open its session. Another copy may be running as administrator." +
-        "\n\nAllow administrator access when reopening the app.", "Thermalright VibeWare - administrator access", 0x00010030);
+        "TermalRight VibeWare could not open its session. Another copy may be running as administrator." +
+        "\n\nAllow administrator access when reopening the app.", "TermalRight VibeWare - administrator access", 0x00010030);
 
     /// <summary>Builds an elevated studio restart with previous-process identity checks.</summary>
     /// <param name="previousId">Previous studio process identifier to verify before restart.</param>

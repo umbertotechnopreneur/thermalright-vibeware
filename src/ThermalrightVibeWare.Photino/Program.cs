@@ -106,7 +106,7 @@ internal static class Program
 
         var page = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
         window = new PhotinoWindow()
-            .SetTitle("Thermalright VibeWare")
+            .SetTitle("TermalRight VibeWare")
             // The installer owns the Start entry; Photino toasts create another one.
             .SetNotificationsEnabled(false)
             .SetUseOsDefaultSize(false)
@@ -140,12 +140,12 @@ internal static class Program
                             openManifesto: () => OpenWebsite("https://umbertogiacobbi.biz/vibeware/manifesto"),
                             openWebsite: () => OpenWebsite("https://umbertogiacobbi.biz"),
                             openGitHub: () => OpenWebsite("https://github.com/umbertotechnopreneur/thermalright-vibeware"));
-                        tray.Error += error => Console.Error.WriteLine("Thermalright VibeWare tray: " + error.Message);
+                        tray.Error += error => Console.Error.WriteLine("TermalRight VibeWare tray: " + error.Message);
                         if (startMinimized) { tray.HideWindow(); }
                         else if (isFirstRun) { tray.ShowWindow(); }
                     }
                     catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
-                    { Console.Error.WriteLine("Thermalright VibeWare tray: " + error.Message); created.SetMinimized(false); }
+                    { Console.Error.WriteLine("TermalRight VibeWare tray: " + error.Message); created.SetMinimized(false); }
                     try
                     {
                         setupShutdown = new WindowsSetupShutdown(action =>
@@ -158,7 +158,7 @@ internal static class Program
                         });
                     }
                     catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException or InvalidOperationException or UnauthorizedAccessException or WaitHandleCannotBeOpenedException)
-                    { Console.Error.WriteLine("Thermalright VibeWare setup: shutdown listener unavailable: " + error.Message); }
+                    { Console.Error.WriteLine("TermalRight VibeWare setup: shutdown listener unavailable: " + error.Message); }
                 }
                 instance.Listen(action =>
                 {
@@ -261,6 +261,6 @@ internal static class Program
             window.SetLocation(new Point(area.Left + (area.Width - width) / 2, area.Top + (area.Height - height) / 2));
         }
         catch (Exception error) when (error is ApplicationException or InvalidOperationException or ArgumentException or NotSupportedException)
-        { Console.Error.WriteLine("Thermalright VibeWare: automatic window placement unavailable."); }
+        { Console.Error.WriteLine("TermalRight VibeWare: automatic window placement unavailable."); }
     }
 }

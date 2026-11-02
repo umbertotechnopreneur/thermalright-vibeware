@@ -223,8 +223,8 @@ internal sealed class WindowsTrayService : IDisposable
         uint selection;
         try
         {
-            AddMenuItem(menu, 1, "Open Thermalright VibeWare");
-            if (_showAbout is not null) { AddMenuItem(menu, 2, "About Thermalright VibeWare"); }
+            AddMenuItem(menu, 1, "Open TermalRight VibeWare");
+            if (_showAbout is not null) { AddMenuItem(menu, 2, "About TermalRight VibeWare"); }
             if (_openManifesto is not null || _openWebsite is not null || _openGitHub is not null)
             {
                 AddSeparator(menu);
@@ -296,7 +296,7 @@ internal sealed class WindowsTrayService : IDisposable
         Flags = IconMessage | IconImage | IconTip | IconShowTip,
         CallbackMessage = CallbackMessage,
         IconHandle = _iconHandle,
-        ToolTip = "Thermalright VibeWare",
+        ToolTip = "TermalRight VibeWare",
         Info = string.Empty,
         InfoTitle = string.Empty,
         TimeoutOrVersion = IconVersion4
@@ -347,7 +347,7 @@ internal sealed class WindowsTrayService : IDisposable
                 // Never let a managed exception cross the native callback. Keep a failed tray visible.
                 if (!service._disposed) { service.RestoreWindow(); }
                 try { service.Error?.Invoke(error); }
-                catch (Exception) { Console.Error.WriteLine("Thermalright VibeWare: a tray action failed."); }
+                catch (Exception) { Console.Error.WriteLine("TermalRight VibeWare: a tray action failed."); }
             }
         }
         return DefSubclassProc(windowHandle, message, wParam, lParam);

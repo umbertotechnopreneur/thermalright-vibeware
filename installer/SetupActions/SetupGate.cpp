@@ -147,10 +147,10 @@ extern "C" __declspec(dllexport) UINT __stdcall StartThermalrightVibeWareAfterIn
         std::wstring folder = SetupProperty(installer, L"INSTALLFOLDER");
         if (!folder.empty() && folder.back() != L'\\') { folder += L'\\'; }
         if (folder.empty() || !OpenCompletionTarget(folder + L"ThermalrightVibeWare.exe", folder.c_str())) {
-            CompletionWarning(installer, L"Setup finished, but Thermalright VibeWare could not start. Open it from Start.");
+            CompletionWarning(installer, L"Setup finished, but TermalRight VibeWare could not start. Open it from Start.");
         }
     }
-    catch (...) { CompletionWarning(installer, L"Setup finished, but Thermalright VibeWare could not start. Open it from Start."); }
+    catch (...) { CompletionWarning(installer, L"Setup finished, but TermalRight VibeWare could not start. Open it from Start."); }
     return ERROR_SUCCESS;
 }
 
@@ -164,9 +164,9 @@ extern "C" __declspec(dllexport) UINT __stdcall SeeLatestThermalrightVibeWareNew
         const std::wstring url = L"https://github.com/umbertotechnopreneur/thermalright-vibeware/releases"
             L"?utm_source=thermalright-vibeware&utm_medium=installer&utm_campaign=release_news";
         if (!OpenCompletionTarget(url)) {
-            CompletionWarning(installer, L"Setup finished, but the browser could not open. Find Thermalright VibeWare releases on GitHub.");
+            CompletionWarning(installer, L"Setup finished, but the browser could not open. Find TermalRight VibeWare releases on GitHub.");
         }
     }
-    catch (...) { CompletionWarning(installer, L"Setup finished, but the browser could not open. Find Thermalright VibeWare releases on GitHub."); }
+    catch (...) { CompletionWarning(installer, L"Setup finished, but the browser could not open. Find TermalRight VibeWare releases on GitHub."); }
     return ERROR_SUCCESS;
 }

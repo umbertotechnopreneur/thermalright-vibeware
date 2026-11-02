@@ -83,11 +83,11 @@ function Assert-AppStopped([string]$Root) {
     $prefix = $Root.TrimEnd('\') + '\'
     foreach ($process in (Get-CimInstance Win32_Process -Filter "Name='ThermalrightVibeWare.exe' OR Name='trv.exe' OR Name='python.exe' OR Name='dotnet.exe'")) {
         if ([string]::IsNullOrWhiteSpace($process.ExecutablePath)) {
-            if ($process.Name -in @('ThermalrightVibeWare.exe', 'trv.exe')) { throw 'I could not check a running Thermalright VibeWare process. Close it and try again.' }
+            if ($process.Name -in @('ThermalrightVibeWare.exe', 'trv.exe')) { throw 'I could not check a running TermalRight VibeWare process. Close it and try again.' }
             continue
         }
         if ([System.IO.Path]::GetFullPath($process.ExecutablePath).StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'Close Thermalright VibeWare from its tray menu before uninstalling it. No app was stopped.'
+            throw 'Close TermalRight VibeWare from its tray menu before uninstalling it. No app was stopped.'
         }
     }
 }
@@ -151,7 +151,7 @@ $shell = New-Object -ComObject WScript.Shell
 try {
     $shortcuts = @(
         @{ Path = (Join-Path $startupDirectory 'ThermalrightVibeWare.lnk'); Root = $startupDirectory; Marker = 'ThermalrightVibeWare auto-start managed by Install-ThermalrightVibeWare.ps1'; Backup = 'Startup-ThermalrightVibeWare.lnk' },
-        @{ Path = (Join-Path $programsDirectory 'Thermalright VibeWare.lnk'); Root = $programsDirectory; Marker = 'ThermalrightVibeWare Start menu managed by Install-ThermalrightVibeWare.ps1'; Backup = 'Start-ThermalrightVibeWare.lnk' }
+        @{ Path = (Join-Path $programsDirectory 'TermalRight VibeWare.lnk'); Root = $programsDirectory; Marker = 'ThermalrightVibeWare Start menu managed by Install-ThermalrightVibeWare.ps1'; Backup = 'Start-ThermalrightVibeWare.lnk' }
     )
     $ownedShortcuts = @()
     foreach ($entry in $shortcuts) {
@@ -228,9 +228,9 @@ try {
             Move-Item -LiteralPath $file -Destination $backupPath
         }
         if ($null -ne $registered) { Remove-Item -LiteralPath $uninstallKey }
-        Write-Host "Thermalright VibeWare was removed from Start, startup and its install folder. Backup: $backupRoot"
+        Write-Host "TermalRight VibeWare was removed from Start, startup and its install folder. Backup: $backupRoot"
     }
-    else { Write-Host 'Thermalright VibeWare was already removed from Start and Windows startup.' }
+    else { Write-Host 'TermalRight VibeWare was already removed from Start and Windows startup.' }
     Write-Host 'Your settings, user themes and Codex plugin were kept. Removed app files are in the backup.'
 }
 finally {

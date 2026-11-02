@@ -52,18 +52,20 @@ I am Umberto Giacobbi. Thermalright VibeWare is my MIT-licensed holiday hobby pr
 - Keep public notes very short. Use short sentences and common words a child could understand. No slogans or long branding explanations. Put commands and architecture in linked guides.
 - Describe the origin honestly: I made it in a few days during my holiday, frustrated with the existing software, learning from others' public work. Credit those sources. Memory, performance and security checks remain on my list because I have not had time; do not claim them complete or blame their absence on AI.
 - Make the current theme warning easy to see: themes run Python code on the user's computer; for now, download them only from the official repository. Do not imply that this replaces the unfinished security review.
-- Use **Thermalright VibeWare** as the product name and **Umberto Giacobbi** as its author. Use `ThermalrightVibeWare` for code identifiers and `thermalright-vibeware` for the GitHub repository. Do not add Edition or Sense to the name. VibeWare alone is the initiative.
+- Use **TermalRight VibeWare** as the visible product name and **Umberto Giacobbi** as its author. Use `ThermalrightVibeWare` for code identifiers and `thermalright-vibeware` for the GitHub repository. Do not add Edition or Sense to the name. VibeWare alone is the initiative.
 - The owner requested a complete rename, without old-name aliases, settings migrations or backward compatibility. Historical evidence and supplied app captures retain their original names and data. The owner accepts GitHub's automatic redirect when renaming the existing repository.
 - Keep the studio mostly flat. Use spacing and restrained dividers, one tinted color-controls panel, and opaque dropdowns. Keep controls clear in light and dark modes.
 - Use progressive disclosure throughout the studio: keep primary actions and brief status summaries visible; reveal setup instructions, driver paths, diagnostics and advanced options on demand. Do not hide errors or reset settings when details close.
 - Open a larger, centered studio within the monitor work area. Let the preview fit its viewport; only the theme list scrolls. Keep the preview flat, with a solid backing and no elevation, shadow or blur effect on its backing or changing image.
-- Put the author and About below the product title. Keep the unchanged VibeWare logo and manifesto at the top right, and Terms/Privacy visible below. Keep the product icon separate from the initiative logo.
+- Put the author and About below the product title. Keep the unchanged VibeWare logo after Dark at the top right, 30% larger than its original 36-unit size. Omit the header manifesto link, and keep Terms/Privacy visible below. Keep the product icon separate from the initiative logo.
 - Keep the approved VibeWare floppy unchanged and a brief initiative link at the bottom of the README: `https://umbertogiacobbi.biz/vibeware/manifesto`. Omit the tagline and slogans from public project notes.
 - Keep the hobby/as-is/no-warranty disclosure short. Do not promise support, compatibility, verified security or performance. Keep current decisions in `lesson.md` and current limits in `cave.md`; retain only the latest validation round, not a running history of work, CI or pull requests.
 - Preserve the VibeWare markers `VBWR B` and `VBWR E` in first-party source and project files.
 - The ThermalrightVibeWare name and visual identity are not granted by the MIT license; see `TRADEMARKS.md`.
 
 ## Delivery and validation
+
+- After installation, use the normal installer result. Do not audit installed files, compare payload hashes, inspect registration or run installer checks unless the owner explicitly requests them.
 
 - For owner-authorized documentation-only or repository-instruction-only delivery, commit and push directly to `main` with `[skip ci]`. Do not create a branch or pull request, start CI, or include unrelated local commits.
 - For other changes, keep `main` protected. Stay on the current branch unless the owner approves a new one; merge through reviewed pull requests after required checks pass.

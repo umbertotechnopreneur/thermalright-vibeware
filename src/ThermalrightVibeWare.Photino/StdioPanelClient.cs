@@ -143,7 +143,7 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
                 if (!process.WaitForExit(10_000))
                 {
                     process.Kill(entireProcessTree: true);
-                    if (!process.WaitForExit(5000)) { Console.Error.WriteLine("Thermalright VibeWare: engine shutdown did not finish; driver cleanup may still be required."); }
+                    if (!process.WaitForExit(5000)) { Console.Error.WriteLine("TermalRight VibeWare: engine shutdown did not finish; driver cleanup may still be required."); }
                 }
             }
             catch (Exception error) when (error is IOException or InvalidOperationException or System.ComponentModel.Win32Exception) { }
