@@ -7,7 +7,7 @@
 - Use local Windows media and available sensor readings. Do not invent missing values, record audio or integrate directly with Spotify.
 - Use the source-built LibreHardwareMonitor fork and ship its source. Do not install a sensor driver or monitoring suite from the app.
 - Keep themes customizable, and make clear that they run code. Use the shared accent-to-amber-to-red scale for progress indicators.
-- Keep Music, Codex and System in the theme library. Use central Preview, Appearance, Display and Diagnostics tabs, with raw Sensor Debug separate. Preserve choices when tabs change. Auto follows the system light/dark preference.
+- Keep Music, Codex and System in the theme library. Use central Preview, Appearance, Display and Diagnostics tabs, with raw Sensor Debug separate and no duplicate page title. Omit routine library/running labels. Keep output options and screen choices side by side. Preserve choices when tabs change. Auto follows the system light/dark preference.
 - Enable local diagnostic logging by default and preserve an explicit choice to turn it off. Keep the saved-display waiting status visible during preview.
 - Select an installed stable .NET 10 SDK without rolling forward to .NET 11.
 - Use the installer result after a local reinstall. Do not run post-install audits unless requested.

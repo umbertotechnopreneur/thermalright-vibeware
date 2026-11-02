@@ -47,7 +47,6 @@ public sealed partial class MainPage
             CategoriesBox.ItemsSource = categoryRows.ToArray();
             CategoriesBox.SelectedItem = categoryRows.FirstOrDefault(row => row.Id == selectedCategory) ?? categoryRows.FirstOrDefault();
             PopulateThemes();
-            CatalogText.Text = $"{catalog.Themes.Count} themes · local folders";
             if (catalog.Notices.Count > 0) { StatusText.Text = string.Join(" · ", catalog.Notices); }
         }
         catch (Exception error)

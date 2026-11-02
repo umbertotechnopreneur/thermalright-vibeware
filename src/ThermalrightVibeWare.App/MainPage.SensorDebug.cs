@@ -176,7 +176,6 @@ public sealed partial class MainPage
         foreach (var button in new[] { SensorDebugRefresh, SensorDebugAdministrator })
         { button.Background = transparent; button.Foreground = ink; button.BorderThickness = new Thickness(0); }
         UpdateStudioTabs();
-        SensorDebugHeading.Foreground = ink;
         SensorDebugSummary.Foreground = SensorDebugNotice.Foreground = SensorDebugHelp.Foreground = muted;
         SensorDebugTree.Background = transparent;
         SensorDebugTree.Foreground = ink;

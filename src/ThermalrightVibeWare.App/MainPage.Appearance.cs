@@ -85,7 +85,7 @@ public sealed partial class MainPage
         FiltersPanel.Background = Brush(light ? "#E9F0F5" : "#19232E");
         DisplayDivider.BorderBrush = line;
         foreach (var text in new[] { Heading, SelectedThemeText, LoadingTitle, PositionText, PagePositionText, FontScaleText, SaturationText, HueText, BrightnessText, ContrastText, AboutHeading, AboutAuthor, AboutDisclosureHeading, CodexStatusText }) { text.Foreground = ink; }
-        foreach (var text in new[] { Subtitle, Author, HeaderDot, CatalogText, ThemeNavigationText, PageNavigationText, SourceText, StatusText, LoadingText, FontLabel, SizeLabel, GeometryLabel, DeviceLabel, RefreshLabel, QualityLabel, SaturationLabel, HueLabel, BrightnessLabel, ContrastLabel, FiltersStatus, ScreensHelpText, CodexEventText, CodexHelpText, FooterDot2, AboutVersion, AboutDisclosure, AboutInitiative, AdministratorHelp }) { text.Foreground = muted; }
+        foreach (var text in new[] { Subtitle, Author, HeaderDot, ThemeNavigationText, PageNavigationText, SourceText, StatusText, LoadingText, FontLabel, SizeLabel, GeometryLabel, DeviceLabel, RefreshLabel, QualityLabel, SaturationLabel, HueLabel, BrightnessLabel, ContrastLabel, FiltersStatus, ScreensHelpText, CodexEventText, CodexHelpText, FooterDot2, AboutVersion, AboutDisclosure, AboutInitiative, AdministratorHelp }) { text.Foreground = muted; }
         foreach (var text in new[] { Eyebrow, LibraryHeading, CategoryText, PreviewBadgeText, ScreensHeading, CodexSetupHeading }) { text.Foreground = accent; }
         foreach (var link in new[] { AboutLink, TermsLink, PrivacyLink, AboutManifesto, ProjectLink, InitiativeLink, WebsiteLink, AboutTerms, AboutPrivacy }) { link.Foreground = accent; }
         ThemePagesText.Foreground = muted;

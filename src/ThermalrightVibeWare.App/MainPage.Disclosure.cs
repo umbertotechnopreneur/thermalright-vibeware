@@ -31,8 +31,8 @@ public sealed partial class MainPage
     private void ShowSessionStatus(string status)
     {
         TimingDetailsText.Text = status;
-        StatusText.Text = viewModel.PersistenceNotice ?? (status.StartsWith("Display · requested ", StringComparison.Ordinal)
-            ? "Display running" : status);
+        StatusText.Text = viewModel.PersistenceNotice ?? (status.StartsWith("Display · requested ", StringComparison.Ordinal) || status is "Display running." or "Display running"
+            ? "" : status);
     }
 
     private string studioSection = "preview";

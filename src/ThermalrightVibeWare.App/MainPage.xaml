@@ -132,7 +132,6 @@ VBWR E -->
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                    <TextBlock x:Name="CatalogText" Grid.Row="3" FontSize="10" Margin="14,16,0,0" Text="Discovering local themes…" TextWrapping="Wrap"/>
                     <Grid x:Name="CodexSetupFrame" Grid.Row="5" Margin="12,20,8,0" Visibility="Collapsed">
                         <StackPanel>
                             <Grid>
@@ -351,8 +350,12 @@ VBWR E -->
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Border x:Name="DisplayDivider" BorderThickness="0,1,0,0" VerticalAlignment="Top"/>
-                    <Grid x:Name="DisplayControls" Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="DisplayDivider" BorderThickness="0,1,0,0" VerticalAlignment="Top" Grid.ColumnSpan="2"/>
+                    <Grid x:Name="DisplayControls" Margin="0,16,0,0" Grid.ColumnSpan="2">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
@@ -372,21 +375,10 @@ VBWR E -->
                             <ComboBox x:Name="DevicesBox" Height="32" MinWidth="100" DisplayMemberPath="Name" SelectionChanged="Device_Changed"/>
                         </StackPanel>
                         <Button x:Name="RefreshDevicesButton" Grid.Column="1" Content="↻" Click="RefreshDevices_Click" Width="30" Height="32" Margin="0,0,12,0" VerticalAlignment="Bottom" ToolTipService.ToolTip="Find connected displays"/>
-                        <StackPanel x:Name="DisplayOptionsPanel" Grid.Row="2" Grid.ColumnSpan="6" Orientation="Horizontal" Visibility="Visible" Margin="0,8,0,0">
-                            <StackPanel x:Name="RefreshField" Margin="0,0,12,0" HorizontalAlignment="Left">
-                                <TextBlock x:Name="RefreshLabel" Text="UPDATE" FontSize="9" Margin="0,0,0,6"/>
-                                <ComboBox x:Name="RefreshBox" Width="94" Height="32" DisplayMemberPath="Name" SelectionChanged="Refresh_Changed" ToolTipService.ToolTip="Requested interval. 25 ms is aggressive; actual updates depend on rendering and USB."/>
-                            </StackPanel>
-                            <StackPanel x:Name="QualityField" Margin="0,0,12,0" HorizontalAlignment="Left">
-                                <TextBlock x:Name="QualityLabel" Text="JPEG QUALITY" FontSize="9" Margin="0,0,0,6"/>
-                                <ComboBox x:Name="QualityBox" Width="94" Height="32" DisplayMemberPath="Name" SelectionChanged="Quality_Changed" ToolTipService.ToolTip="Poor uses very strong JPEG compression."/>
-                            </StackPanel>
-                        </StackPanel>
-                        <TextBlock x:Name="DisplayOptionsButton" Grid.Row="1" Grid.ColumnSpan="6" HorizontalAlignment="Left" FontSize="16" Margin="0,12,0,12" Text="Output options" FontWeight="SemiBold"/>
                         <Button x:Name="StartDisplayButton" Grid.Column="4" Content="Show on display" Click="StartDisplay_Click" Height="32" Padding="12,0" Margin="0,0,6,0" VerticalAlignment="Bottom"/>
                         <Button x:Name="StopDisplayButton" Grid.Column="5" Content="Stop" Click="StopDisplay_Click" Height="32" Padding="12,0" VerticalAlignment="Bottom" IsEnabled="False"/>
                     </Grid>
-                    <Grid x:Name="ScreensFrame" Grid.Row="1" Margin="0,16,0,0">
+                    <Grid x:Name="ScreensFrame" Grid.Row="1" Margin="0,16,0,0" Grid.Column="1">
                         <StackPanel>
                             <TextBlock x:Name="ScreensDetailsButton" FontSize="16" Text="Screens on display" FontWeight="SemiBold" Margin="0,12,0,12"/>
                             <StackPanel x:Name="ScreensDetails" Visibility="Visible">
@@ -400,6 +392,19 @@ VBWR E -->
                             </StackPanel>
                         </StackPanel>
                     </Grid>
+                    <StackPanel Margin="0,16,24,0" x:Name="OutputOptionsFrame" Grid.Row="1">
+                        <TextBlock x:Name="DisplayOptionsButton" HorizontalAlignment="Left" FontSize="16" Margin="0,12,0,12" Text="Output options" FontWeight="SemiBold"/>
+                        <StackPanel x:Name="DisplayOptionsPanel" Orientation="Horizontal" Visibility="Visible" Margin="0,8,0,0">
+                            <StackPanel x:Name="RefreshField" Margin="0,0,12,0" HorizontalAlignment="Left">
+                                <TextBlock x:Name="RefreshLabel" Text="UPDATE" FontSize="9" Margin="0,0,0,6"/>
+                                <ComboBox x:Name="RefreshBox" Width="94" Height="32" DisplayMemberPath="Name" SelectionChanged="Refresh_Changed" ToolTipService.ToolTip="Requested interval. 25 ms is aggressive; actual updates depend on rendering and USB."/>
+                            </StackPanel>
+                            <StackPanel x:Name="QualityField" Margin="0,0,12,0" HorizontalAlignment="Left">
+                                <TextBlock x:Name="QualityLabel" Text="JPEG QUALITY" FontSize="9" Margin="0,0,0,6"/>
+                                <ComboBox x:Name="QualityBox" Width="94" Height="32" DisplayMemberPath="Name" SelectionChanged="Quality_Changed" ToolTipService.ToolTip="Poor uses very strong JPEG compression."/>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
                 </Grid>
                 <StackPanel Visibility="Collapsed" x:Name="DiagnosticsPanel" Grid.Row="2">
                     <StackPanel x:Name="SensorSetupFrame" Grid.Row="0" Margin="0,0,0,12" Visibility="Visible">
@@ -443,7 +448,6 @@ VBWR E -->
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Margin="0,0,20,10">
-                    <TextBlock x:Name="SensorDebugHeading" Text="Sensor Debug" FontSize="24" FontWeight="SemiBold"/>
                     <TextBlock x:Name="SensorDebugSummary" Text="Use Refresh readings to read the devices and values available from Libre Hardware Monitor." FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
@@ -465,7 +469,7 @@ VBWR E -->
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock x:Name="StatusText" Text="Local preview" FontSize="10" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTipService.ToolTip="{Binding Text, ElementName=StatusText}"/>
+            <TextBlock x:Name="StatusText" Text="" FontSize="10" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTipService.ToolTip="{Binding Text, ElementName=StatusText}"/>
             <StackPanel x:Name="FooterLinks" Grid.Row="1" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,8,0,0">
                 <HyperlinkButton x:Name="TermsLink" Content="Terms" NavigateUri="https://umbertogiacobbi.biz/terms/" TargetName="_blank" FontSize="10"/>
                 <TextBlock x:Name="FooterDot2" Text=" · " FontSize="10" VerticalAlignment="Center" Margin="6,0"/>

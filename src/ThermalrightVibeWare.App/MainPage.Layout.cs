@@ -58,8 +58,6 @@ public sealed partial class MainPage
         Grid.SetColumn(StartDisplayButton, narrow ? 3 : 4);
         Grid.SetColumnSpan(StartDisplayButton, narrow ? 2 : 1);
         Grid.SetRow(StopDisplayButton, narrow ? 1 : 0);
-        Grid.SetRow(DisplayOptionsButton, narrow ? 2 : 1);
-        Grid.SetRow(DisplayOptionsPanel, narrow ? 3 : 2);
         StartDisplayButton.Margin = new Thickness(0, narrow ? 8 : 0, 6, 0);
         StopDisplayButton.Margin = new Thickness(0, narrow ? 8 : 0, 0, 0);
 
