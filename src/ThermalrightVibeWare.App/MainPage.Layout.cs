@@ -69,13 +69,13 @@ public sealed partial class MainPage
         Heading.FontSize = shortWindow ? 22 : 28;
         SelectedThemeText.FontSize = shortWindow ? 22 : 26;
         Eyebrow.Visibility = CategoryText.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
-        InitiativeImage.Width = InitiativeImage.Height = shortWindow ? 28 : 36;
+        InitiativeImage.Width = InitiativeImage.Height = shortWindow ? 36.4 : 46.8;
         FooterLinks.Margin = new Thickness(0, shortWindow ? 2 : 10, 0, 0);
         foreach (var label in new[] { FontLabel, SizeLabel, GeometryLabel, DeviceLabel, RefreshLabel, QualityLabel })
         { label.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible; }
 
         CodexSetupFrame.Margin = new Thickness(14, compact ? 10 : 28, 8, 0);
-        ScreensFrame.Margin = new Thickness(14, compact ? 10 : 16, 8, 0);
+        ScreensFrame.Margin = new Thickness(0, compact ? 10 : 16, 0, 0);
         // Details are available on demand even on shorter monitors.
         CodexHelpText.Visibility = Visibility.Visible;
         CodexStatusText.TextWrapping = CodexEventText.TextWrapping = compact ? TextWrapping.NoWrap : TextWrapping.Wrap;

@@ -43,8 +43,8 @@ public sealed partial class MainPage
         public Brush Outline { get; private set; } = new SolidColorBrush(Colors.Transparent);
         public FontWeight Weight { get; private set; } = FontWeights.Normal;
         public Brush Ink { get; private set; } = MainPage.Brush("#F1F1FA");
-        public Brush Muted { get; private set; } = MainPage.Brush("#9C9CAF");
-        public Brush Accent { get; private set; } = MainPage.Brush("#C9AEF3");
+        public Brush Muted { get; private set; } = MainPage.Brush("#AEB9CA");
+        public Brush Accent { get; private set; } = MainPage.Brush("#7BC8DF");
         public event PropertyChangedEventHandler? PropertyChanged;
 
         /// <summary>Updates selection emphasis and notifies the bound library row controls.</summary>
@@ -53,11 +53,11 @@ public sealed partial class MainPage
         public void Update(bool light, bool selected)
         {
             DescriptionVisibility = selected ? Visibility.Visible : Visibility.Collapsed;
-            Outline = selected ? MainPage.Brush(light ? "#7854B5" : "#C9AEF3") : new SolidColorBrush(Colors.Transparent);
+            Outline = selected ? MainPage.Brush(light ? "#276C89" : "#7BC8DF") : new SolidColorBrush(Colors.Transparent);
             Weight = selected ? FontWeights.SemiBold : FontWeights.Normal;
-            Ink = MainPage.Brush(selected ? light ? "#68468F" : "#D8BAFA" : light ? "#242231" : "#F1F1FA");
-            Muted = MainPage.Brush(light ? "#716B80" : "#9C9CAF");
-            Accent = MainPage.Brush(selected ? light ? "#7854B5" : "#D8BAFA" : light ? "#A89BB7" : "#686B80");
+            Ink = MainPage.Brush(selected ? light ? "#245F78" : "#A9E1EF" : light ? "#242231" : "#F1F1FA");
+            Muted = MainPage.Brush(light ? "#596477" : "#AEB9CA");
+            Accent = MainPage.Brush(selected ? light ? "#276C89" : "#A9E1EF" : light ? "#737F90" : "#8794A8");
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(""));
         }
     }

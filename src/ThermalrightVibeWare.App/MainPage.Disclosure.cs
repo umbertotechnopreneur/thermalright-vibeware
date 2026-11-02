@@ -35,29 +35,40 @@ public sealed partial class MainPage
             ? "Display running" : status);
     }
 
-    /// <summary>Toggles the requested details panel while preserving its state.</summary>
-    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
-    /// <param name="args">Event data supplied by the UI or capture framework.</param>
-    private void Disclosure_Click(object sender, RoutedEventArgs args)
+    private string studioSection = "preview";
+
+    /// <summary>Switches the central workspace or the separate raw sensor view.</summary>
+    private async void StudioTab_Click(object sender, RoutedEventArgs args)
     {
-        if (sender is not Button selected) { return; }
-        (Button Button, FrameworkElement Panel, string Title)[] sections =
-        [
-            (ScreensDetailsButton, ScreensDetails, "Screens on display"),
-            (CodexDetailsButton, CodexDetails, "Codex connection"),
-            (SensorDetailsButton, SensorDetails, "Sensor access"),
-            (AppearanceDetailsButton, OptionsFrame, "Appearance"),
-            (DisplayOptionsButton, DisplayOptionsPanel, "Display options"),
-            (DiagnosticsDetailsButton, DiagnosticsDetails, "Diagnostics")
-        ];
-        var expand = sections.Any(section => section.Button == selected && section.Panel.Visibility != Visibility.Visible);
-        var sidebar = selected == ScreensDetailsButton || selected == CodexDetailsButton || selected == SensorDetailsButton;
-        foreach (var (button, panel, title) in sections)
+        if (sender is not Button { Tag: string section }) { return; }
+        var debug = section == "sensor-debug";
+        if (section != "themes" && !debug) { studioSection = section; }
+        ContentArea.Visibility = debug ? Visibility.Collapsed : Visibility.Visible;
+        SensorDebugPanel.Visibility = debug ? Visibility.Visible : Visibility.Collapsed;
+        AppearancePanel.Visibility = studioSection == "appearance" ? Visibility.Visible : Visibility.Collapsed;
+        DisplayFrame.Visibility = studioSection == "display" ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsPanel.Visibility = studioSection == "diagnostics" ? Visibility.Visible : Visibility.Collapsed;
+        PreviewFrame.Visibility = ThemeHeadingArea.Visibility = studioSection == "diagnostics" ? Visibility.Collapsed : Visibility.Visible;
+        NavigationArea.Visibility = studioSection == "preview" ? Visibility.Visible : Visibility.Collapsed;
+        UpdateStudioTabs();
+        FitPreviewSurface();
+        if (!debug && studioSection == "diagnostics") { await RefreshSensorDriverStatusAsync(); }
+        await RefreshAsync();
+    }
+
+    /// <summary>Marks top-level and central selections with matching palette contrast.</summary>
+    private void UpdateStudioTabs()
+    {
+        var debug = SensorDebugPanel.Visibility == Visibility.Visible;
+        foreach (var button in new[] { ThemesTab, SensorsTab, PreviewTab, AppearanceTab, DisplayTab, DiagnosticsTab })
         {
-            if (button != selected && !(sidebar && (button == ScreensDetailsButton || button == CodexDetailsButton || button == SensorDetailsButton))) { continue; }
-            var visible = button == selected && expand;
-            panel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-            button.Content = (visible ? "⌄ " : "› ") + title;
+            var tag = button.Tag as string;
+            var selected = tag == "themes" ? !debug : tag == "sensor-debug" ? debug : tag == studioSection;
+            button.Background = Brush(selected ? IsLight ? "#E5EEF3" : "#1E303C" : IsLight ? "#F6F7F9" : "#101218");
+            button.Foreground = Brush(IsLight ? "#242231" : "#F1F1FA");
+            button.BorderBrush = Brush(selected ? IsLight ? "#276C89" : "#7BC8DF" : IsLight ? "#F6F7F9" : "#101218");
+            button.BorderThickness = new Thickness(0, 0, 0, 2);
+            button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
         }
     }
 }

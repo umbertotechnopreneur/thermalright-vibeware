@@ -78,9 +78,9 @@ public sealed partial class MainPage
         SpectrumBox.IsEnabled = catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme)?.SupportsSpectrum == true;
         SpectrumBox.Visibility = SpectrumBox.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
         CodexSetupFrame.Visibility = selectedCategory == "codex" ? Visibility.Visible : Visibility.Collapsed;
-        SensorSetupFrame.Visibility = selectedCategory == "system" ? Visibility.Visible : Visibility.Collapsed;
+
         if (selectedCategory == "system") { _ = RefreshSensorDriverStatusAsync(); }
-        AdministratorPanel.Visibility = selectedCategory == "system" && windowActions?.CanRestartAsAdministrator == true
+        AdministratorPanel.Visibility = windowActions?.CanRestartAsAdministrator == true
             ? Visibility.Visible : Visibility.Collapsed;
         CategoryText.Text = (categoryRows.FirstOrDefault(row => row.Id == selectedCategory)?.Name ?? selectedCategory).ToUpperInvariant();
         var selected = catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme);
@@ -96,6 +96,7 @@ public sealed partial class MainPage
         CycleBox.IsEnabled = (catalog?.Themes.Count ?? 0) > 1;
         UpdateDisplayControls();
         UpdateRows();
+        UpdateStudioTabs();
         if (themeRows.Count == 0) { ClearPreview(); LoadingTitle.Text = "This category is empty."; LoadingText.Text = "Add a theme pack and reload the library."; }
     }
 

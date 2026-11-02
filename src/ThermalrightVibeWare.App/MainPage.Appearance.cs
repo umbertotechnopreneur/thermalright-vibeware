@@ -29,23 +29,34 @@ namespace ThermalrightVibeWare.App;
 /// <summary>Appearance responsibilities of the studio page.</summary>
 public sealed partial class MainPage
 {
+    private long nextSystemAppearanceRead;
     private bool IsLight => viewModel.Preferences.Light;
 
     /// <summary>Applies the selected light/dark palette to studio controls.</summary>
     private void ApplyAppearance()
     {
+        if (Environment.TickCount64 >= nextSystemAppearanceRead)
+        {
+            nextSystemAppearanceRead = Environment.TickCount64 + 1000;
+            var systemLight = !Convert.ToBoolean(OpenSilver.Interop.ExecuteJavaScript("window.matchMedia('(prefers-color-scheme: dark)').matches"));
+            if (viewModel.Preferences.SystemLight != systemLight)
+            {
+                viewModel.Edit(p => p.SystemLight = systemLight);
+                if (appearance == 0) { session.Wake(); }
+            }
+        }
         var light = IsLight;
         if (appliedLight == light) { return; }
         appliedLight = light;
         ((ModernTheme)Application.Current.Theme).CurrentPalette = light ? ModernTheme.Palettes.Light : ModernTheme.Palettes.Dark;
         OpenSilver.Interop.ExecuteJavaScriptVoid("document.documentElement.style.colorScheme = $0", light ? "light" : "dark");
-        Root.Background = Brush(light ? "#FAF9FC" : "#101218");
+        Root.Background = Brush(light ? "#F6F7F9" : "#101218");
         var transparent = new SolidColorBrush(Colors.Transparent);
         var surface = Brush(light ? "#FFFFFF" : "#191C25");
-        var line = Brush(light ? "#DDD9E7" : "#303441");
+        var line = Brush(light ? "#D5DBE3" : "#333B48");
         var ink = Brush(light ? "#242231" : "#F1F1FA");
-        var muted = Brush(light ? "#716B80" : "#9C9CAF");
-        var accent = Brush(light ? "#7854B5" : "#C9AEF3");
+        var muted = Brush(light ? "#596477" : "#AEB9CA");
+        var accent = Brush(light ? "#276C89" : "#7BC8DF");
         // Sections share the page, without cards. Only the modal needs its own surface.
         foreach (var section in new[] { LibraryFrame, AppearanceFrame, OptionsFrame, DisplayFrame, ScreensFrame, CodexSetupFrame, PreviewBadge, PreviewFrame }) { section.Background = transparent; }
         SensorSetupFrame.Background = transparent;
@@ -71,12 +82,12 @@ public sealed partial class MainPage
         CloseDescription.Foreground = muted;
         foreach (var button in new[] { CancelCloseButton, ExitButton, MinimizeTrayButton })
         { button.Background = surface; button.Foreground = ink; button.BorderBrush = line; button.BorderThickness = new Thickness(1); }
-        FiltersPanel.Background = Brush(light ? "#F0EDF5" : "#171A23");
+        FiltersPanel.Background = Brush(light ? "#E9F0F5" : "#19232E");
         DisplayDivider.BorderBrush = line;
         foreach (var text in new[] { Heading, SelectedThemeText, LoadingTitle, PositionText, PagePositionText, FontScaleText, SaturationText, HueText, BrightnessText, ContrastText, AboutHeading, AboutAuthor, AboutDisclosureHeading, CodexStatusText }) { text.Foreground = ink; }
         foreach (var text in new[] { Subtitle, Author, HeaderDot, CatalogText, ThemeNavigationText, PageNavigationText, SourceText, StatusText, LoadingText, FontLabel, SizeLabel, GeometryLabel, DeviceLabel, RefreshLabel, QualityLabel, SaturationLabel, HueLabel, BrightnessLabel, ContrastLabel, FiltersStatus, ScreensHelpText, CodexEventText, CodexHelpText, FooterDot2, AboutVersion, AboutDisclosure, AboutInitiative, AdministratorHelp }) { text.Foreground = muted; }
         foreach (var text in new[] { Eyebrow, LibraryHeading, CategoryText, PreviewBadgeText, ScreensHeading, CodexSetupHeading }) { text.Foreground = accent; }
-        foreach (var link in new[] { Manifesto, AboutLink, TermsLink, PrivacyLink, AboutManifesto, ProjectLink, InitiativeLink, WebsiteLink, AboutTerms, AboutPrivacy }) { link.Foreground = accent; }
+        foreach (var link in new[] { AboutLink, TermsLink, PrivacyLink, AboutManifesto, ProjectLink, InitiativeLink, WebsiteLink, AboutTerms, AboutPrivacy }) { link.Foreground = accent; }
         ThemePagesText.Foreground = muted;
         foreach (var link in new[] { ArtistBiographyLink, ArtistPhotoLink, ArtistSalesLink }) { link.Foreground = accent; }
         CategoriesBox.Background = ThemesBox.Background = transparent;
@@ -100,9 +111,9 @@ public sealed partial class MainPage
         foreach (var button in new[] { ReloadButton, PreviousButton, NextButton, PagePreviousButton, PageNextButton, ApplyFontButton, FontListButton, ResetColorsButton, SmallerButton, LargerButton, CloseAboutButton, RefreshDevicesButton, StartDisplayButton, StopDisplayButton, CodexRefreshButton, CodexPrepareButton, OpenLogButton, AdministratorButton })
         { button.Background = transparent; button.Foreground = ink; button.BorderThickness = new Thickness(0); }
         foreach (var button in new[] { ScreensDetailsButton, CodexDetailsButton, SensorDetailsButton, AppearanceDetailsButton, DisplayOptionsButton, DiagnosticsDetailsButton })
-        { button.Background = transparent; button.Foreground = accent; button.BorderThickness = new Thickness(0); }
-        StartDisplayButton.Background = Brush(light ? "#68468F" : "#C5AAE8");
-        StartDisplayButton.Foreground = Brush(light ? "#FFFFFF" : "#1C1428");
+        { button.Foreground = ink; }
+        StartDisplayButton.Background = Brush(light ? "#245F78" : "#7BC8DF");
+        StartDisplayButton.Foreground = Brush(light ? "#FFFFFF" : "#10232C");
         foreach (var button in new[] { SmallerButton, LargerButton, ResetColorsButton, StopDisplayButton, ApplyFontButton })
         {
             button.Background = surface;
@@ -122,8 +133,8 @@ public sealed partial class MainPage
         for (var i = 0; i < buttons.Length; i++)
         {
             buttons[i].Background = new SolidColorBrush(Colors.Transparent);
-            buttons[i].Foreground = Brush(i == appearance ? IsLight ? "#623A8D" : "#EBD6FF" : IsLight ? "#716B80" : "#9C9CAF");
-            buttons[i].BorderBrush = i == appearance ? Brush(IsLight ? "#7854B5" : "#C9AEF3") : new SolidColorBrush(Colors.Transparent);
+            buttons[i].Foreground = Brush(i == appearance ? IsLight ? "#245F78" : "#A9E1EF" : IsLight ? "#596477" : "#AEB9CA");
+            buttons[i].BorderBrush = i == appearance ? Brush(IsLight ? "#276C89" : "#7BC8DF") : new SolidColorBrush(Colors.Transparent);
             buttons[i].BorderThickness = new Thickness(0, 0, 0, 2);
             buttons[i].FontWeight = i == appearance ? FontWeights.SemiBold : FontWeights.Normal;
         }

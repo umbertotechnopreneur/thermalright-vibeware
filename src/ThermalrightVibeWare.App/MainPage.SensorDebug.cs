@@ -31,29 +31,6 @@ public sealed partial class MainPage
     private bool sensorDebugReading;
     private SensorDebugDto? lastSensorDebug;
 
-    /// <summary>Returns from sensor diagnostics to the theme preview.</summary>
-    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
-    /// <param name="args">Event data supplied by the UI or capture framework.</param>
-    private void ThemesTab_Click(object sender, RoutedEventArgs args)
-    {
-        SensorDebugPanel.Visibility = Visibility.Collapsed;
-        ContentArea.Visibility = Visibility.Visible;
-        session.PreviewVisible = preview?.IsVisible != false;
-        ApplySensorDebugAppearance();
-    }
-
-    /// <summary>Opens the raw sensor diagnostic view and refreshes its observation.</summary>
-    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
-    /// <param name="args">Event data supplied by the UI or capture framework.</param>
-    private async void SensorsTab_Click(object sender, RoutedEventArgs args)
-    {
-        ContentArea.Visibility = Visibility.Collapsed;
-        SensorDebugPanel.Visibility = Visibility.Visible;
-        session.PreviewVisible = false;
-        ApplySensorDebugAppearance();
-        await RefreshSensorDebugAsync();
-    }
-
     /// <summary>Refreshes raw sensor diagnostics on request.</summary>
     /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
@@ -194,14 +171,11 @@ public sealed partial class MainPage
     private void ApplySensorDebugAppearance()
     {
         var ink = Brush(IsLight ? "#242231" : "#F1F1FA");
-        var muted = Brush(IsLight ? "#716B80" : "#9C9CAF");
+        var muted = Brush(IsLight ? "#596477" : "#AEB9CA");
         var transparent = new SolidColorBrush(Colors.Transparent);
-        var debug = SensorDebugPanel.Visibility == Visibility.Visible;
-        foreach (var button in new[] { ThemesTab, SensorsTab, SensorDebugRefresh, SensorDebugAdministrator })
+        foreach (var button in new[] { SensorDebugRefresh, SensorDebugAdministrator })
         { button.Background = transparent; button.Foreground = ink; button.BorderThickness = new Thickness(0); }
-        var selected = debug ? SensorsTab : ThemesTab;
-        selected.BorderThickness = new Thickness(0, 0, 0, 2);
-        selected.BorderBrush = Brush(IsLight ? "#7854B5" : "#C9AEF3");
+        UpdateStudioTabs();
         SensorDebugHeading.Foreground = ink;
         SensorDebugSummary.Foreground = SensorDebugNotice.Foreground = SensorDebugHelp.Foreground = muted;
         SensorDebugTree.Background = transparent;
