@@ -12,4 +12,4 @@ This is a hobby project, provided as is, without warranty.
 
 ## Latest local build
 
-The Windows x64 Debug MSI 0.1.28 was built. Restore and changed-file format verification passed. Installation uses the normal installer result, without auditing installed files or registration. The new tab layout and light/dark behavior still need a visual check. No tests or physical-device trials were performed for this change.
+The Windows x64 Debug MSI 0.1.29 was built and installed; Windows Installer reported success. Restore and changed-file format verification passed. Installation uses the normal installer result, without auditing installed files or registration. The new tab layout and light/dark behavior still need a visual check. No tests or physical-device trials were performed for this change.
