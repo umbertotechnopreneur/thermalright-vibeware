@@ -55,6 +55,9 @@ await using (var session = new StudioSession(startup, path, restoreLastSession: 
 {
     await Until(() => session.Snapshot.Devices is not null);
     Check(session.Snapshot.StartupPending && startup.Starts == 0, "Startup waits for the saved device.");
+    session.PreviewVisible = true;
+    await Until(() => session.Snapshot.FrameRevision >= 2);
+    Check(session.Snapshot.Status.StartsWith("Waiting for the selected USB display.", StringComparison.Ordinal), "Preview frames preserve the startup waiting status.");
     await session.StopAsync();
     startup.Connected = true;
     await session.RefreshDevicesAsync();

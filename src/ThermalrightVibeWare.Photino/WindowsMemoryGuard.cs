@@ -218,10 +218,14 @@ internal static class WindowsMemoryGuard
         {
             var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "logs");
             var settings = new FileInfo(Path.Combine(directory, "diagnostics.json"));
-            if (!settings.Exists || settings.Length > 256) { return; }
-            using var stream = settings.OpenRead();
-            using var json = JsonDocument.Parse(stream);
-            if (!json.RootElement.TryGetProperty("enabled", out var enabled) || enabled.ValueKind != JsonValueKind.True) { return; }
+            if (settings.Exists)
+            {
+                if (settings.Length > 256) { return; }
+                using var stream = settings.OpenRead();
+                using var json = JsonDocument.Parse(stream);
+                if (!json.RootElement.TryGetProperty("enabled", out var enabled) || enabled.ValueKind != JsonValueKind.True) { return; }
+            }
+            Directory.CreateDirectory(directory);
             File.WriteAllText(Path.Combine(directory, "memory-guard.json"), JsonSerializer.Serialize(new
             { atUtc = DateTimeOffset.UtcNow, reason, limitBytes = MaximumBytes, jobPeakBytes, priorBytes }));
         }
