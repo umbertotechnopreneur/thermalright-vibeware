@@ -202,27 +202,26 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         foreach (var reading in devices.SelectMany(device => device.Readings))
         {
             if (reading.Value is not double value) { continue; }
-            if (reading.Type == "Fan" && !ObserveFan(reading.Id, value)) { continue; }
+            if (reading.Type == "Fan" && !activeFans.ContainsKey(reading.Id)) { continue; }
             yield return new(reading.Id, reading.Name, reading.Type, value, reading.Unit);
         }
     }
 
-    private bool ObserveFan(string id, double rpm)
+    private void ObserveFan(string id, double rpm)
     {
         if (activeFans.TryGetValue(id, out var existing))
         {
             activeFanOrder.Remove(existing);
             activeFanOrder.AddLast(existing);
-            return true;
+            return;
         }
-        if (rpm <= 0) { return false; }
+        if (rpm <= 0) { return; }
         activeFans.Add(id, activeFanOrder.AddLast(id));
         if (activeFans.Count > MaximumReadings * 2)
         {
             activeFans.Remove(activeFanOrder.First!.Value);
             activeFanOrder.RemoveFirst();
         }
-        return true;
     }
 
     private static HardwareFanSensors[] ThemeFans(IEnumerable<HardwareReading> readings) => readings
@@ -265,11 +264,11 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         }
     }
 
-    private TextValue ReadText(string path, int maximumCharacters = 256)
+    private TextValue ReadText(string path, int maximumCharacters = 256, MonitorDirectory? monitor = null)
     {
         try
         {
-            using var stream = new FileStream(SafeAttributePath(path), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var stream = new FileStream(SafeAttributePath(path, monitor), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var reader = new StreamReader(stream);
             var buffer = new char[maximumCharacters + 1];
             var count = reader.ReadBlock(buffer, 0, buffer.Length);
@@ -298,15 +297,25 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         catch (Exception error) when (IsReadFailure(error)) { return new(null, "Read unavailable: " + error.GetType().Name + "."); }
     }
 
-    private string SafeAttributePath(string path)
+    private string SafeAttributePath(string path, MonitorDirectory? monitor = null)
     {
         var fullPath = Path.GetFullPath(path);
+        // A pinned monitor supplies only direct child names. Resolving its fd link
+        // back into a pathname here would lose the hotplug protection.
+        var attributePath = fullPath;
         var parent = Path.GetDirectoryName(fullPath);
-        var canonicalParent = parent is null ? null : CanonicalPath(parent);
-        if (canonicalParent is null || !(WithinSysRoot(canonicalParent)
-            || canonicalProcRoot is not null && IsWithinRoot(canonicalParent, canonicalProcRoot)))
-        { throw new IOException("The kernel attribute is outside the configured roots or its parent is unavailable."); }
-        var attributePath = Path.Combine(canonicalParent, Path.GetFileName(fullPath));
+        if (monitor is not null)
+        {
+            if (parent != monitor.DescriptorPath) { throw new IOException("The kernel attribute is outside the pinned hwmon directory."); }
+        }
+        else
+        {
+            var canonicalParent = parent is null ? null : CanonicalPath(parent);
+            if (canonicalParent is null || !(WithinSysRoot(canonicalParent)
+                || canonicalProcRoot is not null && IsWithinRoot(canonicalParent, canonicalProcRoot)))
+            { throw new IOException("The kernel attribute is outside the configured roots or its parent is unavailable."); }
+            attributePath = Path.Combine(canonicalParent, Path.GetFileName(fullPath));
+        }
         // Real hwmon/procfs attributes are regular kernel files. Do not follow an arbitrary leaf link.
         if (new FileInfo(attributePath).LinkTarget is not null)
         { throw new IOException("Symbolic-link kernel attributes are not read."); }

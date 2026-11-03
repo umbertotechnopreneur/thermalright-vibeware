@@ -44,6 +44,16 @@ this backend does not apply board-specific resistor scaling from `sensors.conf`
 or infer a named power rail. Generic ACPI temperatures are not presented as CPU
 package temperatures.
 
+Sensor Debug shows the raw thermistor voltage in mV for VT1211 channels 3–7,
+VT8231 channels 2–6 and PC87365/PC87366 channels 4–6. Those channels need a
+board-specific conversion to produce a temperature. The external diode on
+VT1211 and VT8231 channel 1 also needs calibration, so its temperature stays
+unavailable. VT1211 channel 2 and the digital temperature channels on the
+PC87365/PC87366 keep their kernel temperature values. See the
+[VT1211 driver guide](https://docs.kernel.org/hwmon/vt1211.html#temperature-monitoring),
+[VT8231 driver](https://github.com/torvalds/linux/blob/master/drivers/hwmon/vt8231.c)
+and [lm-sensors chip configurations](https://github.com/lm-sensors/lm-sensors/blob/master/etc/sensors.conf.eg).
+
 Construction and access-status requests take no sensor samples. Explicit reads
 share a one-second cache with bounded input and output sizes. No timer, driver
 installation, module loading, SMBus probe or sysfs write is added. Permission
@@ -53,6 +63,10 @@ Raw diagnostics allow at most 64 devices and 1,024 readings, including CPU and R
 counters. Truncation is reported. Stable sensor IDs use a hash of the canonical
 device path and chip identity, so changing a `hwmonN` index does not activate a
 different fan. Ambiguous duplicate identities are skipped with a notice.
+During a read, the Linux backend keeps the monitor directory open. If the
+device disappears or its class link changes, it drops that device's sample
+before updating fan history. This requires access to the process's own
+directory descriptors under `/proc/self/fd`.
 
 ## Entry points and validation
 
