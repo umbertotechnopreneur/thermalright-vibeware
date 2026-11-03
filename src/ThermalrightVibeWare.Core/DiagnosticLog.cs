@@ -30,9 +30,10 @@ public static class DiagnosticLog
 {
     private const long MaximumBytes = 512 * 1024;
     private static readonly object Sync = new();
-    private static readonly string DirectoryPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "logs");
-    public static string LogPath { get; } = Path.Combine(DirectoryPath, "engine.log");
-    private static readonly string SettingsPath = Path.Combine(DirectoryPath, "diagnostics.json");
+    private static readonly string DirectoryPath = OperatingSystem.IsLinux() ? LinuxDiagnosticFiles.GetDirectoryPath()
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "logs");
+    public static string LogPath { get; } = DirectoryPath.Length == 0 ? "" : Path.Combine(DirectoryPath, "engine.log");
+    private static readonly string SettingsPath = DirectoryPath.Length == 0 ? "" : Path.Combine(DirectoryPath, "diagnostics.json");
     private static bool enabled;
     private static bool initialized;
 
@@ -48,6 +49,14 @@ public static class DiagnosticLog
     {
         lock (Sync)
         {
+            if (OperatingSystem.IsLinux())
+            {
+                using var files = LinuxDiagnosticFiles.Open(DirectoryPath);
+                files.SetEnabled(value);
+                enabled = value;
+                initialized = true;
+                return new(enabled, LogPath);
+            }
             Directory.CreateDirectory(DirectoryPath);
             var temporary = Path.Combine(DirectoryPath, $"diagnostics.{Guid.NewGuid():N}.tmp");
             try
@@ -113,10 +122,16 @@ public static class DiagnosticLog
             lock (Sync)
             {
                 if (!IsEnabledLocked()) { return; }
-                Directory.CreateDirectory(DirectoryPath);
                 var line = JsonSerializer.Serialize(entry, PanelContract.Json) + "\n";
                 var bytes = Encoding.UTF8.GetBytes(line);
                 if (bytes.Length > 1024) { return; }
+                if (OperatingSystem.IsLinux())
+                {
+                    using var files = LinuxDiagnosticFiles.Open(DirectoryPath);
+                    files.Append(bytes, MaximumBytes);
+                    return;
+                }
+                Directory.CreateDirectory(DirectoryPath);
                 if (File.Exists(LogPath) && new FileInfo(LogPath).Length + bytes.Length > MaximumBytes)
                 { File.Move(LogPath, LogPath + ".1", overwrite: true); }
                 using var output = new FileStream(LogPath, FileMode.Append, FileAccess.Write, FileShare.Read);
@@ -135,6 +150,11 @@ public static class DiagnosticLog
         enabled = true;
         try
         {
+            if (OperatingSystem.IsLinux())
+            {
+                using var files = LinuxDiagnosticFiles.Open(DirectoryPath);
+                return enabled = files.ReadEnabled();
+            }
             var file = new FileInfo(SettingsPath);
             if (!file.Exists) { return true; }
             if (file.Length > 256) { return enabled = false; }
