@@ -222,6 +222,37 @@ def retain_recent_sessions(directory: Path) -> None:
     for old in files[: len(files) - MAX_SESSIONS]:
         old.unlink(missing_ok=True)
 
+def prepare_private_directories(sessions: Path) -> Path:
+    """Create state directories beneath ancestors that other users cannot replace."""
+    if not sessions.is_absolute():
+        raise ValueError("The activity directory must have an absolute path.")
+    sessions = Path(os.path.abspath(sessions))
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    uid = os.geteuid()
+    fd = os.open(sessions.anchor, flags)
+    try:
+        root_info = os.fstat(fd)
+        if root_info.st_uid != 0 or root_info.st_mode & 0o022:
+            raise PermissionError("The filesystem root is unsafe for private activity files.")
+        parts = sessions.parts[1:]
+        for index, name in enumerate(parts):
+            try:
+                os.mkdir(name, mode=0o700, dir_fd=fd)
+            except FileExistsError:
+                pass
+            parent = fd
+            fd = os.open(name, flags, dir_fd=parent)
+            os.close(parent)
+            info = os.fstat(fd)
+            private = index >= len(parts) - 3
+            if info.st_mode & 0o022 or info.st_uid not in (0, uid) or (private and info.st_uid != uid):
+                raise PermissionError("The activity path contains an unsafe directory.")
+            if private and stat.S_IMODE(info.st_mode) != 0o700:
+                os.fchmod(fd, 0o700)
+    finally:
+        os.close(fd)
+    return sessions
+
 def store_event(value: dict[str, object]) -> None:
     """Persist a bounded sanitized event and update the latest session observation.
 
@@ -231,21 +262,10 @@ def store_event(value: dict[str, object]) -> None:
     root = state_directory()
     sessions = root / "sessions"
     if os.name == "posix":
-        # mkdir(parents=True) would apply the umask, not 0700, to intermediate folders.
-        root.parent.parent.mkdir(parents=True, exist_ok=True)
-        for directory in (root.parent, root, sessions):
-            directory.mkdir(mode=0o700, exist_ok=True)
-            fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-            try:
-                info = os.fstat(fd)
-                if info.st_uid != os.geteuid():
-                    raise PermissionError("The activity directory belongs to another user.")
-                if stat.S_IMODE(info.st_mode) != 0o700:
-                    os.fchmod(fd, 0o700)
-            finally:
-                os.close(fd)
+        sessions = prepare_private_directories(sessions)
+        root = sessions.parent
     else:
-        sessions.mkdir(parents=True, exist_ok=True)
+        sessions.mkdir(parents=True, exist_ok=True, mode=0o700)
     lock = acquire_lock(root)
     if lock is None:
         return

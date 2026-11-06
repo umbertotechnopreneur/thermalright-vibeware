@@ -30,7 +30,10 @@ public static class CodexIntegration
 {
     private const string PluginName = "thermalright-vibeware-codex";
     private const string SourcePath = "./.codex/plugins/thermalright-vibeware-codex";
-    private const string Instructions = "Press Prepare only if you want Codex activity. Then restart Codex, install Thermalright VibeWare Codex from your personal Plugins Directory, and review and trust its hooks there. No account login is needed.";
+    private static string Instructions => (OperatingSystem.IsWindows()
+        ? "Press Prepare to stage or update the bundled plugin if you want Codex activity. "
+        : "To stage or update the plugin, run python3 -I -B install.py prepare from the bundled plugins/thermalright-vibeware-codex folder. ")
+        + "Then restart Codex, install or update Thermalright VibeWare Codex from your personal Plugins Directory, and review and trust its hooks there. No account login is needed.";
 
     /// <summary>Reads local plugin setup and activity status without preparing the plugin.</summary>
     public static CodexSetupStatus Status()
@@ -38,16 +41,11 @@ public static class CodexIntegration
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var staged = Path.Combine(home, ".codex", "plugins", PluginName, "plugin.json");
         var marketplace = Path.Combine(home, ".agents", "plugins", "marketplace.json");
-        var prepared = false;
+        var bundledPlugins = ThemeCatalog.FindContentDirectory("plugins");
+        var bundledVersion = bundledPlugins is null ? null : ReadPluginVersion(Path.Combine(bundledPlugins, PluginName, "plugin.json"));
+        var stagedVersion = ReadPluginVersion(staged);
+        var prepared = bundledVersion is not null && bundledVersion == stagedVersion;
         var listed = false;
-        try
-        {
-            using var manifest = ReadSmallJson(staged, 64 * 1024);
-            if (manifest is not null && manifest.RootElement.ValueKind == JsonValueKind.Object &&
-                manifest.RootElement.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String)
-            { prepared = name.GetString() == PluginName; }
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException) { }
         try
         {
             using var catalog = ReadSmallJson(marketplace, 1024 * 1024);
@@ -66,7 +64,7 @@ public static class CodexIntegration
 
         string? lastEvent = null;
         string? lastEventUtc = null;
-        var current = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "codex", "current.json");
+        var current = CurrentActivityPath;
         try
         {
             using var activity = ReadSmallJson(current, 8 * 1024);
@@ -87,7 +85,10 @@ public static class CodexIntegration
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException) { }
         var activitySeen = lastEvent is not null;
-        var status = !prepared || !listed ? "Not prepared" : activitySeen ? "Recent Codex activity seen" : "Prepared; install and trust hooks in Codex";
+        var status = bundledVersion is null ? "Bundled Codex plugin is missing or invalid" :
+            stagedVersion is not null && !prepared ? "Plugin update needed" :
+            !prepared || !listed ? "Not prepared" :
+            activitySeen ? "Recent Codex activity seen" : "Prepared; install and trust hooks in Codex";
         return new(prepared, listed, activitySeen, status, lastEvent, lastEventUtc, Instructions);
     }
 
@@ -110,6 +111,7 @@ public static class CodexIntegration
             RedirectStandardError = true,
             WorkingDirectory = Path.GetDirectoryName(script)!
         };
+        process.StartInfo.ArgumentList.Add("-I");
         process.StartInfo.ArgumentList.Add("-B");
         process.StartInfo.ArgumentList.Add(script);
         process.StartInfo.ArgumentList.Add("prepare");
@@ -147,6 +149,42 @@ public static class CodexIntegration
             total += count;
             if (total > 4096) { throw new IOException("Codex plugin preparer output exceeded 4 KiB."); }
         }
+    }
+
+    /// <summary>Uses the same platform-specific state directory as the optional Python hook.</summary>
+    internal static string CurrentActivityPath
+    {
+        get
+        {
+            var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (OperatingSystem.IsLinux())
+            {
+                root = Environment.GetEnvironmentVariable("XDG_STATE_HOME") ?? "";
+                if (!Path.IsPathFullyQualified(root))
+                {
+                    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
+                    if (!Path.IsPathFullyQualified(home)) { throw new IOException("The user's home directory is unavailable for Codex activity."); }
+                    root = Path.Combine(home, ".local", "state");
+                }
+            }
+            return Path.Combine(root, "ThermalrightVibeWare", "codex", "current.json");
+        }
+    }
+
+    /// <summary>Reads the version of a manifest for this plugin, without trusting its hooks.</summary>
+    /// <param name="path">Bundled or staged plugin manifest path.</param>
+    private static string? ReadPluginVersion(string path)
+    {
+        try
+        {
+            using var manifest = ReadSmallJson(path, 64 * 1024);
+            if (manifest is null || manifest.RootElement.ValueKind != JsonValueKind.Object ||
+                Text(manifest.RootElement, "name") != PluginName) { return null; }
+            var version = Text(manifest.RootElement, "version");
+            return string.IsNullOrWhiteSpace(version) ? null : version;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+        { return null; }
     }
 
     /// <summary>Reads a local JSON file only when it fits the configured byte limit.</summary>

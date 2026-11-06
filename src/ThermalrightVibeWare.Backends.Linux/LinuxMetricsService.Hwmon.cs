@@ -17,7 +17,7 @@ public sealed partial class LinuxMetricsService
 {
     private List<KernelDevice> ReadHwmon(List<string> notices)
     {
-        var gpus = ReadDrmDevices(notices);
+        var gpus = ReadDrmDevices(notices, includeMetadata: false);
         var devices = new List<KernelDevice>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var deviceIds = new HashSet<string>(StringComparer.Ordinal);
@@ -61,11 +61,20 @@ public sealed partial class LinuxMetricsService
                 // Check physical/PCI storage identity before reading even the chip name or channels.
                 if (IsExcludedDevice(backing, notices)
                     || backing != StripHwmonSuffix(canonicalMonitor) && IsExcludedDevice(canonicalMonitor, notices)) { continue; }
-                var nameResult = ReadText(Path.Combine(monitorPath, "name"), monitor: monitor);
+                using var physicalDevice = OperatingSystem.IsLinux() ? MonitorDirectory.Open(backing) : null;
+                if (physicalDevice is not null && (physicalDevice.IsInvalid || !physicalDevice.IsAt(backing)))
+                {
+                    AddNotice(notices, "A hwmon backing device could not be pinned and was skipped.");
+                    continue;
+                }
+                var physicalPath = physicalDevice?.DescriptorPath ?? backing;
+                var nameResult = ReadHwmonName(monitorPath, monitor, physicalPath, physicalDevice, out var attributesOnDevice);
+                var attributeDirectory = attributesOnDevice ? physicalDevice : monitor;
+                var attributePath = attributesOnDevice ? physicalPath : monitorPath;
                 var name = nameResult.Value;
                 if (string.IsNullOrWhiteSpace(name))
                 {
-                    AddNotice(notices, "A hwmon source had no readable chip identity and was skipped.");
+                    AddNotice(notices, "A hwmon source had no supported readable chip identity and was skipped. " + nameResult.Notice);
                     continue;
                 }
                 if (IsStorageDevice(name, backing)) { continue; }
@@ -75,7 +84,17 @@ public sealed partial class LinuxMetricsService
                     break;
                 }
                 if (seen.Contains(canonicalMonitor)) { continue; }
-                var gpu = gpus.FirstOrDefault(item => string.Equals(item.DevicePath, backing, StringComparison.Ordinal));
+                var gpu = gpus.FirstOrDefault(item => item.DevicePath == backing && DrmMatches(item));
+                var driverPath = gpu is null ? null : CanonicalPath(Path.Combine(physicalPath, "driver"));
+                var driver = driverPath is null || !WithinSysRoot(driverPath) ? null : Path.GetFileName(driverPath);
+                var gpuName = name;
+                if (gpu is not null)
+                {
+                    var vendor = ReadText(Path.Combine(physicalPath, "vendor"), monitor: physicalDevice).Value?.ToLowerInvariant();
+                    var model = ReadText(Path.Combine(physicalPath, "device"), monitor: physicalDevice).Value;
+                    var manufacturer = vendor switch { "0x1002" => "AMD", "0x10de" => "NVIDIA", "0x8086" => "Intel", _ => "DRM" };
+                    gpuName = manufacturer + " GPU" + (string.IsNullOrEmpty(model) ? "" : " " + model);
+                }
                 var kind = gpu is not null ? SensorKind.Gpu : ClassifyDevice(name, backing);
                 var stablePath = SysRelative(backing);
                 // The kernel's hwmonN enumeration number is deliberately absent from identities.
@@ -85,21 +104,23 @@ public sealed partial class LinuxMetricsService
                     AddNotice(notices, "Two hwmon entries shared the same stable device and source identity; the duplicate was skipped.");
                     continue;
                 }
-                var readings = ReadChannels(monitorPath, monitor, name, id, Math.Min(MaximumDeviceReadings, MaximumReadings - 4 - readingCount), notices);
+                var readings = ReadChannels(attributePath, attributeDirectory, name, id, Math.Min(MaximumDeviceReadings, MaximumReadings - 4 - readingCount), notices);
                 readingCount += readings.Count;
-                if (gpu is not null && readings.Count < MaximumDeviceReadings && readingCount < MaximumReadings - 4 && gpu.Driver == "amdgpu")
+                if (gpu is not null && readings.Count < MaximumDeviceReadings && readingCount < MaximumReadings - 4 && driver == "amdgpu")
                 {
-                    var usagePath = Path.Combine(backing, "gpu_busy_percent");
+                    var usagePath = Path.Combine(physicalPath, "gpu_busy_percent");
                     if (File.Exists(usagePath))
                     {
-                        var usage = ReadNumber(usagePath, 1, nonnegative: true);
+                        var usage = ReadNumber(usagePath, 1, nonnegative: true, monitor: physicalDevice);
                         if (usage.Value is > 100) { usage = new(null, "GPU busy percentage is outside 0..100."); }
                         readings.Add(new(id + "/gpu_busy_percent", "GPU busy", "Load", "%", usage.Value, null, null, usage.Notice));
                         readingCount++;
                     }
                 }
                 if (CanonicalPath(path) != canonicalMonitor || ResolveBackingDevice(canonicalMonitor) != backing
-                    || monitor is not null && !monitor.IsAt(canonicalMonitor))
+                    || monitor is not null && !monitor.IsAt(canonicalMonitor)
+                    || physicalDevice is not null && !physicalDevice.IsAt(backing)
+                    || gpu is not null && (!DrmMatches(gpu) || CanonicalPath(Path.Combine(physicalPath, "driver")) != driverPath))
                 {
                     AddNotice(notices, "A hwmon device changed during sampling. Its readings were discarded.");
                     continue;
@@ -115,7 +136,7 @@ public sealed partial class LinuxMetricsService
                 {
                     notice = "This hwmon source has no verified CPU, GPU or motherboard classification. It remains in Sensor Debug only.";
                 }
-                devices.Add(new(id, backing, Limit(gpu is null ? name : gpu.Name + " (" + name + ")"), kind, readings.ToArray(), notice));
+                devices.Add(new(id, backing, Limit(gpu is null ? name : gpuName + " (" + name + ")"), kind, readings.ToArray(), notice));
             }
         }
         catch (Exception error) when (IsReadFailure(error))
@@ -123,6 +144,23 @@ public sealed partial class LinuxMetricsService
             AddNotice(notices, "Hwmon enumeration unavailable: " + error.GetType().Name + ".");
         }
         return devices;
+    }
+
+    private TextValue ReadHwmonName(string monitorPath, MonitorDirectory? monitor, string physicalPath,
+        MonitorDirectory? physicalDevice, out bool attributesOnDevice)
+    {
+        attributesOnDevice = false;
+        try { _ = File.GetAttributes(Path.Combine(monitorPath, "name")); }
+        catch (FileNotFoundException) { attributesOnDevice = true; }
+        catch (Exception error) when (IsReadFailure(error))
+        { return new(null, "The hwmon attribute layout could not be checked: " + error.GetType().Name + "."); }
+        var name = ReadText(Path.Combine(attributesOnDevice ? physicalPath : monitorPath, "name"),
+            monitor: attributesOnDevice ? physicalDevice : monitor);
+        // These kernel drivers publish their attributes on the physical device.
+        // An unreadable child attribute never selects a different directory.
+        if (attributesOnDevice && name.Value is not ("vt1211" or "vt8231" or "pc87365" or "pc87366"))
+        { return new(null, name.Notice ?? "This physical-device attribute layout is unsupported."); }
+        return name;
     }
 
     private List<SensorReadingDto> ReadChannels(string path, MonitorDirectory? monitor, string chip, string id, int maximum, List<string> notices)
@@ -182,7 +220,7 @@ public sealed partial class LinuxMetricsService
         return readings;
     }
 
-    private List<DrmDevice> ReadDrmDevices(List<string> notices)
+    private List<DrmDevice> ReadDrmDevices(List<string> notices, bool includeMetadata = true)
     {
         var result = new List<DrmDevice>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -208,12 +246,20 @@ public sealed partial class LinuxMetricsService
                 if (canonicalCard is null || !WithinSysRoot(canonicalCard)) { continue; }
                 var backing = CanonicalPath(Path.Combine(canonicalCard, "device"));
                 if (backing is null || !WithinSysRoot(backing) || !seen.Add(backing) || IsExcludedDevice(backing, notices)) { continue; }
-                var driverPath = CanonicalPath(Path.Combine(backing, "driver"));
-                var driver = driverPath is null || !WithinSysRoot(driverPath) ? null : Path.GetFileName(driverPath);
-                var vendor = ReadText(Path.Combine(backing, "vendor")).Value?.ToLowerInvariant();
-                var model = ReadText(Path.Combine(backing, "device")).Value;
-                var manufacturer = vendor switch { "0x1002" => "AMD", "0x10de" => "NVIDIA", "0x8086" => "Intel", _ => "DRM" };
-                result.Add(new(backing, Limit(manufacturer + " GPU" + (string.IsNullOrEmpty(model) ? "" : " " + model)), driver));
+                var gpuName = "DRM GPU";
+                string? driver = null;
+                // Access diagnostics can read metadata immediately. Sensor samples
+                // defer it until their matching physical-device directory is pinned.
+                if (includeMetadata)
+                {
+                    var driverPath = CanonicalPath(Path.Combine(backing, "driver"));
+                    driver = driverPath is null || !WithinSysRoot(driverPath) ? null : Path.GetFileName(driverPath);
+                    var vendor = ReadText(Path.Combine(backing, "vendor")).Value?.ToLowerInvariant();
+                    var model = ReadText(Path.Combine(backing, "device")).Value;
+                    var manufacturer = vendor switch { "0x1002" => "AMD", "0x10de" => "NVIDIA", "0x8086" => "Intel", _ => "DRM" };
+                    gpuName = manufacturer + " GPU" + (string.IsNullOrEmpty(model) ? "" : " " + model);
+                }
+                result.Add(new(backing, Limit(gpuName), driver, card, canonicalCard));
             }
         }
         catch (Exception error) when (IsReadFailure(error))
@@ -222,6 +268,9 @@ public sealed partial class LinuxMetricsService
         }
         return result;
     }
+
+    private static bool DrmMatches(DrmDevice device) => CanonicalPath(device.ClassPath) == device.CardPath
+        && CanonicalPath(Path.Combine(device.CardPath, "device")) == device.DevicePath;
 
     private string? ResolveBackingDevice(string path)
     {
@@ -384,7 +433,7 @@ public sealed partial class LinuxMetricsService
         private static extern int CloseDirectory(IntPtr directory);
     }
     private readonly record struct Channel(string Prefix, string Type, string Unit, double Scale);
-    private sealed record DrmDevice(string DevicePath, string Name, string? Driver);
+    private sealed record DrmDevice(string DevicePath, string Name, string? Driver, string ClassPath, string CardPath);
 }
 
 internal static class LinuxSensorPathText

@@ -76,7 +76,7 @@ internal sealed class ThemeEnvironment
     /// <summary>Reads bounded local Codex activity metadata.</summary>
     public object CodexActivity()
     {
-        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "codex", "current.json");
+        var path = CodexIntegration.CurrentActivityPath;
         try
         {
             if (!File.Exists(path)) { return Waiting(); }

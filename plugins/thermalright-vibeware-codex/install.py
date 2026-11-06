@@ -80,6 +80,22 @@ def read_marketplace(path: Path) -> dict[str, object]:
         raise ValueError("Personal marketplace has an unsupported shape; no changes were made.")
     return data
 
+def restrict_private_file(path: Path) -> None:
+    """Remove shared permissions from an existing user-owned POSIX file."""
+    if os.name != "posix" or checked_path(path) is None:
+        return
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    fd = os.open(path, flags)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_nlink != 1:
+            raise ValueError(f"Expected a private, user-owned regular file at {path}.")
+        permissions = stat.S_IMODE(info.st_mode) & 0o600
+        if stat.S_IMODE(info.st_mode) != permissions:
+            os.fchmod(fd, permissions)
+    finally:
+        os.close(fd)
+
 def write_file(path: Path, data: bytes, *, backup_of: Path | None = None) -> None:
     """Publish a complete private sibling file; never overwrite an existing backup."""
     previous = checked_path(path)
@@ -120,6 +136,53 @@ def plugin_entry() -> dict[str, object]:
         "interface": {"displayName": "Thermalright VibeWare Codex"},
     }
 
+def portable_manifests(runtime: Path, *, require_complete: bool = True) -> list[Path]:
+    """Check owned runtime files and their explicit, local-only import paths."""
+    checked_path(runtime, directory=True)
+    manifests = []
+    count = 0
+    total = 0
+    for item in runtime.iterdir():
+        count += 1
+        info = checked_path(item)
+        if info is None or info.st_nlink != 1:
+            raise ValueError("The staged Python runtime contains missing or linked files.")
+        total += info.st_size
+        if count > 128 or total > 80 * 1024 * 1024:
+            raise ValueError("The staged Python runtime exceeds its size limit.")
+        if item.name.startswith("python") and item.suffix == "._pth":
+            manifests.append(item)
+        elif item.suffix.lower() not in {".exe", ".dll", ".pyd", ".zip", ".txt"}:
+            raise ValueError(f"Unexpected file in the staged Python runtime: {item.name}.")
+    if not manifests:
+        raise ValueError("The staged Python runtime has no isolated path file. Prepare again from the current app package.")
+    for manifest in manifests:
+        tag = manifest.stem
+        minor = tag.removeprefix("python3")
+        if not tag.startswith("python3") or not minor.isascii() or not minor.isdigit() or int(minor) < 10:
+            raise ValueError("The staged Python runtime has an unsupported version. Prepare again from the current app package.")
+        if require_complete:
+            for name in ("python.exe", f"{tag}.dll", f"{tag}.zip", manifest.name):
+                info = checked_path(runtime / name)
+                if info is None or info.st_nlink != 1 or info.st_size == 0:
+                    raise ValueError("The staged Python runtime is incomplete or contains linked files. Prepare again from the current app package.")
+        paths = read_regular(manifest).decode("ascii").splitlines()
+        if paths not in ([f"{tag}.zip", "."], [f"{tag}.zip", ".", "import site"]):
+            raise ValueError("The staged Python runtime has unexpected import paths. Prepare again from the current app package.")
+    return manifests
+
+def existing_portable_python(destination: Path) -> bool:
+    """Retain only an unambiguous runtime in the plugin's fixed private folder."""
+    runtime = destination / "python"
+    if checked_path(runtime, directory=True) is None:
+        return False
+    manifests = portable_manifests(runtime)
+    if len(manifests) != 1:
+        raise ValueError("The staged Python runtime has several versions. Prepare again from the current app package.")
+    manifest = manifests[0]
+    write_file(manifest, f"{manifest.stem}.zip\n.\n".encode("ascii"))
+    return True
+
 def stage_portable_python(destination: Path) -> bool:
     """Keep the optional hook working after the portable Thermalright VibeWare ZIP is moved.
 
@@ -128,29 +191,54 @@ def stage_portable_python(destination: Path) -> bool:
     """
     runtime = Path(sys.executable).resolve().parent
     tag = f"python{sys.version_info.major}{sys.version_info.minor}"
-    if not (runtime / f"{tag}.zip").is_file() or not (runtime / f"{tag}._pth").is_file():
-        return False  # A normal Python install remains the user's own prerequisite.
+    if checked_path(runtime / f"{tag}._pth") is None:
+        return existing_portable_python(destination)
+    if checked_path(runtime / f"{tag}.zip") is None:
+        raise ValueError("The current portable Python runtime is incomplete.")
     files = [item for item in runtime.iterdir() if item.is_file() and not item.is_symlink()
              and (item.suffix.lower() in {".exe", ".dll", ".pyd", ".zip", ".txt"} or item.name == f"{tag}._pth")]
     if len(files) > 128 or sum(item.stat().st_size for item in files) > 80 * 1024 * 1024:
         raise ValueError("The bundled Python runtime is unexpectedly large; no hook runtime was staged.")
     target = destination / "python"
-    checked_path(target, directory=True)
-    target.mkdir(exist_ok=True)
-    for item in files:
-        output = target / item.name
-        if checked_path(output) is None or not item.samefile(output):
-            shutil.copy2(item, output)
-    write_file(target / f"{tag}._pth", f"{tag}.zip\n.\nimport site\n".encode("ascii"))
-    if checked_path(target / "python.exe") is None:
-        raise ValueError("The staged portable hook runtime is incomplete.")
+    exists = checked_path(target, directory=True) is not None
+    if exists:
+        manifests = portable_manifests(target, require_complete=False)
+        if any(int(item.stem.removeprefix("python3")) > sys.version_info.minor for item in manifests):
+            raise ValueError("The staged Python version is newer than this package. Use a package with the same or a newer Python version.")
+        if runtime.samefile(target):
+            return existing_portable_python(destination)
+    temporary = tempfile.mkdtemp(prefix=".python-", dir=destination)
+    preserve_previous = False
+    try:
+        staged = Path(temporary) / "python"
+        staged.mkdir()
+        for item in files:
+            shutil.copy2(item, staged / item.name)
+        write_file(staged / f"{tag}._pth", f"{tag}.zip\n.\n".encode("ascii"))
+        portable_manifests(staged)
+        previous = Path(temporary) / "previous"
+        if exists:
+            os.rename(target, previous)
+        try:
+            os.rename(staged, target)
+        except OSError:
+            if exists:
+                try:
+                    os.rename(previous, target)
+                except OSError as error:
+                    preserve_previous = True
+                    raise OSError(f"Could not restore the staged runtime. Its previous files remain at {previous}.") from error
+            raise
+    finally:
+        if not preserve_previous:
+            shutil.rmtree(temporary)
     return True
 
 def portable_hooks(data: bytes, destination: Path) -> bytes:
     """Point Windows hooks at their final portable interpreter using literal PowerShell paths."""
     interpreter = destination / "python" / "python.exe"
     script = destination / "hooks" / "thermalright-vibeware_hook.py"
-    command = "& '{}' -B '{}'".format(str(interpreter).replace("'", "''"), str(script).replace("'", "''"))
+    command = "& '{}' -I -B '{}'".format(str(interpreter).replace("'", "''"), str(script).replace("'", "''"))
     hooks = json.loads(data)
     for matchers in hooks.get("hooks", {}).values():
         for matcher in matchers:
@@ -198,6 +286,9 @@ def prepare() -> None:
     source = Path(__file__).resolve().parent
     destination, marketplace_path = locations()
     marketplace = read_marketplace(marketplace_path)
+    backup = marketplace_path.with_name("marketplace.json.thermalright-vibeware.bak")
+    restrict_private_file(marketplace_path)
+    restrict_private_file(backup)
     plugins = marketplace["plugins"]
     assert isinstance(plugins, list)
     for entry in plugins:
@@ -210,7 +301,6 @@ def prepare() -> None:
     stage_plugin(source, destination)
     plugins.append(plugin_entry())
     if marketplace_path.exists():
-        backup = marketplace_path.with_name("marketplace.json.thermalright-vibeware.bak")
         write_file(backup, read_regular(marketplace_path), backup_of=marketplace_path)
     write_file(marketplace_path, json_bytes(marketplace))
     print(f"Staged {destination}")

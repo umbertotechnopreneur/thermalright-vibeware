@@ -61,8 +61,8 @@ public sealed partial class MainPage
         ToolTipService.SetToolTip(CodexEventText, CodexEventText.Text);
         ToolTipService.SetToolTip(CodexPrepareButton, status.Instructions);
         ToolTipService.SetToolTip(CodexSetupFrame, status.Instructions);
-        CodexPrepareButton.Content = status.Prepared && status.Listed ? "Plugin prepared" : "Prepare Codex plugin";
-        CodexPrepareButton.IsEnabled = !codexPreparing && !(status.Prepared && status.Listed);
+        CodexPrepareButton.Content = status.Prepared && status.Listed ? "Prepare plugin again" : "Prepare Codex plugin";
+        CodexPrepareButton.IsEnabled = session.Supports("codex.prepare") && !codexPreparing;
     }
 
     /// <summary>Prepares the local Codex plugin after the user's button click.</summary>
@@ -104,7 +104,7 @@ public sealed partial class MainPage
             var status = await viewModel.ReadDiagnosticsAsync();
             diagnosticsEnabled = status.Enabled;
             LogErrorsBox.IsChecked = status.Enabled;
-            OpenLogButton.IsEnabled = status.Enabled;
+            OpenLogButton.IsEnabled = status.Enabled && session.Supports("diagnostics.open");
             ToolTipService.SetToolTip(OpenLogButton, status.LogPath);
         }
         catch (Exception error) { StatusText.Text = error.Message; }
@@ -124,7 +124,7 @@ public sealed partial class MainPage
             var status = await viewModel.ReadDiagnosticsAsync(LogErrorsBox.IsChecked == true);
             diagnosticsEnabled = status.Enabled;
             LogErrorsBox.IsChecked = status.Enabled;
-            OpenLogButton.IsEnabled = status.Enabled;
+            OpenLogButton.IsEnabled = status.Enabled && session.Supports("diagnostics.open");
             ToolTipService.SetToolTip(OpenLogButton, status.LogPath);
         }
         catch (Exception error) { LogErrorsBox.IsChecked = diagnosticsEnabled; StatusText.Text = error.Message; }
