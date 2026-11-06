@@ -20,6 +20,7 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using ThermalrightVibeWare.Contracts;
 
 namespace ThermalrightVibeWare.App;
 
@@ -28,11 +29,28 @@ public sealed partial class MainPage
 
     /// <summary>Shows a brief session status while retaining detailed diagnostics.</summary>
     /// <param name="status">Available status text shown to the user.</param>
-    private void ShowSessionStatus(string status)
+    private void ShowSessionStatus(string status, PanelState? frame = null)
     {
-        TimingDetailsText.Text = status;
-        StatusText.Text = viewModel.PersistenceNotice ?? (status.StartsWith("Display · requested ", StringComparison.Ordinal) || status is "Display running." or "Display running"
-            ? "" : status);
+        TimingDetailsText.Text = string.Join("\n\n", new[] { status }.Concat(frame?.Notices ?? []).Distinct(StringComparer.Ordinal));
+        var routine = status is "Local preview" or "Local preview only. The USB display has not been started."
+            or "Linux local preview. USB output, media sessions and audio are unavailable." or "Display running." or "Display running"
+            || status.StartsWith("Display · requested ", StringComparison.Ordinal);
+        var outputStatus = frame?.DisplayRunning == true ? frame.FrameSuppressed ? "Display paused." : "Display running." : "";
+        StatusText.Text = viewModel.PersistenceNotice ?? (routine ? outputStatus : status);
+        if (string.IsNullOrEmpty(StatusText.Text) && frame is not null)
+        {
+            if (!frame.FrameSuppressed && frame.FrameJpeg is null && frame.Notices.Count > 0)
+            { StatusText.Text = "Theme preview unavailable. See Diagnostics."; }
+            else if (frame.System.Driver is { Available: false })
+            { StatusText.Text = "Some hardware readings are unavailable. See Diagnostics."; }
+        }
+    }
+
+    private void SessionDetails_Click(object sender, RoutedEventArgs args)
+    {
+        var visible = TimingDetailsText.Visibility != Visibility.Visible;
+        TimingDetailsText.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        SessionDetailsButton.Content = visible ? "Hide details" : "Details";
     }
 
     private string studioSection = "preview";

@@ -22,6 +22,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Core;
 
 namespace ThermalrightVibeWare.Photino;
 
@@ -32,6 +33,7 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
     private readonly CancellationTokenSource lifetime = new();
     private Process? process;
     private bool failed;
+    private bool firstReplyLogged;
     private bool disposed;
     private long nextId;
 
@@ -50,7 +52,8 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             if (failed) { throw new IOException("The engine connection failed. Reopen ThermalrightVibeWare deliberately; the last command will not be replayed."); }
-            if (!OperatingSystem.IsWindows()) { throw new PlatformNotSupportedException("This UI is portable; Linux/macOS USB and audio providers are not implemented yet. No Windows engine was started."); }
+            if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
+            { DiagnosticLog.Initialization("engine.platform", false, nameof(PlatformNotSupportedException)); throw new PlatformNotSupportedException("The studio engine supports Windows and Linux only."); }
             process ??= StartEngine();
             var id = Interlocked.Increment(ref nextId).ToString(System.Globalization.CultureInfo.InvariantCulture);
             var request = new EngineRequest(id, method, parameters is null ? null : JsonSerializer.SerializeToElement(parameters, PanelContract.Json));
@@ -66,19 +69,21 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
                 if (!response.Ok) { throw new EngineCommandException(response.Error ?? "The engine rejected the request."); }
                 if (response.Result is not { } result) { throw new IOException("Engine response has no result."); }
                 var value = result.Deserialize<T>(PanelContract.Json);
+                if (!firstReplyLogged) { DiagnosticLog.Initialization("engine.reply"); firstReplyLogged = true; }
                 return value is null ? throw new IOException("Engine response has a null result.") : value;
             }
             catch (EngineCommandException) { throw; }
             catch { failed = true; throw; }
         }
+        catch (Exception error) { DiagnosticLog.Initialization("engine.request", false, error.GetType().Name); throw; }
         finally { gate.Release(); }
     }
 
     /// <summary>Starts the bundled stdio engine without opening a listening port.</summary>
     private static Process StartEngine()
     {
-        var executable = Path.Combine(AppContext.BaseDirectory, "engine", "trv.exe");
-        if (!File.Exists(executable)) { throw new FileNotFoundException("The portable engine folder is missing. Extract the whole ThermalrightVibeWare ZIP.", executable); }
+        var executable = Path.Combine(AppContext.BaseDirectory, "engine", OperatingSystem.IsWindows() ? "trv.exe" : "trv");
+        if (!File.Exists(executable)) { DiagnosticLog.Initialization("engine.payload", false, nameof(FileNotFoundException)); throw new FileNotFoundException("The bundled engine is missing. Extract the complete package or reinstall the app.", executable); }
         var info = new ProcessStartInfo(executable)
         {
             UseShellExecute = false,
@@ -93,6 +98,7 @@ internal sealed class StdioPanelClient : IPanelClient, IDisposable
         };
         info.ArgumentList.Add("--stdio");
         var child = Process.Start(info) ?? throw new IOException("Could not start the local ThermalrightVibeWare engine.");
+        DiagnosticLog.Initialization("engine.start");
         // Drain diagnostics without persisting private media/session data or blocking the child process.
         _ = DrainErrorsAsync(child.StandardError);
         return child;

@@ -49,6 +49,21 @@ public static class PanelContract
 
 public sealed record EngineRequest(string Id, string Method, JsonElement? Parameters = null, int Version = PanelContract.Version);
 public sealed record EngineResponse(string Id, bool Ok, JsonElement? Result = null, string? Error = null, int Version = PanelContract.Version);
+/// <summary>Declares the operations implemented by this engine before the studio schedules work.</summary>
+public sealed record EngineHelloDto(int Protocol, string Platform, bool UsbWritesRequireStart, bool ThemeMirror, IReadOnlyList<string> SupportedMethods)
+{
+    public bool Supports(string method) => SupportedMethods.Contains(method, StringComparer.Ordinal);
+
+    public void Validate()
+    {
+        if (Protocol != PanelContract.Version || Platform is not ("windows" or "linux") || !UsbWritesRequireStart
+            || SupportedMethods is null || SupportedMethods.Count is < 4 or > 64
+            || SupportedMethods.Any(method => string.IsNullOrWhiteSpace(method) || method.Length > 64)
+            || SupportedMethods.Distinct(StringComparer.Ordinal).Count() != SupportedMethods.Count
+            || new[] { "hello", "themes", "state", "stop" }.Any(method => !Supports(method)))
+        { throw new IOException("The engine returned an invalid or unsupported capability declaration."); }
+    }
+}
 public sealed record PanelChoice(string Id, string Name);
 public sealed record ThemeChoiceDto(string Id, string Name, string Category, string Description, string PackId, bool SupportsSpectrum = false, int PageCount = 1, int PageSeconds = 8);
 public sealed record ThemeCatalogDto(IReadOnlyList<PanelChoice> Categories, IReadOnlyList<ThemeChoiceDto> Themes, IReadOnlyList<string> Notices);
@@ -67,7 +82,9 @@ public sealed record CodexSetupStatus(bool Prepared, bool Listed, bool ActivityS
 public sealed record DiagnosticsStatus(bool Enabled, string LogPath);
 public sealed record SetDiagnosticsOptions(bool Enabled);
 public sealed record AudioLevelDto(string Id, string Name, double VolumePercent, bool Muted, double? Peak);
-public sealed record SensorDriverDto(bool Available, string? Path, string? Notice, bool FileExists);
+public sealed record SensorDriverDto(bool Available, string? Path, string? Notice, bool FileExists,
+    IReadOnlyList<SensorSourceDto>? Sources = null, IReadOnlyList<string>? Guidance = null);
+public sealed record SensorSourceDto(string Name, string Status, string Detail);
 public sealed record SensorReadingDto(string Id, string Name, string Type, string Unit,
     double? Value, double? Minimum, double? Maximum, string? Notice = null, IReadOnlyList<SensorParameterDto>? Parameters = null);
 public sealed record SensorParameterDto(string Id, string Name, string Description, double? Value, double? DefaultValue);

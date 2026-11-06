@@ -66,7 +66,7 @@ public sealed partial class MainPage
         ProductIcon.Width = ProductIcon.Height = shortWindow ? 36 : 62;
         Heading.FontSize = shortWindow ? 22 : 28;
         SelectedThemeText.FontSize = shortWindow ? 22 : 26;
-        Eyebrow.Visibility = CategoryText.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
+        CategoryText.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
         InitiativeImage.Width = InitiativeImage.Height = shortWindow ? 36.4 : 46.8;
         FooterLinks.Margin = new Thickness(0, shortWindow ? 2 : 10, 0, 0);
         foreach (var label in new[] { FontLabel, SizeLabel, GeometryLabel, DeviceLabel, RefreshLabel, QualityLabel })

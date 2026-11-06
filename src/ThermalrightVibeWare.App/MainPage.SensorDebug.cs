@@ -122,7 +122,7 @@ public sealed partial class MainPage
             }
         }
         var total = sample.Devices.Sum(device => device.Sensors.Count);
-        SensorDebugSummary.Text = $"LibreHardwareMonitor {sample.LibraryVersion} · {sample.Devices.Count} devices · {total} sensors · " +
+        SensorDebugSummary.Text = $"Sensor provider {sample.LibraryVersion} · {sample.Devices.Count} devices · {total} sensors · " +
             $"{(sample.Administrator ? "Administrator" : "Standard user")} · sampled {sample.SampledAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
         SensorDebugNotice.Text = string.Join("\n", sample.Notices);
     }

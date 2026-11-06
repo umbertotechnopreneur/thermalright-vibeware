@@ -31,19 +31,15 @@ public sealed partial class MainPage
     /// <summary>Stores one bindable category/theme row and its selection appearance.</summary>
     /// <param name="id">Stable category or theme identifier from the engine catalog.</param>
     /// <param name="name">Visible catalog label.</param>
-    /// <param name="description">Optional theme description shown for the selected row.</param>
     /// <param name="number">Optional formatted position in the theme list.</param>
-    public sealed class CatalogRow(string id, string name, string description = "", string number = "") : INotifyPropertyChanged
+    public sealed class CatalogRow(string id, string name, string number = "") : INotifyPropertyChanged
     {
         public string Id { get; } = id;
         public string Name { get; } = name;
-        public string Description { get; } = description;
-        public Visibility DescriptionVisibility { get; private set; } = Visibility.Collapsed;
         public string Number { get; } = number;
         public Brush Outline { get; private set; } = new SolidColorBrush(Colors.Transparent);
         public FontWeight Weight { get; private set; } = FontWeights.Normal;
         public Brush Ink { get; private set; } = MainPage.Brush("#F1F1FA");
-        public Brush Muted { get; private set; } = MainPage.Brush("#AEB9CA");
         public Brush Accent { get; private set; } = MainPage.Brush("#7BC8DF");
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -52,11 +48,9 @@ public sealed partial class MainPage
         /// <param name="selected">Whether this row is the currently selected library entry.</param>
         public void Update(bool light, bool selected)
         {
-            DescriptionVisibility = selected ? Visibility.Visible : Visibility.Collapsed;
             Outline = selected ? MainPage.Brush(light ? "#276C89" : "#7BC8DF") : new SolidColorBrush(Colors.Transparent);
             Weight = selected ? FontWeights.SemiBold : FontWeights.Normal;
             Ink = MainPage.Brush(selected ? light ? "#245F78" : "#A9E1EF" : light ? "#242231" : "#F1F1FA");
-            Muted = MainPage.Brush(light ? "#596477" : "#AEB9CA");
             Accent = MainPage.Brush(selected ? light ? "#276C89" : "#A9E1EF" : light ? "#737F90" : "#8794A8");
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(""));
         }

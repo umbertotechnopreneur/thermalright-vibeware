@@ -82,6 +82,25 @@ public static class DiagnosticLog
         return Process.Start(start) is not null;
     }
 
+    /// <summary>Records an initialization stage without paths, arguments or private payloads.</summary>
+    public static void Initialization(string stage, bool success = true, string? errorType = null)
+    {
+        var allowed = new HashSet<string> { "studio.start", "studio.primary", "studio.session", "studio.window", "studio.webview", "studio.exit", "studio.unhandled",
+            "engine.platform", "engine.payload", "engine.start", "engine.reply", "engine.request", "engine.initialize", "themes.discover" };
+        if (!allowed.Contains(stage)) { return; }
+        var type = KnownErrorTypes.Contains(errorType ?? "") ? errorType : errorType is null ? null : "Other";
+        Write(new
+        {
+            atUtc = DateTimeOffset.UtcNow,
+            kind = "initialization",
+            stage,
+            success,
+            errorType = type,
+            platform = OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsLinux() ? "linux" : "unsupported",
+            processId = Environment.ProcessId
+        });
+    }
+
     /// <summary>Records RPC timing and counters without request payloads.</summary>
     /// <param name="method">Allow-listed engine or worker method name.</param>
     /// <param name="milliseconds">Elapsed operation duration or native wait timeout in milliseconds.</param>
@@ -139,7 +158,7 @@ public static class DiagnosticLog
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
-        { /* Diagnostics must never interrupt preview or USB output. */ }
+        { Console.Error.WriteLine($"TermalRight VibeWare: local diagnostic write unavailable ({error.GetType().Name})."); }
     }
 
     /// <summary>Reads the cached logging preference while the caller owns the log lock.</summary>
@@ -163,12 +182,12 @@ public static class DiagnosticLog
             enabled = settings.RootElement.TryGetProperty("enabled", out var value) && value.ValueKind == JsonValueKind.True;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
-        { enabled = false; }
+        { enabled = false; Console.Error.WriteLine($"TermalRight VibeWare: local diagnostic initialization unavailable ({error.GetType().Name})."); }
         return enabled;
     }
 
     private static readonly HashSet<string> KnownMethods = ["hello", "themes", "state", "present", "devices", "levels", "start", "stop", "media",
         "codex.status", "codex.prepare", "diagnostics.status", "diagnostics.set", "diagnostics.open", "sensors.driver.status", "sensors.driver.open"];
     private static readonly HashSet<string> KnownErrorTypes = ["ArgumentException", "InvalidOperationException", "IOException", "TimeoutException",
-        "UnauthorizedAccessException", "FileNotFoundException", "JsonException", "OperationCanceledException", "Win32Exception"];
+        "UnauthorizedAccessException", "FileNotFoundException", "JsonException", "OperationCanceledException", "Win32Exception", "PlatformNotSupportedException", "DllNotFoundException", "ApplicationException"];
 }

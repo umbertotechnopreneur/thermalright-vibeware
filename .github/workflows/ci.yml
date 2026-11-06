@@ -40,7 +40,7 @@ jobs:
         run: dotnet run --project tests/ThermalrightVibeWare.StudioChecks -c Release
       - name: Publish portable folders (no tests)
         shell: pwsh
-        run: ./scripts/Publish.ps1 -Architecture ${{ matrix.arch }}
+        run: ./scripts/vibeware.ps1 package -Architecture ${{ matrix.arch }}
       - name: Build Windows installer
         shell: pwsh
         run: |
@@ -66,13 +66,35 @@ jobs:
       - run: dotnet build src/ThermalrightVibeWare.Photino/ThermalrightVibeWare.Photino.csproj --configuration Release --no-restore --warnaserror
       - name: Offline state and provider checks (no hardware)
         run: dotnet run --project tests/ThermalrightVibeWare.StudioChecks -c Release
+      - name: Offline Linux sensors and NVML checks (no hardware)
+        run: dotnet run --project tests/ThermalrightVibeWare.LinuxChecks -c Debug
+  linux-deb:
+    name: Linux Debian package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Prepare Linux build prerequisites
+        shell: pwsh
+        run: |
+          ./scripts/vibeware.ps1 preflight
+      - name: Build Debug UI and Debian package
+        shell: pwsh
+        run: ./scripts/vibeware.ps1 package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ThermalrightVibeWare-linux-amd64
+          path: artifacts/packages/*.deb
+          if-no-files-found: error
   required:
     name: Build
     if: always()
-    needs: [build, linux-ui]
+    needs: [build, linux-ui, linux-deb]
     runs-on: windows-latest
     steps:
       - name: Require both Windows builds
         shell: pwsh
         run: |
-          if ('${{ needs.build.result }}' -ne 'success' -or '${{ needs.linux-ui.result }}' -ne 'success') { throw 'A required Windows or Linux build failed or was cancelled.' }
+          if ('${{ needs.build.result }}' -ne 'success' -or '${{ needs.linux-ui.result }}' -ne 'success' -or '${{ needs.linux-deb.result }}' -ne 'success') { throw 'A required Windows or Linux build failed or was cancelled.' }

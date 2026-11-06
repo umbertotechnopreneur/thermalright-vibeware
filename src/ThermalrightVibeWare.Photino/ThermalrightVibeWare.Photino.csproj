@@ -34,6 +34,11 @@ VBWR E -->
     <Content Include="../ThermalrightVibeWare.App/Assets/thermalright-vibeware.ico" Link="Assets/thermalright-vibeware.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../ThermalrightVibeWare.App/Assets/thermalright-vibeware-icon.png" Link="Assets/thermalright-vibeware-icon.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Share only bounded local logging, never engine or USB implementation. -->
+    <Compile Include="../ThermalrightVibeWare.Core/DiagnosticLog.cs" Link="Diagnostics/DiagnosticLog.cs" />
+    <Compile Include="../ThermalrightVibeWare.Core/LinuxDiagnosticFiles.cs" Link="Diagnostics/LinuxDiagnosticFiles.cs" />
+  </ItemGroup>
   <PropertyGroup>
     <PatchedPhotinoArchitecture Condition="'$(Platform)' == 'ARM64'">ARM64</PatchedPhotinoArchitecture>
     <PatchedPhotinoArchitecture Condition="'$(PatchedPhotinoArchitecture)' == ''">x64</PatchedPhotinoArchitecture>

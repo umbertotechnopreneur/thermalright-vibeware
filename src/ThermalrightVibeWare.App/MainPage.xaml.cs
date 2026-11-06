@@ -38,6 +38,7 @@ public sealed partial class MainPage : Page
     private readonly IStudioPreview? preview;
     private readonly StudioSession session;
     public StudioSession Session => session;
+    public event Action? Ready;
     private readonly bool ownsSession;
     private readonly DispatcherTimer refresh = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly DispatcherTimer colorChanges = new() { Interval = TimeSpan.FromMilliseconds(150) };
@@ -55,7 +56,6 @@ public sealed partial class MainPage : Page
     private bool codexLoading, codexPreparing, diagnosticsChanging, diagnosticsEnabled, restartingAsAdministrator;
     private long codexStatusAt, appliedFrameRevision;
     private bool codexProcessRunning => session.Snapshot.Frame?.CodexProcessRunning == true;
-    private bool frameSuppressed => session.Snapshot.Frame?.FrameSuppressed == true;
     private bool updatingColorControls, pendingColorSettings, updatingFonts;
     private PanelChoice[] fontChoices = [];
     private string? lastRenderedTheme;
@@ -148,6 +148,7 @@ public sealed partial class MainPage : Page
                 // Only a loaded main page consumes first-run visibility; failed/aborted startup does not.
                 this.session.CompleteFirstRun();
                 refresh.Start();
+                Ready?.Invoke();
             }
         };
         Unloaded += (_, _) =>

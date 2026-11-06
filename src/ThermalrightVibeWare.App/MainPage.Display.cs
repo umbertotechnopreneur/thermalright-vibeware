@@ -33,12 +33,13 @@ public sealed partial class MainPage
     /// <summary>Enables display controls according to session activity and pending startup.</summary>
     private void UpdateDisplayControls()
     {
-        StartDisplayButton.IsEnabled = !displayBusy && !displayActive && !devicesLoading && DevicesBox.SelectedItem is PanelChoice && !string.IsNullOrEmpty(selectedTheme);
+        var outputAvailable = session.Supports("start");
+        StartDisplayButton.IsEnabled = outputAvailable && !displayBusy && !displayActive && !devicesLoading && DevicesBox.SelectedItem is PanelChoice && !string.IsNullOrEmpty(selectedTheme);
         StopDisplayButton.IsEnabled = !displayBusy && (displayActive || startupRestorePending);
-        DevicesBox.IsEnabled = !displayBusy && !displayActive && !devicesLoading;
-        RefreshDevicesButton.IsEnabled = !displayBusy && !displayActive && !devicesLoading;
+        DevicesBox.IsEnabled = session.Supports("devices") && !displayBusy && !displayActive && !devicesLoading;
+        RefreshDevicesButton.IsEnabled = DevicesBox.IsEnabled;
+        ToolTipService.SetToolTip(StartDisplayButton, outputAvailable ? null : "USB display output is unavailable on this platform. Local preview is available.");
         ProfilesBox.IsEnabled = !displayBusy && !displayActive;
-        PreviewBadgeText.Text = displayActive ? frameSuppressed ? "DISPLAY PAUSED" : "LIVE DISPLAY" : "LOCAL PREVIEW";
     }
 
     /// <summary>Refreshes the available display choices.</summary>

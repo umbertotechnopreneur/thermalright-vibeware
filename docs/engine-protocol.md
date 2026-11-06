@@ -2,6 +2,13 @@
 
 The desktop window starts one hidden `trv --stdio` process. Requests and replies are UTF-8 JSON Lines, version 1. There is no server port. Stdout contains replies only.
 
+The studio first requests `hello`. Its result declares `protocol`, `platform`,
+`usbWritesRequireStart`, `themeMirror` and `supportedMethods`. Missing, invalid or
+unsupported declarations stop initialization. The studio schedules only declared
+operations. Linux supports local catalogs, fonts, previews and diagnostics; USB,
+media sessions and audio remain unavailable. A saved Windows display session does
+not start on Linux.
+
 ## Choose a theme and display
 
 ```json
@@ -43,6 +50,11 @@ During explicit `present` requests, an identical JPEG is sent again after ten se
 `refreshIntervalMilliseconds` defaults to 1000; valid range 25–1000. The GUI offers 1000, 500, 250, 100, 50 and 25 ms. The 25 ms setting is aggressive. These are requested intervals, not guaranteed panel frame rates. Metadata and artwork are checked at most once a second; timeline and existing playback meters can update faster.
 
 `jpegQuality` is `poor`, `low`, `medium` or `high`, default high. Encoder targets are 20, 50, 75 and 90. Poor uses very strong compression. Encoding falls back to lower quality if needed to stay under 450,000 bytes. Rotated JPEG profiles also honor the selected target. Other pixel formats require conversion.
+
+`sensors.driver.status` returns driver metadata. On Linux, `sources` lists each
+detected driver or library with its status and details; `guidance` gives manual
+steps for missing readings. Metadata detection is distinct from successful
+sampling. This request never loads kernel modules or changes permissions.
 
 `PanelState` adds `frameMilliseconds` (server-side data/render/send duration) and `submittedFrames`. These are not measurements of physical display latency. `displayRunning` and `status` report the session. `activePageId`, `activePageTitle`, `activePageIndex` and `activePageCount` describe the page actually rendered. `PreviewOptions.pageIndex` selects the first page for a rotation and `pageRevision` restarts its interval after an explicit studio navigation.
 

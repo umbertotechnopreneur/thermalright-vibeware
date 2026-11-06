@@ -25,7 +25,7 @@ namespace ThermalrightVibeWare.Studio;
 /// <summary>One immutable observation, replaced atomically; views never hold up the worker.</summary>
 public sealed record StudioSnapshot(ThemeCatalogDto? Catalog = null, PanelChoice[]? Devices = null,
     PanelState? Frame = null, string Status = "Local preview", bool DisplayActive = false,
-    bool Busy = false, bool StartupPending = false, long Revision = 0, long FrameRevision = 0);
+    bool Busy = false, bool StartupPending = false, long Revision = 0, long FrameRevision = 0, EngineHelloDto? Hello = null);
 
 /// <summary>Owns output scheduling and startup independently of every window/dispatcher.</summary>
 public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
@@ -41,9 +41,11 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     private bool outputFaulted;
     private long devicesAt;
     private Task? shutdown;
+    private Exception? initializationError;
     public StudioModel Model { get; }
     public StudioViewModel ViewModel { get; }
     public StudioSnapshot Snapshot => Volatile.Read(ref snapshot);
+    public bool Supports(string method) => Snapshot.Hello?.Supports(method) == true;
     public bool PreviewVisible { set { Interlocked.Exchange(ref previewVisible, value ? 1 : 0); } }
 
     /// <summary>Starts the UI-independent worker and optionally schedules saved-device restoration.</summary>
@@ -70,6 +72,27 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     private void Publish(Func<StudioSnapshot, StudioSnapshot> edit)
     {
         lock (snapshotSync) { var current = snapshot; Volatile.Write(ref snapshot, edit(current) with { Revision = current.Revision + 1 }); }
+    }
+
+    /// <summary>Negotiates once before scheduling provider work; an invalid handshake needs a deliberate restart.</summary>
+    private async Task EnsureHelloAsync()
+    {
+        if (initializationError is not null) { throw new IOException("Engine initialization failed. Reopen the studio after fixing the engine package.", initializationError); }
+        if (Snapshot.Hello is not null) { return; }
+        try
+        {
+            var hello = await client.RequestAsync<EngineHelloDto>("hello", cancellationToken: lifetime.Token).ConfigureAwait(false);
+            if (hello is null) { throw new IOException("The engine returned no capability declaration."); }
+            hello.Validate();
+            Publish(s => s with { Hello = hello, StartupPending = s.StartupPending && hello.Supports("start") });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        { initializationError = error; throw; }
+    }
+
+    private void RequireSupported(string method)
+    {
+        if (!Supports(method)) { throw new PlatformNotSupportedException($"The {Snapshot.Hello?.Platform ?? "unavailable"} engine does not support '{method}'."); }
     }
 
     /// <summary>Claims a pending startup restore unless Stop has already been requested.</summary>
@@ -101,6 +124,8 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
         try
         {
             if (Volatile.Read(ref stopping) != 0) { throw new OperationCanceledException("The studio is closing."); }
+            await EnsureHelloAsync().ConfigureAwait(false);
+            RequireSupported(method);
             return await client.RequestAsync<T>(method, parameters, linked.Token).ConfigureAwait(false);
         }
         finally { operation.Release(); }
@@ -117,6 +142,7 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     /// <summary>Loads available themes and reconciles the current selection.</summary>
     private async Task LoadCatalogAsync()
     {
+        await EnsureHelloAsync().ConfigureAwait(false);
         var catalog = await client.RequestAsync<ThemeCatalogDto>("themes", cancellationToken: lifetime.Token).ConfigureAwait(false);
         ViewModel.NormalizeCatalog(catalog);
         Publish(s => s with { Catalog = catalog });
@@ -133,6 +159,9 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     /// <summary>Refreshes device metadata and records the discovery time.</summary>
     private async Task DiscoverAsync()
     {
+        await EnsureHelloAsync().ConfigureAwait(false);
+        if (!Supports("devices"))
+        { devicesAt = Environment.TickCount64; Publish(s => s with { Devices = [] }); return; }
         var devices = await client.RequestAsync<PanelChoice[]>("devices", cancellationToken: lifetime.Token).ConfigureAwait(false);
         devicesAt = Environment.TickCount64;
         var p = Model.Preferences;
@@ -151,10 +180,12 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     /// <param name="device">Stable device-choice identifier returned by the engine discovery request.</param>
     public async Task StartAsync(string device)
     {
-        Publish(s => s with { StartupPending = false });
         await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
         try
         {
+            await EnsureHelloAsync().ConfigureAwait(false);
+            RequireSupported("start");
+            Publish(s => s with { StartupPending = false });
             if (Volatile.Read(ref stopping) != 0 || Snapshot.DisplayActive) { return; }
             await StartCoreAsync(device).ConfigureAwait(false);
         }
@@ -189,6 +220,7 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
         {
             await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
             acquired = true;
+            await EnsureHelloAsync().ConfigureAwait(false);
             await client.RequestAsync<object>("stop", cancellationToken: lifetime.Token).ConfigureAwait(false);
             Publish(s => s with { DisplayActive = false, Status = "Display stopped." });
         }
@@ -253,8 +285,9 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
                 try
                 {
                     if (Volatile.Read(ref stopping) != 0) { break; }
+                    await EnsureHelloAsync().ConfigureAwait(false);
                     if (Snapshot.Catalog is null) { await LoadCatalogAsync().ConfigureAwait(false); }
-                    if (devicesAt == 0 || Environment.TickCount64 - devicesAt >= 10000) { await DiscoverAsync().ConfigureAwait(false); }
+                    if (devicesAt == 0 || Supports("devices") && Environment.TickCount64 - devicesAt >= 10000) { await DiscoverAsync().ConfigureAwait(false); }
 
                     // The saved-session exception may wait for one device; Stop always cancels that wait.
                     if (Snapshot.StartupPending)
@@ -299,7 +332,7 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
                     Publish(s => s with { Frame = frame, FrameRevision = s.FrameRevision + 1, DisplayActive = active && !outputFaulted && frame.DisplayRunning, Status = outputFaulted || s.StartupPending ? s.Status : frame.Status });
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
-                { if (Snapshot.DisplayActive) { outputFaulted = true; } Publish(s => s with { DisplayActive = false, Status = error.Message }); delay = 1000; }
+                { if (Snapshot.DisplayActive) { outputFaulted = true; } Publish(s => s with { DisplayActive = false, Status = error.Message }); if (initializationError is not null) { return; } delay = 1000; }
                 finally { operation.Release(); }
             WaitForNext:
                 // Native thread-pool wait: never depends on WebView, XAML or window events.

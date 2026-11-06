@@ -33,6 +33,8 @@ internal sealed partial class EngineServer
     private async Task<PanelState> StateAsync(PreviewOptions options)
     {
         // Resolve a validated theme/profile before sampling any providers.
+        if (OperatingSystem.IsLinux() && options.IncludeDevices)
+        { throw new PlatformNotSupportedException("Linux USB device enumeration is unavailable. Request a local preview without device discovery."); }
         ValidatePreviewOptions(options);
         var theme = FindTheme(options.ThemeId ?? throw new ArgumentException("Choose a theme for the preview."));
         var profile = DisplayProfileCatalog.GetRequired(options.ProfileId) with { Encoding = PanelPixelEncoding.Jpeg, WireRotation = 0 };

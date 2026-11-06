@@ -60,6 +60,13 @@ internal sealed class LinuxDiagnosticFiles(SafeFileHandle directory) : IDisposab
                     current = next;
                     var identity = Identity(current);
                     var privateDirectory = index >= parts.Length - 2;
+                    // The app data root may already exist with the user's normal umask.
+                    // Restrict only our two private directories after verifying ownership/type.
+                    if (privateDirectory && (identity.Mode & FileTypeMask) == DirectoryType && identity.Owner == EffectiveUserId())
+                    {
+                        RestrictMode(current, identity.Mode, PrivateDirectory);
+                        identity = Identity(current);
+                    }
                     if ((identity.Mode & FileTypeMask) != DirectoryType || (identity.Mode & ForeignWrite) != 0
                         || (identity.Owner != EffectiveUserId() && (privateDirectory || identity.Owner != 0)))
                     { throw new IOException("The diagnostics path contains an unsafe directory."); }
@@ -144,7 +151,10 @@ internal sealed class LinuxDiagnosticFiles(SafeFileHandle directory) : IDisposab
 
     private static FileStream CreateFile(string path) => new(path, new FileStreamOptions
     {
-        Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.Read, UnixCreateMode = PrivateFile
+        Mode = FileMode.CreateNew,
+        Access = FileAccess.Write,
+        Share = FileShare.Read,
+        UnixCreateMode = PrivateFile
     });
 
     private static void RestrictMode(SafeFileHandle handle, ushort mode, UnixFileMode allowed)

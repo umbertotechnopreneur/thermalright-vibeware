@@ -41,7 +41,7 @@ public sealed partial class MainPage
         // Observe one published frame revision; the UI never schedules a second engine loop.
         var current = session.Snapshot;
         ApplyAppearance();
-        if (SensorDebugPanel.Visibility == Visibility.Visible) { ShowSessionStatus(current.Status); return Task.CompletedTask; }
+        if (SensorDebugPanel.Visibility == Visibility.Visible) { ShowSessionStatus(current.Status, current.Frame); return Task.CompletedTask; }
         if (selectedCategory == "codex") { _ = RefreshCodexStatusAsync(); }
         ApplyDevices(current.Devices);
         var p = viewModel.Preferences;
@@ -53,21 +53,17 @@ public sealed partial class MainPage
             updatingChoices = false;
         }
         UpdateDisplayControls();
-        ShowSessionStatus(current.Status);
+        ShowSessionStatus(current.Status, current.Frame);
 
         // Apply metadata only when the worker has published a new frame.
         if (current.Frame is not { } state || current.FrameRevision == appliedFrameRevision && lastFrame is not null) { return Task.CompletedTask; }
         appliedFrameRevision = current.FrameRevision;
         UpdateProfiles(state.Profiles);
         var renderedTheme = state.ActiveThemeId ?? selectedTheme;
-        var category = catalog?.Themes.FirstOrDefault(theme => theme.Id == renderedTheme)?.Category ?? selectedCategory;
         UpdateFrameHeading(renderedTheme, state.FrameSuppressed);
-        UpdateNavigationState(renderedTheme, state);
+        UpdateNavigationState(state);
         UpdateArtistSources(state.ArtistSources);
-        SourceText.Text = state.FrameSuppressed ? "No enabled screen is available." : category == "codex" ? "OpenAI Codex · local activity"
-            : category == "system" ? "Local hardware sensors" : state.Source;
         if (state.System.Driver is { } driver) { ApplySensorDriverStatus(driver); }
-        if (state.Notices.Count > 0) { StatusText.Text = string.Join(" · ", new[] { viewModel.PersistenceNotice }.Where(n => n is not null).Concat(state.Notices)); }
         ScreensHelpText.Text = screenEnabled["codex"] && !codexProcessRunning
             ? "Codex is closed. Its display screen is skipped."
             : "Preview any theme. Codex appears while running.";
