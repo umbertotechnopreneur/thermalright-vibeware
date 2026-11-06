@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "thermalright-vibeware-codex",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "I show my Codex activity on Thermalright VibeWare using local lifecycle status only.",
   "author": {
     "name": "Umberto Giacobbi",

@@ -20,6 +20,7 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using ThermalrightVibeWare.Contracts;
 
 namespace ThermalrightVibeWare.App;
 
@@ -28,36 +29,64 @@ public sealed partial class MainPage
 
     /// <summary>Shows a brief session status while retaining detailed diagnostics.</summary>
     /// <param name="status">Available status text shown to the user.</param>
-    private void ShowSessionStatus(string status)
+    private void ShowSessionStatus(string status, PanelState? frame = null)
     {
-        TimingDetailsText.Text = status;
-        StatusText.Text = viewModel.PersistenceNotice ?? (status.StartsWith("Display · requested ", StringComparison.Ordinal)
-            ? "Display running" : status);
+        TimingDetailsText.Text = string.Join("\n\n", new[] { status }.Concat(frame?.Notices ?? []).Distinct(StringComparer.Ordinal));
+        var routine = status is "Local preview" or "Local preview only. The USB display has not been started."
+            or "Linux local preview. USB output, media sessions and audio are unavailable." or "Display running." or "Display running"
+            || status.StartsWith("Display · requested ", StringComparison.Ordinal);
+        var outputStatus = frame?.DisplayRunning == true ? frame.FrameSuppressed ? "Display paused." : "Display running." : "";
+        StatusText.Text = viewModel.PersistenceNotice ?? (routine ? outputStatus : status);
+        if (string.IsNullOrEmpty(StatusText.Text) && frame is not null)
+        {
+            if (!frame.FrameSuppressed && frame.FrameJpeg is null && frame.Notices.Count > 0)
+            { StatusText.Text = "Theme preview unavailable. See Diagnostics."; }
+            else if (frame.System.Driver is { Available: false })
+            { StatusText.Text = "Some hardware readings are unavailable. See Diagnostics."; }
+        }
     }
 
-    /// <summary>Toggles the requested details panel while preserving its state.</summary>
-    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
-    /// <param name="args">Event data supplied by the UI or capture framework.</param>
-    private void Disclosure_Click(object sender, RoutedEventArgs args)
+    private void SessionDetails_Click(object sender, RoutedEventArgs args)
     {
-        if (sender is not Button selected) { return; }
-        (Button Button, FrameworkElement Panel, string Title)[] sections =
-        [
-            (ScreensDetailsButton, ScreensDetails, "Screens on display"),
-            (CodexDetailsButton, CodexDetails, "Codex connection"),
-            (SensorDetailsButton, SensorDetails, "Sensor access"),
-            (AppearanceDetailsButton, OptionsFrame, "Appearance"),
-            (DisplayOptionsButton, DisplayOptionsPanel, "Display options"),
-            (DiagnosticsDetailsButton, DiagnosticsDetails, "Diagnostics")
-        ];
-        var expand = sections.Any(section => section.Button == selected && section.Panel.Visibility != Visibility.Visible);
-        var sidebar = selected == ScreensDetailsButton || selected == CodexDetailsButton || selected == SensorDetailsButton;
-        foreach (var (button, panel, title) in sections)
+        var visible = TimingDetailsText.Visibility != Visibility.Visible;
+        TimingDetailsText.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        SessionDetailsButton.Content = visible ? "Hide details" : "Details";
+    }
+
+    private string studioSection = "preview";
+
+    /// <summary>Switches the central workspace or the separate raw sensor view.</summary>
+    private async void StudioTab_Click(object sender, RoutedEventArgs args)
+    {
+        if (sender is not Button { Tag: string section }) { return; }
+        var debug = section == "sensor-debug";
+        if (section != "themes" && !debug) { studioSection = section; }
+        ContentArea.Visibility = debug ? Visibility.Collapsed : Visibility.Visible;
+        SensorDebugPanel.Visibility = debug ? Visibility.Visible : Visibility.Collapsed;
+        AppearancePanel.Visibility = studioSection == "appearance" ? Visibility.Visible : Visibility.Collapsed;
+        DisplayFrame.Visibility = studioSection == "display" ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsPanel.Visibility = studioSection == "diagnostics" ? Visibility.Visible : Visibility.Collapsed;
+        PreviewFrame.Visibility = ThemeHeadingArea.Visibility = studioSection == "diagnostics" ? Visibility.Collapsed : Visibility.Visible;
+        NavigationArea.Visibility = studioSection == "preview" ? Visibility.Visible : Visibility.Collapsed;
+        UpdateStudioTabs();
+        FitPreviewSurface();
+        if (!debug && studioSection == "diagnostics") { await RefreshSensorDriverStatusAsync(); }
+        await RefreshAsync();
+    }
+
+    /// <summary>Marks top-level and central selections with matching palette contrast.</summary>
+    private void UpdateStudioTabs()
+    {
+        var debug = SensorDebugPanel.Visibility == Visibility.Visible;
+        foreach (var button in new[] { ThemesTab, SensorsTab, PreviewTab, AppearanceTab, DisplayTab, DiagnosticsTab })
         {
-            if (button != selected && !(sidebar && (button == ScreensDetailsButton || button == CodexDetailsButton || button == SensorDetailsButton))) { continue; }
-            var visible = button == selected && expand;
-            panel.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-            button.Content = (visible ? "⌄ " : "› ") + title;
+            var tag = button.Tag as string;
+            var selected = tag == "themes" ? !debug : tag == "sensor-debug" ? debug : tag == studioSection;
+            button.Background = Brush(selected ? IsLight ? "#E5EEF3" : "#1E303C" : IsLight ? "#F6F7F9" : "#101218");
+            button.Foreground = Brush(IsLight ? "#242231" : "#F1F1FA");
+            button.BorderBrush = Brush(selected ? IsLight ? "#276C89" : "#7BC8DF" : IsLight ? "#F6F7F9" : "#101218");
+            button.BorderThickness = new Thickness(0, 0, 0, 2);
+            button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
         }
     }
 }

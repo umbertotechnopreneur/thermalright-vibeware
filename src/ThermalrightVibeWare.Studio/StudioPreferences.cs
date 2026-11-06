@@ -45,5 +45,6 @@ public sealed record StudioPreferences
     public bool ShowSpectrum { get; set; } = true;
     public int SelectedPageIndex { get; set; } = 0;
     public long PageRevision { get; set; } = 0;
-    public bool Light => Appearance == 2 || Appearance == 0 && DateTime.Now.Hour is >= 7 and < 19;
+    public bool SystemLight { get; set; } = true;
+    public bool Light => Appearance == 2 || Appearance == 0 && SystemLight;
 }

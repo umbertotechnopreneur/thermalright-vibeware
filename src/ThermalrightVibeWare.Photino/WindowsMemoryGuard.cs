@@ -129,12 +129,12 @@ internal static class WindowsMemoryGuard
                     {
                         if (studio.HasExited) { return 0; }
                         RecordStop("memory.query.failed");
-                        return StopWithNotice(job, "The memory guard stopped working.\nThermalright VibeWare will close in 2 seconds to protect your PC.");
+                        return StopWithNotice(job, "The memory guard stopped working.\nTermalRight VibeWare will close in 2 seconds to protect your PC.");
                     }
                     if (priorBytes > MaximumBytes || usage.PeakJobMemoryUsed.ToUInt64() > MaximumBytes - priorBytes)
                     {
                         RecordStop("memory.limit", usage.PeakJobMemoryUsed.ToUInt64(), priorBytes);
-                        return StopWithNotice(job, "Thermalright VibeWare went over its 1 GB memory limit.\nThe app and its child processes will stop in 2 seconds.");
+                        return StopWithNotice(job, "TermalRight VibeWare went over its 1 GB memory limit.\nThe app and its child processes will stop in 2 seconds.");
                     }
                 }
             }
@@ -202,7 +202,7 @@ internal static class WindowsMemoryGuard
     }
 
     /// <summary>Explains why the studio cannot start without its memory guard.</summary>
-    public static void ShowUnavailable() => ShowNotice("The memory guard could not start.\nThermalright VibeWare will not open without memory protection.");
+    public static void ShowUnavailable() => ShowNotice("The memory guard could not start.\nTermalRight VibeWare will not open without memory protection.");
 
     /// <summary>Creates the memory guard pipe name from its per-launch token.</summary>
     /// <param name="token">Per-launch random token used to identify the local guard pipe.</param>
@@ -247,7 +247,7 @@ internal static class WindowsMemoryGuard
             job.Dispose();
         }
         var deadline = new Thread(() => { Thread.Sleep(NoticeMilliseconds); Stop(); })
-        { IsBackground = true, Name = "Thermalright VibeWare memory shutdown" };
+        { IsBackground = true, Name = "TermalRight VibeWare memory shutdown" };
         deadline.Start();
         try { ShowNotice(message); }
         finally { Stop(); deadline.Join(); }
@@ -257,7 +257,7 @@ internal static class WindowsMemoryGuard
     /// <summary>Shows a native warning when the managed studio is unavailable.</summary>
     /// <param name="message">User-facing text or registered Windows message name used by this call.</param>
     private static void ShowNotice(string message) => _ = MessageBox(IntPtr.Zero, message,
-        "Thermalright VibeWare - memory protection", 0x00051010); // Error icon, foreground and topmost; no UI owner.
+        "TermalRight VibeWare - memory protection", 0x00051010); // Error icon, foreground and topmost; no UI owner.
 
     [StructLayout(LayoutKind.Sequential)]
     private struct JobBasicLimits

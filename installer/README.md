@@ -37,7 +37,7 @@ MSI handles rollback for its files, shortcuts and registration. It does not
 restart the studio or reload a removed runtime driver on rollback; OHM can
 create its driver again on a later owner-requested sensor read.
 
-Publish with `scripts/Publish.ps1`, then pass its staging folder to:
+Publish with `scripts/vibeware.ps1 package`, then pass its staging folder to:
 
 ```powershell
 ./scripts/build/Build-Msi.ps1 -PayloadPath artifacts/staging/<published-folder> -Architecture x64

@@ -58,8 +58,6 @@ public sealed partial class MainPage
         Grid.SetColumn(StartDisplayButton, narrow ? 3 : 4);
         Grid.SetColumnSpan(StartDisplayButton, narrow ? 2 : 1);
         Grid.SetRow(StopDisplayButton, narrow ? 1 : 0);
-        Grid.SetRow(DisplayOptionsButton, narrow ? 2 : 1);
-        Grid.SetRow(DisplayOptionsPanel, narrow ? 3 : 2);
         StartDisplayButton.Margin = new Thickness(0, narrow ? 8 : 0, 6, 0);
         StopDisplayButton.Margin = new Thickness(0, narrow ? 8 : 0, 0, 0);
 
@@ -68,14 +66,14 @@ public sealed partial class MainPage
         ProductIcon.Width = ProductIcon.Height = shortWindow ? 36 : 62;
         Heading.FontSize = shortWindow ? 22 : 28;
         SelectedThemeText.FontSize = shortWindow ? 22 : 26;
-        Eyebrow.Visibility = CategoryText.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
-        InitiativeImage.Width = InitiativeImage.Height = shortWindow ? 28 : 36;
+        CategoryText.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
+        InitiativeImage.Width = InitiativeImage.Height = shortWindow ? 36.4 : 46.8;
         FooterLinks.Margin = new Thickness(0, shortWindow ? 2 : 10, 0, 0);
         foreach (var label in new[] { FontLabel, SizeLabel, GeometryLabel, DeviceLabel, RefreshLabel, QualityLabel })
         { label.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible; }
 
         CodexSetupFrame.Margin = new Thickness(14, compact ? 10 : 28, 8, 0);
-        ScreensFrame.Margin = new Thickness(14, compact ? 10 : 16, 8, 0);
+        ScreensFrame.Margin = new Thickness(0, compact ? 10 : 16, 0, 0);
         // Details are available on demand even on shorter monitors.
         CodexHelpText.Visibility = Visibility.Visible;
         CodexStatusText.TextWrapping = CodexEventText.TextWrapping = compact ? TextWrapping.NoWrap : TextWrapping.Wrap;

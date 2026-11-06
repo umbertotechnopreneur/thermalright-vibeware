@@ -11,7 +11,15 @@ The hook handles all 12 documented events: `SessionStart`, `SessionEnd`, `UserPr
 
 ## Prepare locally
 
-From this folder, run `py -3 -B install.py prepare` on Windows or `python3 -B install.py prepare` on Linux/macOS. The Thermalright VibeWare UI or `trv codex prepare` can do the same when I choose Prepare. This stages a copy under `~/.codex/plugins/thermalright-vibeware-codex` and adds an available entry to the personal `~/.agents/plugins/marketplace.json`, preserving other entries and backing up an existing marketplace once. It does **not** install or trust the plugin inside Codex. Restart the desktop app, choose the local plugin in the Plugins Directory, and review and trust the hook definition there. `status` only checks local files; `unlist` removes the marketplace entry but preserves copied plugin files. If the plugin is enabled, disable it inside Codex too.
+From this folder in the official source, run `py -3 -I -B install.py prepare` on Windows or `python3 -I -B install.py prepare` on Linux/macOS. On Windows, the studio's **Prepare** action and `trv codex prepare` can do this too. Preparation refreshes the bundled files in `~/.codex/plugins/thermalright-vibeware-codex` and lists the plugin in `~/.agents/plugins/marketplace.json`. It preserves other entries and backs up an existing marketplace once.
+
+**Update to 0.1.2.** Disable the old plugin in Codex. Run the prepare command from the updated official source. Restart Codex and install or update the local plugin from the Plugins Directory. Check version 0.1.2, then review and trust its hooks. All hooks use Python's isolated mode to exclude the current project and user Python packages from imports.
+
+On Windows, preparation keeps an existing portable Python after checking its files and import paths. An incomplete or unexpected runtime stops preparation with an error. On Linux and macOS, preparation also restricts an existing marketplace and its backup to their owner's permissions.
+
+On Linux and macOS, activity files require an absolute path. The hook rejects symbolic links, ancestors owned by another user, and directories writable by a group or other users, including `/tmp`. Ancestors may belong to root; the three app directories must belong to the current user. Use a private state directory.
+
+`status` checks the staged files and marketplace listing. To remove the listing, run `unlist`. Disable an active plugin inside Codex too.
 
 Plugins containing lifecycle hooks are currently for manual local Codex desktop installation; they are not eligible for the public plugin directory. See the [Codex hooks reference](https://learn.chatgpt.com/docs/hooks) and [local plugin packaging guide](https://developers.openai.com/plugins/build/plugins).
 

@@ -8,6 +8,8 @@ The Windows build patches Photino.Native's UTF string ownership to release conve
 
 The USB protocol facts for Thermalright `0416:5302` were researched from device behaviour, public protocol references, and comparison with `thermalright-trcc-linux`'s implementation. That project is GPL-3.0. ThermalrightVibeWare does not include copied upstream code or assets. Its Windows transport, renderer, and application services are independently authored. See `docs/protocol-notes.md` for the source references and evidence limits.
 
+Linux NVIDIA telemetry calls the installed driver's NVML library through NVIDIA's public [NVML API](https://docs.nvidia.com/deploy/nvml-api/latest/index.html). The C# binding was written from the documented function signatures and structures. NVIDIA binaries are not bundled or installed by this project.
+
 System.Drawing.Common is used under the MIT license. Windows GDI+ performs local still-image rendering and JPEG encoding.
 
 Spectre.Console and NAudio.Wasapi (including NAudio.Core) are MIT-licensed dependencies. System.Management is part of the MIT-licensed .NET libraries. Their package license information remains available through NuGet.

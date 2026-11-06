@@ -169,8 +169,8 @@ internal static partial class ThermalrightVibeWareCli
             Console.WriteLine("trv sensors --diagnose   Read once and print initialization failure details when present.");
             Console.WriteLine("trv sensors --all        Read the raw device and sensor tree once.");
             Console.WriteLine("trv help                 Show the commands available in this Linux stage.");
-            Console.WriteLine("trv --stdio              JSON-lines engine v1: hello, sensors.debug, sensors.driver.status, stop.");
-            Console.WriteLine("Sensor reads do not open USB or audio devices. USB output, studio engine access, media, audio and theme rendering are not implemented on Linux yet.");
+            Console.WriteLine("trv --stdio              JSON-lines engine v1 for studio themes, fonts, local preview and diagnostics. hello lists supported methods.");
+            Console.WriteLine("Linux studio previews use Python/Skia and available kernel sensors. USB output, media sessions and audio remain unavailable.");
             return 0;
         }
         var commands = new Table().Border(TableBorder.Rounded).AddColumn("Command").AddColumn("What it does");

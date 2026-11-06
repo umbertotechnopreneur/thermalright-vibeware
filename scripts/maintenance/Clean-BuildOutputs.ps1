@@ -21,17 +21,19 @@
 #requires -Version 7.0
 
 [CmdletBinding()]
-param([string]$KeepMsiPath)
+param([string]$KeepMsiPath, [string]$KeepPackagePath)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)).TrimEnd('\', '/')
 $prefix = $repo + [IO.Path]::DirectorySeparatorChar
 $artifacts = Join-Path $repo 'artifacts'
 $packages = Join-Path $artifacts 'packages'
+if ($KeepMsiPath -and $KeepPackagePath) { throw 'Select only one final package to retain.' }
+if ($KeepPackagePath) { $KeepMsiPath = $KeepPackagePath }
 $keep = if ($KeepMsiPath) { (Resolve-Path -LiteralPath $KeepMsiPath).Path } else { $null }
 $tracked = @(git -C $repo ls-files)
-if ($keep -and ([IO.Path]::GetExtension($keep) -ne '.msi' -or [IO.Path]::GetDirectoryName($keep) -ne $packages)) {
-    throw 'KeepMsiPath must name the final MSI directly under this repository artifacts/packages folder.'
+if ($keep -and ([IO.Path]::GetExtension($keep) -notin @('.msi', '.deb') -or [IO.Path]::GetDirectoryName($keep) -ne $packages)) {
+    throw 'The retained path must name the final MSI or DEB directly under this repository artifacts/packages folder.'
 }
 <#
 .SYNOPSIS
@@ -72,4 +74,4 @@ foreach ($folder in $folders) { Remove-Generated $folder.FullName }
 foreach ($relative in @('src/ThermalrightVibeWare.Photino/wwwroot/libs', 'src/ThermalrightVibeWare.Photino/wwwroot/resources')) {
     Remove-Generated (Join-Path $repo $relative)
 }
-Write-Host "Build outputs removed. Retained MSI: $keep"
+Write-Host "Build outputs removed. Retained package: $keep"

@@ -20,11 +20,11 @@ VBWR E -->
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-  <Package Name="Thermalright VibeWare" Manufacturer="Umberto Giacobbi" Version="$(var.ProductVersion)"
+  <Package Name="TermalRight VibeWare" Manufacturer="Umberto Giacobbi" Version="$(var.ProductVersion)"
            UpgradeCode="0E45EA55-B9C3-44D2-AD0A-D3BB78B53096" Scope="perUser" InstallerVersion="500">
     <!-- The new package must release the old app/driver before the old MSI removes files. -->
     <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes"
-                  DowngradeErrorMessage="A newer Thermalright VibeWare version is already installed." />
+                  DowngradeErrorMessage="A newer TermalRight VibeWare version is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <Icon Id="ProductIcon" SourceFile="$(var.PayloadRoot)\Assets\thermalright-vibeware.ico" />
     <Property Id="ARPPRODUCTICON" Value="ProductIcon" />
@@ -81,11 +81,11 @@ VBWR E -->
               Condition="NOT Installed AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
     <UI>
-      <Dialog Id="ThermalrightVibeWareComplete" Width="370" Height="270" Title="Thermalright VibeWare Setup" NoMinimize="yes">
+      <Dialog Id="ThermalrightVibeWareComplete" Width="370" Height="270" Title="TermalRight VibeWare Setup" NoMinimize="yes">
         <Control Id="Title" Type="Text" X="24" Y="26" Width="322" Height="40" NoPrefix="yes"
-                 Text="{\WixUI_Font_Bigger}Thermalright VibeWare setup is complete" />
+                 Text="{\WixUI_Font_Bigger}TermalRight VibeWare setup is complete" />
         <Control Id="Description" Type="Text" X="24" Y="73" Width="322" Height="36" NoPrefix="yes"
-                 Text="Thermalright VibeWare requests administrator access when it starts. Windows asks for your approval. Themes run with the same rights." />
+                 Text="TermalRight VibeWare requests administrator access when it starts. Windows asks for your approval. Themes run with the same rights." />
         <Control Id="StartAfterInstall" Type="CheckBox" X="24" Y="117" Width="322" Height="18"
                  Property="TRV_START_AFTER_INSTALL" CheckBoxValue="1" Text="Start after install"
                  Hidden="yes" ShowCondition="NOT Installed AND NOT REMOVE AND UILevel = 5" />
@@ -93,7 +93,7 @@ VBWR E -->
                  Property="TRV_SEE_LATEST_NEWS" CheckBoxValue="1" Text="See the latest news"
                  Hidden="yes" ShowCondition="NOT Installed AND NOT REMOVE AND UILevel = 5" />
         <Control Id="NewsDestination" Type="Text" X="39" Y="170" Width="307" Height="28" NoPrefix="yes"
-                 Text="Thermalright VibeWare releases on GitHub" Hidden="yes"
+                 Text="TermalRight VibeWare releases on GitHub" Hidden="yes"
                  ShowCondition="NOT Installed AND NOT REMOVE AND UILevel = 5" />
         <Control Id="Divider" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Finish" Type="PushButton" X="290" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="Finish">
@@ -104,9 +104,9 @@ VBWR E -->
           <Publish Event="EndDialog" Value="Return" Order="3" />
         </Control>
       </Dialog>
-      <ProgressText Action="CloseThermalrightVibeWare" Message="Closing Thermalright VibeWare..." />
-      <ProgressText Action="CleanupThermalrightVibeWare" Message="Closing Thermalright VibeWare and releasing its hardware monitoring driver..." />
-      <ProgressText Action="CleanupFreshThermalrightVibeWare" Message="Removing previous Thermalright VibeWare files and registration..." />
+      <ProgressText Action="CloseThermalrightVibeWare" Message="Closing TermalRight VibeWare..." />
+      <ProgressText Action="CleanupThermalrightVibeWare" Message="Closing TermalRight VibeWare and releasing its hardware monitoring driver..." />
+      <ProgressText Action="CleanupFreshThermalrightVibeWare" Message="Removing previous TermalRight VibeWare files and registration..." />
     </UI>
     <InstallUISequence>
       <!-- Replace WixUI's overridable success sequence, retaining its other dialogs. -->
@@ -129,18 +129,18 @@ VBWR E -->
     <StandardDirectory Id="ProgramMenuFolder">
       <Component Id="StartShortcut" Guid="8D326D62-0344-4975-A75D-BCDF4E9B9195">
         <RemoveFile Id="PreviousStartShortcut" Name="Thermalright VibeWare.lnk" On="install" />
-        <Shortcut Id="StartMenuShortcut" Name="Thermalright VibeWare" Target="[INSTALLFOLDER]ThermalrightVibeWare.exe" WorkingDirectory="INSTALLFOLDER" Icon="ProductIcon" Description="Thermalright VibeWare" />
+        <Shortcut Id="StartMenuShortcut" Name="TermalRight VibeWare" Target="[INSTALLFOLDER]ThermalrightVibeWare.exe" WorkingDirectory="INSTALLFOLDER" Icon="ProductIcon" Description="TermalRight VibeWare" />
         <RegistryValue Root="HKCU" Key="Software\Umberto Giacobbi.biz\ThermalrightVibeWare\MSI" Name="StartShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </StandardDirectory>
     <StandardDirectory Id="StartupFolder">
       <Component Id="StartupShortcut" Guid="FB0F7032-59E6-4D72-9A12-C5E61814E8F7">
         <RemoveFile Id="PreviousStartupShortcut" Name="ThermalrightVibeWare.lnk" On="install" />
-        <Shortcut Id="SignInShortcut" Name="ThermalrightVibeWare" Target="[INSTALLFOLDER]ThermalrightVibeWare.exe" WorkingDirectory="INSTALLFOLDER" Arguments="--start-minimized --restore-last-session" Icon="ProductIcon" Show="minimized" Description="Thermalright VibeWare saved display at Windows sign-in" />
+        <Shortcut Id="SignInShortcut" Name="ThermalrightVibeWare" Target="[INSTALLFOLDER]ThermalrightVibeWare.exe" WorkingDirectory="INSTALLFOLDER" Arguments="--start-minimized --restore-last-session" Icon="ProductIcon" Show="minimized" Description="TermalRight VibeWare saved display at Windows sign-in" />
         <RegistryValue Root="HKCU" Key="Software\Umberto Giacobbi.biz\ThermalrightVibeWare\MSI" Name="StartupShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </StandardDirectory>
-    <Feature Id="Complete" Title="Thermalright VibeWare" Level="1">
+    <Feature Id="Complete" Title="TermalRight VibeWare" Level="1">
       <ComponentGroupRef Id="Payload" />
       <ComponentRef Id="StableLauncher" />
       <ComponentRef Id="StartShortcut" />

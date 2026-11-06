@@ -47,13 +47,13 @@ public sealed partial class MainPage
             CategoriesBox.ItemsSource = categoryRows.ToArray();
             CategoriesBox.SelectedItem = categoryRows.FirstOrDefault(row => row.Id == selectedCategory) ?? categoryRows.FirstOrDefault();
             PopulateThemes();
-            CatalogText.Text = $"{catalog.Themes.Count} themes · local folders";
             if (catalog.Notices.Count > 0) { StatusText.Text = string.Join(" · ", catalog.Notices); }
         }
         catch (Exception error)
         {
             StatusText.Text = error.Message;
-            LoadingText.Text = "The theme library is unavailable. Use Reload to try again.";
+            LoadingTitle.Text = "Theme library unavailable";
+            LoadingText.Text = error.Message;
         }
         finally { updatingChoices = false; catalogLoading = false; ReloadButton.IsEnabled = true; }
     }
@@ -65,7 +65,7 @@ public sealed partial class MainPage
         updatingChoices = true;
         themeRows.Clear();
         foreach (var theme in catalog?.Themes.Where(theme => theme.Category == selectedCategory) ?? [])
-        { themeRows.Add(new(theme.Id, theme.Name, theme.Description, (themeRows.Count + 1).ToString("00"))); }
+        { themeRows.Add(new(theme.Id, theme.Name, (themeRows.Count + 1).ToString("00"))); }
         ThemesBox.ItemsSource = themeRows.ToArray();
         ThemesBox.SelectedItem = themeRows.FirstOrDefault(row => row.Id == selectedTheme) ?? themeRows.FirstOrDefault();
         UpdateSelection();
@@ -75,36 +75,39 @@ public sealed partial class MainPage
     /// <summary>Applies the selected theme's heading, capabilities and library position.</summary>
     private void UpdateSelection()
     {
-        SpectrumBox.IsEnabled = catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme)?.SupportsSpectrum == true;
+        SpectrumBox.IsEnabled = session.Supports("levels") && catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme)?.SupportsSpectrum == true;
         SpectrumBox.Visibility = SpectrumBox.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
         CodexSetupFrame.Visibility = selectedCategory == "codex" ? Visibility.Visible : Visibility.Collapsed;
-        SensorSetupFrame.Visibility = selectedCategory == "system" ? Visibility.Visible : Visibility.Collapsed;
+
         if (selectedCategory == "system") { _ = RefreshSensorDriverStatusAsync(); }
-        AdministratorPanel.Visibility = selectedCategory == "system" && windowActions?.CanRestartAsAdministrator == true
+        AdministratorPanel.Visibility = windowActions?.CanRestartAsAdministrator == true
             ? Visibility.Visible : Visibility.Collapsed;
         CategoryText.Text = (categoryRows.FirstOrDefault(row => row.Id == selectedCategory)?.Name ?? selectedCategory).ToUpperInvariant();
         var selected = catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme);
         SelectedThemeText.Text = themeRows.FirstOrDefault(row => row.Id == selectedTheme)?.Name ?? "No themes installed";
-        ThemeNavigationText.Text = "THEME - " + SelectedThemeText.Text;
-        PageNavigationText.Text = "PAGE - " + (selected?.PageCount > 1 ? "Loading…" : "Main");
         PagePositionText.Text = selected is null ? "00 / 00" : $"01 / {selected.PageCount:00}";
         PagePreviousButton.IsEnabled = PageNextButton.IsEnabled = selected?.PageCount > 1;
-        UpdatePageLabel(selected);
+        UpdateThemeDescription(selected);
         ToolTipService.SetToolTip(SelectedThemeText, null);
         PositionText.Text = $"{ThemesBox.SelectedIndex + 1:00} / {themeRows.Count:00}";
         PreviousButton.IsEnabled = NextButton.IsEnabled = themeRows.Count > 1;
         CycleBox.IsEnabled = (catalog?.Themes.Count ?? 0) > 1;
         UpdateDisplayControls();
         UpdateRows();
-        if (themeRows.Count == 0) { ClearPreview(); LoadingTitle.Text = "This category is empty."; LoadingText.Text = "Add a theme pack and reload the library."; }
+        UpdateStudioTabs();
+        if (themeRows.Count == 0)
+        {
+            ClearPreview();
+            LoadingTitle.Text = catalog is null ? "Theme library unavailable" : "This category is empty.";
+            LoadingText.Text = catalog is null ? session.Snapshot.Status : "Add a theme pack and reload the library.";
+        }
     }
 
-    /// <summary>Shows the selected theme's available pages.</summary>
+    /// <summary>Shows the selected theme description once in the main workspace.</summary>
     /// <param name="theme">Selected catalog theme, or null when no theme is available.</param>
-    private void UpdatePageLabel(ThemeChoiceDto? theme)
+    private void UpdateThemeDescription(ThemeChoiceDto? theme)
     {
-        ThemePagesText.Text = theme?.PageCount > 1 ? $"{theme.PageCount} pages · {theme.PageSeconds}s each · fade" : "";
-        if (theme?.Category == "multimedia") { ThemePagesText.Text += " · artist info online when available"; }
+        ThemeDescriptionText.Text = theme?.Description ?? "";
     }
 
     /// <summary>Shows only the attributed source links available for this frame.</summary>
@@ -150,16 +153,13 @@ public sealed partial class MainPage
     }
 
     /// <summary>Applies page counters from the rendered frame.</summary>
-    /// <param name="themeId">Stable theme identifier from the current catalog.</param>
     /// <param name="state">Latest immutable engine frame/status observation used by the studio.</param>
-    private void UpdateNavigationState(string themeId, PanelState state)
+    private void UpdateNavigationState(PanelState state)
     {
-        var theme = catalog?.Themes.FirstOrDefault(item => item.Id == themeId);
-        ThemeNavigationText.Text = "THEME - " + (theme?.Name ?? "Unavailable");
         var count = Math.Max(1, state.ActivePageCount);
         var index = Math.Clamp(state.ActivePageIndex, 0, count - 1);
-        PageNavigationText.Text = "PAGE - " + (string.IsNullOrWhiteSpace(state.ActivePageTitle) ? "Main" : state.ActivePageTitle);
         PagePositionText.Text = $"{index + 1:00} / {count:00}";
+        ToolTipService.SetToolTip(PagePositionText, state.ActivePageTitle);
         PagePreviousButton.IsEnabled = PageNextButton.IsEnabled = !state.FrameSuppressed && count > 1;
     }
 
@@ -183,6 +183,7 @@ public sealed partial class MainPage
         {
             CategoryText.Text = "DISPLAY PAUSED";
             SelectedThemeText.Text = "No active screens";
+            ThemeDescriptionText.Text = "";
             ToolTipService.SetToolTip(SelectedThemeText, null);
             return;
         }
@@ -191,7 +192,7 @@ public sealed partial class MainPage
         var category = categoryRows.FirstOrDefault(item => item.Id == theme.Category)?.Name ?? theme.Category;
         CategoryText.Text = category.ToUpperInvariant();
         SelectedThemeText.Text = theme.Name;
-        UpdatePageLabel(theme);
+        UpdateThemeDescription(theme);
         ToolTipService.SetToolTip(SelectedThemeText, themeId != selectedTheme ? "The selected screen is unavailable. Showing this enabled screen on the display." : null);
     }
 

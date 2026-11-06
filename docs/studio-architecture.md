@@ -40,10 +40,11 @@ Windows composition and optional artist provider.
 
 `ThermalrightVibeWare.Backends.Linux` reads Linux sensors through procfs and sysfs.
 It has no monitoring-library dependency. Core and CLI have separate `net10.0` and
-Windows targets. The Linux target accepts only sensor commands, help and the
-sensor-only stdio surface. Other operations fail before starting providers. Windows raster conversion
-is excluded. The UI still blocks starting a non-Windows engine: this stage does not
-provide a complete Linux studio. See [Linux sensors](linux-sensors.md).
+Windows targets. The Linux studio starts the bundled `engine/trv` child. It negotiates
+supported methods through `hello`, then loads manifests and Python/Skia previews.
+Linux dashboards use the existing kernel sensor reader; media, audio and network
+sources remain explicitly unavailable. USB requests fail before device access.
+Windows raster conversion is excluded. See [Linux sensors](linux-sensors.md).
 
 Linux sensor coverage depends on kernel drivers and access permissions. Windows
 runtime regression behavior remains unverified for this separation. Tests and

@@ -142,9 +142,12 @@ public static class ThemeCatalog
     /// <param name="path">Local settings, manifest or activity JSON file path used by this operation.</param>
     private static JsonDocument ReadManifest(string path)
     {
-        if (new FileInfo(path).Length > 64 * 1024) { throw new ArgumentException("Manifest exceeds 64 KiB."); }
-        using var stream = File.OpenRead(path);
-        return JsonDocument.Parse(stream, new JsonDocumentOptions { MaxDepth = 16 });
+        using var stream = OperatingSystem.IsLinux() ? LinuxRegularFile.OpenRead(path) : File.OpenRead(path);
+        var bytes = new byte[64 * 1024 + 1];
+        var length = stream.ReadAtLeast(bytes, bytes.Length, throwOnEndOfStream: false);
+        if (length > 64 * 1024) { throw new ArgumentException("Manifest exceeds 64 KiB."); }
+        using var bounded = new MemoryStream(bytes, 0, length, writable: false);
+        return JsonDocument.Parse(bounded, new JsonDocumentOptions { MaxDepth = 16 });
     }
 
     /// <summary>Reads a string property with the caller's fallback policy.</summary>
