@@ -5,31 +5,105 @@
 # VBWR E
 
 $script:ScriptsRoot = Split-Path $PSScriptRoot -Parent
+$script:RepoRoot = Split-Path $script:ScriptsRoot -Parent
+$script:NuGetSource = 'https://api.nuget.org/v3/index.json'
+
+function Assert-WindowsImportPrerequisites {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    try {
+        $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+        if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            throw 'Open PowerShell as administrator to run the targeted Microsoft Defender import scans.'
+        }
+    }
+    finally { $identity.Dispose() }
+    $status = Get-MpComputerStatus -ErrorAction Stop
+    if (-not $status.AntivirusEnabled -or -not $status.AMServiceEnabled) {
+        throw 'Microsoft Defender is unavailable or disabled. Windows import preparation stopped.'
+    }
+    $platform = Join-Path $env:ProgramData 'Microsoft/Windows Defender/Platform'
+    $scanner = Get-ChildItem -LiteralPath $platform -Directory -ErrorAction SilentlyContinue |
+        Where-Object { ($_.Name -split '-', 2)[0] -eq $status.AMProductVersion -and (Test-Path -LiteralPath (Join-Path $_.FullName 'MpCmdRun.exe') -PathType Leaf) } |
+        Select-Object -First 1
+    if (-not $scanner) { throw 'The active Microsoft Defender command-line scanner is unavailable.' }
+}
+
+function Initialize-WindowsBuildImports {
+    param(
+        [Parameter(Mandatory)][ValidateSet('x64', 'ARM64')][string]$Architecture,
+        [Parameter(Mandatory)][AllowEmptyCollection()][Collections.Generic.HashSet[string]]$ImportSession,
+        [string]$HostPython = 'python',
+        [switch]$IncludeSolution,
+        [switch]$IncludeMsi
+    )
+    $ErrorActionPreference = 'Stop'
+    Assert-WindowsImportPrerequisites
+    $runtime = 'win-' + $Architecture.ToLowerInvariant()
+    $env:NUGET_PACKAGES = Join-Path $script:RepoRoot 'artifacts/nuget-stage'
+    $env:NUGET_HTTP_CACHE_PATH = Join-Path $script:RepoRoot 'artifacts/nuget-http'
+    if (Test-Path -LiteralPath $env:NUGET_PACKAGES) {
+        throw 'The NuGet import stage already exists. Clean the generated folders before staging a new Windows build.'
+    }
+
+    Write-Host 'Staging Windows build imports for targeted Microsoft Defender checks.'
+    $verifyRestore = @{
+        Path = $env:NUGET_PACKAGES
+        Source = $script:NuGetSource
+        ImportSession = $ImportSession
+        ScanNewImport = $true
+    }
+    if ($IncludeSolution) {
+        dotnet restore (Join-Path $script:RepoRoot 'ThermalrightVibeWare.slnx') --source $script:NuGetSource -p:Platform=$Architecture
+        if ($LASTEXITCODE -ne 0) { throw 'Solution restore failed.' }
+        & "$script:ScriptsRoot/maintenance/Assert-DefenderClean.ps1" @verifyRestore
+        if ($Architecture -eq 'x64') {
+            $checks = Join-Path $script:RepoRoot 'tests/ThermalrightVibeWare.StudioChecks/ThermalrightVibeWare.StudioChecks.csproj'
+            dotnet restore $checks --source $script:NuGetSource
+            if ($LASTEXITCODE -ne 0) { throw 'Studio checks restore failed.' }
+            & "$script:ScriptsRoot/maintenance/Assert-DefenderClean.ps1" @verifyRestore
+        }
+    }
+    foreach ($name in @('Cli', 'Photino')) {
+        $project = Join-Path $script:RepoRoot "src/ThermalrightVibeWare.$name/ThermalrightVibeWare.$name.csproj"
+        $restore = @('restore', $project, '--source', $script:NuGetSource, '--runtime', $runtime, "-p:Platform=$Architecture", '-p:SelfContained=true')
+        if (-not $IncludeSolution) { $restore += '-p:NuGetAudit=false' }
+        dotnet @restore
+        if ($LASTEXITCODE -ne 0) { throw "Restore failed: $name" }
+        # A later restore may evaluate the imported package's MSBuild targets.
+        & "$script:ScriptsRoot/maintenance/Assert-DefenderClean.ps1" @verifyRestore
+    }
+    & "$script:ScriptsRoot/build/Build-PhotinoNative.ps1" -Architecture $Architecture -ImportSession $ImportSession -PrepareImports
+    & "$script:ScriptsRoot/build/Bundle-Python.ps1" -Architecture $Architecture -HostPython $HostPython -ImportSession $ImportSession -PrepareImports
+    if ($IncludeMsi) {
+        & "$script:ScriptsRoot/build/Build-Msi.ps1" -Architecture $Architecture -ImportSession $ImportSession -PrepareImports
+    }
+}
 
 function Invoke-Package {
-    param([string]$Architecture, [string]$HostPython = 'python', [string]$Configuration = 'Debug')
+    param(
+        [Parameter(Mandatory)][ValidateSet('x64', 'ARM64')][string]$Architecture,
+        [Parameter(Mandatory)][Collections.Generic.HashSet[string]]$ImportSession,
+        [ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug',
+        [switch]$SkipArchive
+    )
 $ErrorActionPreference = 'Stop'
 $env:MSBUILDDISABLENODEREUSE = '1'
 $env:DOTNET_CLI_USE_MSBUILD_SERVER = '0'
-$repo = Split-Path $script:ScriptsRoot -Parent
+$repo = $script:RepoRoot
 $runtime = 'win-' + $Architecture.ToLowerInvariant()
 $packageName = "ThermalrightVibeWare-$runtime-preview"
 $stagingRoot = Join-Path $repo 'artifacts/staging'
 $destination = Join-Path $stagingRoot ("$packageName-" + [Guid]::NewGuid().ToString('N'))
 $engine = Join-Path $destination 'engine'
-$env:NUGET_HTTP_CACHE_PATH = Join-Path $repo 'artifacts/nuget-http'
-$env:NUGET_PACKAGES = Join-Path $repo 'artifacts/nuget-stage'
-foreach ($name in @('Cli', 'Photino')) {
-    dotnet restore (Join-Path $repo "src/ThermalrightVibeWare.$name/ThermalrightVibeWare.$name.csproj") --runtime $runtime -p:Platform=$Architecture
-    if ($LASTEXITCODE -ne 0) { throw "Restore failed: $name" }
-}
-& "$script:ScriptsRoot/maintenance/Assert-DefenderClean.ps1" -Path $env:NUGET_PACKAGES -Source 'https://api.nuget.org/v3/index.json; restored package archives and extracted dependencies'
+$nugetStage = Join-Path $repo 'artifacts/nuget-stage'
+if ($env:NUGET_PACKAGES -ne $nugetStage) { throw 'Run Windows import preparation in this process before packaging.' }
+& "$script:ScriptsRoot/maintenance/Assert-DefenderClean.ps1" -Path $nugetStage -Source $script:NuGetSource -ImportSession $ImportSession
 foreach ($target in @(@{ Project = 'Cli'; Framework = 'net10.0-windows10.0.19041.0'; Folder = $engine }, @{ Project = 'Photino'; Framework = 'net10.0'; Folder = $destination })) {
     $project = Join-Path $repo "src/ThermalrightVibeWare.$($target.Project)/ThermalrightVibeWare.$($target.Project).csproj"
     dotnet publish $project --framework $target.Framework --no-restore --disable-build-servers --configuration $Configuration --runtime $runtime --self-contained true -p:Platform=$Architecture --output $target.Folder --warnaserror
     if ($LASTEXITCODE -ne 0) { throw "Publish failed: $($target.Project) / $runtime" }
 }
-& (Join-Path $script:ScriptsRoot 'build/Bundle-Python.ps1') -Architecture $Architecture -Destination $destination -HostPython $HostPython
+& "$script:ScriptsRoot/build/Bundle-Python.ps1" -Architecture $Architecture -Destination $destination -ImportSession $ImportSession
 Copy-Item -LiteralPath (Join-Path $script:ScriptsRoot 'install/Install-Local.ps1') -Destination (Join-Path $destination 'Install-ThermalrightVibeWare.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $script:ScriptsRoot 'install/Uninstall-Local.ps1') -Destination (Join-Path $destination 'Uninstall-ThermalrightVibeWare.ps1') -Force
 foreach ($document in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'TRADEMARKS.md', 'PORTABLE.md', 'cave.md', 'lesson.md')) {
@@ -62,18 +136,24 @@ foreach ($folder in @('docs')) {
 }
 $packages = Join-Path $repo 'artifacts/packages'
 New-Item -ItemType Directory -Path $packages -Force | Out-Null
-$archive = Join-Path $packages "$packageName.zip"
-Compress-Archive -LiteralPath $destination -DestinationPath $archive -Force
-Get-FileHash -LiteralPath $archive -Algorithm SHA256 | Format-List
-Write-Host "Portable ZIP: $archive. Staging: $destination. No tests or USB commands executed."
+if (-not $SkipArchive) {
+    $archive = Join-Path $packages "$packageName.zip"
+    Compress-Archive -LiteralPath $destination -DestinationPath $archive -Force
+    Write-Host "Portable ZIP: $archive"
+}
+Write-Host "Staging: $destination"
 
 }
 
 function Invoke-Reinstall {
-    param([string]$Architecture)
+    param(
+        [Parameter(Mandatory)][ValidateSet('x64', 'ARM64')][string]$Architecture,
+        [Parameter(Mandatory)][Collections.Generic.HashSet[string]]$ImportSession,
+        [Parameter(Mandatory)][ref]$CompletedMsiPath
+    )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path $script:ScriptsRoot -Parent
+$repo = $script:RepoRoot
 $versionFile = Join-Path $repo 'installer/Version.txt'
 $previous = [version](Get-Content -LiteralPath $versionFile -Raw).Trim()
 $upgradeCode = '{0E45EA55-B9C3-44D2-AD0A-D3BB78B53096}'
@@ -84,33 +164,33 @@ try {
         $installedVersion = [version]$installer.ProductInfo($product, 'VersionString')
         if ($installedVersion -gt $previous) { $previous = $installedVersion }
     }
-    foreach ($product in $products) {
+    if ($previous.Build -ge 65535) { throw 'MSI build version limit reached. Update major/minor explicitly.' }
+    $version = '{0}.{1}.{2}' -f $previous.Major, $previous.Minor, ($previous.Build + 1)
+    Write-Host "Building Thermalright VibeWare $version from current source."
+    Invoke-Package -Architecture $Architecture -Configuration Debug -ImportSession $ImportSession -SkipArchive
+    $payloads = @(Get-ChildItem -LiteralPath (Join-Path $repo 'artifacts/staging') -Directory)
+    if ($payloads.Count -ne 1) { throw 'Expected exactly one fresh payload.' }
+    & "$script:ScriptsRoot/build/Build-Msi.ps1" -PayloadPath $payloads[0].FullName -Architecture $Architecture -Version $version -ImportSession $ImportSession
+    $msi = Join-Path $repo "artifacts/packages/ThermalrightVibeWare-win-$($Architecture.ToLowerInvariant())-$version.msi"
+    if (-not (Test-Path -LiteralPath $msi -PathType Leaf)) { throw 'The source-built MSI is missing. The existing installation was preserved.' }
+    $CompletedMsiPath.Value = $msi
+
+    foreach ($product in @($installer.RelatedProducts($upgradeCode))) {
         Write-Host "Uninstalling Thermalright VibeWare $product with visible Windows Installer UI."
         $process = Start-Process msiexec.exe -ArgumentList @('/x', $product, '/norestart') -PassThru -Wait
-        if ($process.ExitCode -ne 0) { throw "Uninstall failed or cancelled (exit $($process.ExitCode)). Build stopped." }
+        if ($process.ExitCode -ne 0) { throw "Uninstall failed or cancelled (exit $($process.ExitCode)). Reinstall stopped." }
     }
     if (@($installer.RelatedProducts($upgradeCode)).Count -ne 0) { throw 'A previous MSI is still registered.' }
 }
 finally { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($installer) }
 & "$script:ScriptsRoot/install/Uninstall-Local.ps1"
-& "$script:ScriptsRoot/maintenance/Clean-BuildOutputs.ps1"
-if ($previous.Build -ge 65535) { throw 'MSI build version limit reached. Update major/minor explicitly.' }
-$version = '{0}.{1}.{2}' -f $previous.Major, $previous.Minor, ($previous.Build + 1)
-# Reserve the version before building. Retries never reuse an installed version.
+# Reserve the completed version before running the visible installer.
 Set-Content -LiteralPath $versionFile -Value $version -Encoding ascii
-Write-Host "Building Thermalright VibeWare $version from clean output folders."
-Invoke-Package -Architecture $Architecture -Configuration Debug
-$payloads = @(Get-ChildItem -LiteralPath (Join-Path $repo 'artifacts/staging') -Directory)
-if ($payloads.Count -ne 1) { throw 'Expected exactly one fresh payload.' }
-$payload = $payloads[0].FullName
-& "$script:ScriptsRoot/build/Build-Msi.ps1" -PayloadPath $payload -Architecture $Architecture -Version $version
-$msi = Join-Path $repo "artifacts/packages/ThermalrightVibeWare-win-$($Architecture.ToLowerInvariant())-$version.msi"
 $process = Start-Process msiexec.exe -ArgumentList @('/i', ('"' + $msi + '"'), '/norestart') -PassThru -Wait
-if ($process.ExitCode -ne 0) { throw "Install failed or cancelled (exit $($process.ExitCode)). MSI retained." }
+if ($process.ExitCode -ne 0) { throw "Install failed or cancelled (exit $($process.ExitCode)). MSI retained: $msi" }
 Write-Host "Installed $version; Windows Installer completed successfully."
-& "$script:ScriptsRoot/maintenance/Clean-BuildOutputs.ps1" -KeepMsiPath $msi
-Write-Host "Finished. Kept only $msi. Installer completion choices control app launch and release news. No tests or USB commands executed by this script."
+Write-Host 'Installer completion choices control app launch and release news.'
 
 }
 
-Export-ModuleMember -Function Invoke-Package, Invoke-Reinstall
+Export-ModuleMember -Function Assert-WindowsImportPrerequisites, Initialize-WindowsBuildImports, Invoke-Package, Invoke-Reinstall

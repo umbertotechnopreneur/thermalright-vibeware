@@ -21,9 +21,15 @@
 #requires -Version 7.0
 
 [CmdletBinding()]
-param([ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64', [switch]$PreviewCapture, [switch]$PrepareImports)
+param(
+    [ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64',
+    [Parameter(Mandatory)][AllowEmptyCollection()][Collections.Generic.HashSet[string]]$ImportSession,
+    [switch]$PreviewCapture,
+    [switch]$PrepareImports
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if (-not $IsWindows) { throw 'Windows Photino imports require Windows.' }
 $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $commit = 'd790e5be3127ec628d0a9f1f9fac68e14f339c2a'
 $archiveHash = '5C6546959017509B80A1884EADCD963FDDCE23A58D5043FE02F42A962E0B6A17'
@@ -31,31 +37,67 @@ $root = Join-Path $repo 'artifacts/native/photino-memory'
 $destination = Join-Path $root $Architecture
 if ($PreviewCapture) { $destination += '-preview-capture' }
 $library = Join-Path $destination 'Photino.Native.dll'
-$manifestPath = Join-Path $destination 'build.json'
 $header = Join-Path $repo 'native/photino/UtfConversion.h'
-$patchKey = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash + (Get-FileHash -LiteralPath $header -Algorithm SHA256).Hash
-if ($PreviewCapture) { $patchKey += (Get-FileHash -LiteralPath (Join-Path $repo 'tests/native/WebViewCapture.h') -Algorithm SHA256).Hash }
-if ((Test-Path -LiteralPath $manifestPath) -and (Test-Path -LiteralPath $library)) {
-    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-    if ($manifest.patchKey -eq $patchKey -and $manifest.libraryHash -eq (Get-FileHash -LiteralPath $library -Algorithm SHA256).Hash) { return }
-}
-New-Item -ItemType Directory -Path $root, $destination -Force | Out-Null
+$imports = Join-Path $root 'imports'
+$scan = Join-Path $PSScriptRoot '../maintenance/Assert-DefenderClean.ps1'
 
 # Pinned Apache-2.0 sources remain in ignored build output.
-$archive = Join-Path $root 'photino-native.zip'
+$archive = Join-Path $imports 'photino-native.zip'
+$sourceStage = Join-Path $imports 'source'
 if (-not (Test-Path -LiteralPath $archive)) {
+    if (-not $PrepareImports) { throw 'Photino imports must be prepared before the native build.' }
+    New-Item -ItemType Directory -Path $imports -Force | Out-Null
     Invoke-WebRequest -Uri "https://api.github.com/repos/tryphotino/photino.Native/zipball/$commit" -Headers @{ 'User-Agent' = 'ThermalrightVibeWare-build' } -OutFile $archive
 }
 if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ne $archiveHash) { throw 'Photino source archive checksum mismatch.' }
-& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $archive -Source "https://github.com/tryphotino/photino.Native/commit/$commit" -ScanNewImport:$PrepareImports
+& $scan -Path $archive -Source "https://github.com/tryphotino/photino.Native/commit/$commit" -ImportSession $ImportSession -ScanNewImport:$PrepareImports
+if ($PrepareImports -and -not (Test-Path -LiteralPath $sourceStage)) {
+    $temporary = "$sourceStage.$([guid]::NewGuid().ToString('N')).stage"
+    [IO.Compression.ZipFile]::ExtractToDirectory($archive, $temporary)
+    Move-Item -LiteralPath $temporary -Destination $sourceStage
+}
+& $scan -Path $sourceStage -Source "Photino.Native source $commit" -ImportSession $ImportSession -ScanNewImport:$PrepareImports
+
+$packagesStage = Join-Path $imports 'packages'
+$packageDirectories = @()
+foreach ($package in @(
+    @{ Id = 'Microsoft.Web.WebView2'; Version = '1.0.1462.37'; Sha512 = 'Kh4XEoWI2KMRwj+E7KePM9gFcKXKqz+7bgSwu+y7MEd6eH87jYhFtEMf8bkJE21I/Qi1lz+5QgfS7CFGzpwM5Q==' },
+    @{ Id = 'Microsoft.Windows.ImplementationLibrary'; Version = '1.0.220914.1'; Sha512 = 'sdcQsiPDUX7H1vQ9vJevIaAl3DATr2U08aFNX7dtHVhlM8usentyNcABN8Wl2y2SbI9A8SfwtowvUQufwDd4Sw==' }
+)) {
+    $id = $package.Id.ToLowerInvariant()
+    $version = $package.Version
+    $packageArchive = Join-Path $imports "$id.$version.nupkg"
+    $packageUrl = "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg"
+    if (-not (Test-Path -LiteralPath $packageArchive)) {
+        if (-not $PrepareImports) { throw "Missing staged Photino dependency: $id $version." }
+        Invoke-WebRequest -Uri $packageUrl -OutFile $packageArchive
+    }
+    $actual = [Convert]::ToBase64String([Convert]::FromHexString((Get-FileHash -LiteralPath $packageArchive -Algorithm SHA512).Hash))
+    if ($actual -ne $package.Sha512) { throw "Native SDK checksum mismatch: $id" }
+    & $scan -Path $packageArchive -Source $packageUrl -ImportSession $ImportSession -ScanNewImport:$PrepareImports
+    $packageStage = Join-Path $packagesStage "$($package.Id).$version"
+    if ($PrepareImports -and -not (Test-Path -LiteralPath $packageStage)) {
+        New-Item -ItemType Directory -Path $packagesStage -Force | Out-Null
+        $temporary = "$packageStage.$([guid]::NewGuid().ToString('N')).stage"
+        [IO.Compression.ZipFile]::ExtractToDirectory($packageArchive, $temporary)
+        Move-Item -LiteralPath $temporary -Destination $packageStage
+    }
+    & $scan -Path $packageStage -Source "Extracted $id $version from NuGet" -ImportSession $ImportSession -ScanNewImport:$PrepareImports
+    $packageDirectories += $packageStage
+}
+if ($PrepareImports) { return }
+
 # Legacy native NuGet imports use path checks that fail in a long runner checkout.
-# Keep extracted sources short even when the repository name is long.
+# Keep the build copy short and leave the scanned input unchanged.
 $work = Join-Path $repo ('artifacts/pn/' + [Guid]::NewGuid().ToString('N').Substring(0, 12))
-[IO.Compression.ZipFile]::ExtractToDirectory($archive, $work)
-& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $work -Source "Photino.Native source $commit" -ScanNewImport:$PrepareImports
-$sourceRoots = @(Get-ChildItem -LiteralPath $work -Directory)
+$sourceRoots = @(Get-ChildItem -LiteralPath $sourceStage -Directory)
 if ($sourceRoots.Count -ne 1) { throw 'Unexpected Photino source layout.' }
-$source = $sourceRoots[0].FullName
+New-Item -ItemType Directory -Path $work, $destination -Force | Out-Null
+Copy-Item -LiteralPath $sourceRoots[0].FullName -Destination $work -Recurse
+$source = Join-Path $work $sourceRoots[0].Name
+$packages = Join-Path $source 'packages'
+New-Item -ItemType Directory -Path $packages | Out-Null
+Copy-Item -LiteralPath $packageDirectories -Destination $packages -Recurse
 $native = Join-Path $source 'Photino.Native'
 Copy-Item -LiteralPath $header -Destination (Join-Path $native 'UtfConversion.h')
 <#
@@ -172,22 +214,6 @@ if ($PreviewCapture) {
     Copy-Item -LiteralPath (Join-Path $repo 'tests/native/WebViewCapture.h') -Destination (Join-Path $native 'WebViewCapture.h')
     [IO.File]::AppendAllText((Join-Path $native 'Photino.Windows.cpp'), "`n#include `"WebViewCapture.h`"`n")
 }
-$packages = Join-Path $source 'packages'
-foreach ($package in @(
-    @{ Id = 'Microsoft.Web.WebView2'; Version = '1.0.1462.37'; Sha512 = 'Kh4XEoWI2KMRwj+E7KePM9gFcKXKqz+7bgSwu+y7MEd6eH87jYhFtEMf8bkJE21I/Qi1lz+5QgfS7CFGzpwM5Q==' },
-    @{ Id = 'Microsoft.Windows.ImplementationLibrary'; Version = '1.0.220914.1'; Sha512 = 'sdcQsiPDUX7H1vQ9vJevIaAl3DATr2U08aFNX7dtHVhlM8usentyNcABN8Wl2y2SbI9A8SfwtowvUQufwDd4Sw==' }
-)) {
-    $id = $package.Id.ToLowerInvariant()
-    $version = $package.Version
-    $packageArchive = Join-Path $root "$id.$version.nupkg"
-    if (-not (Test-Path -LiteralPath $packageArchive)) { Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg" -OutFile $packageArchive }
-    $actual = [Convert]::ToBase64String([Convert]::FromHexString((Get-FileHash -LiteralPath $packageArchive -Algorithm SHA512).Hash))
-    if ($actual -ne $package.Sha512) { throw "Native SDK checksum mismatch: $id" }
-    & "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $packageArchive -Source "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg" -ScanNewImport:$PrepareImports
-    [IO.Compression.ZipFile]::ExtractToDirectory($packageArchive, (Join-Path $packages ($package.Id + '.' + $version)))
-}
-& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $packages -Source 'Official NuGet: Microsoft.Web.WebView2 1.0.1462.37; Microsoft.Windows.ImplementationLibrary 1.0.220914.1' -ScanNewImport:$PrepareImports
-if ($PrepareImports) { Write-Host 'Photino source and SDK imports prepared. No native compilation ran.'; return }
 $msbuild = $null
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
 if (Test-Path -LiteralPath $vswhere) {
@@ -203,8 +229,7 @@ if (-not $msbuild) {
     }
 }
 if (-not $msbuild) { throw 'Existing Visual Studio C++ tools are required. This script does not install tools.' }
+if (Test-Path -LiteralPath $library) { Remove-Item -LiteralPath $library -Force }
 & $msbuild $projectPath /nologo /m /v:minimal /p:Configuration=Release "/p:Platform=$Architecture" "/p:OutDir=$destination\" "/p:IntDir=$work\obj\$Architecture\"
-if ($LASTEXITCODE -ne 0) { throw 'Patched Photino.Native build failed.' }
-$manifest = @{ sourceCommit = $commit; patchKey = $patchKey; libraryHash = (Get-FileHash -LiteralPath $library -Algorithm SHA256).Hash; architecture = $Architecture }
-[IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $library -PathType Leaf)) { throw 'Patched Photino.Native build failed.' }
 Write-Host "Patched Photino.Native ($Architecture): $library"

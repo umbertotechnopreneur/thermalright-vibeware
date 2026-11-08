@@ -7,30 +7,31 @@ Use `scripts/vibeware.ps1` as the console; Linux can use `scripts/vibeware` to p
 
 Windows builds also need PowerShell 7, Visual Studio's C++ v143 tools for the target architecture, and the Windows SDK. Run `scripts/vibeware.ps1 preflight` to install missing build prerequisites.
 
-`scripts/build/Build-PhotinoNative.ps1` builds the Windows native bridge with owned UTF strings. It checks the pinned Apache-2.0 source archive and native SDK package hashes, then caches its output under `artifacts/native/photino-memory/`. The first build downloads those sources and SDK packages. Later builds reuse the checked DLL when its patch and hash match.
+`scripts/build/Build-PhotinoNative.ps1` builds the Windows native bridge with owned UTF strings. Preparation checks the pinned Apache-2.0 source archive and SDK packages. The build patches a working copy of those sources and writes the DLL under `artifacts/native/photino-memory/` for MSBuild to copy.
 
 From the repository folder:
 
-For a local Windows reinstall, use this command. It uninstalls registered Thermalright VibeWare
-packages, clears `artifacts`, `bin`, `obj` and generated web files, increments
-`installer/Version.txt`, builds a fresh Debug MSI and opens its normal installer UI.
-After installation it uses the installer result and removes build output, keeping
-only the final MSI. It does not audit the installed files or registration. Settings
-and personal themes stay in their user folders. Cancellation or failure stops it.
+For a local Windows reinstall, run this command from an elevated PowerShell 7
+session. It clears generated output, prepares the imports and builds a fresh Debug
+MSI. After the MSI is ready, it removes the previous version and opens the normal
+installer. It keeps the final MSI after a successful install. Settings and personal
+themes stay in their user folders.
 
 ```powershell
-pwsh -NoProfile -File ./scripts/vibeware.ps1 build -Architecture x64
+pwsh -NoProfile -File ./scripts/vibeware.ps1 build -Architecture x64 -PrepareImports
 ```
 
-Prepare new external imports before building: restore the NuGet packages into
-`artifacts/nuget-stage`, then run `scripts/maintenance/Assert-DefenderClean.ps1 -ScanNewImport` on that
-staging folder. Native and Python dependencies have separate `-PrepareImports`
-steps. Each new archive and its extracted inputs need a completed targeted scan.
-Unchanged hashes reuse evidence saved outside build output. Builds check this
-evidence and never start scans. A detection or unavailable scanner stops the import.
-The checked-in dependency scan manifest contains the same recorded hashes with
-local paths removed, so clean CI runners can reuse the existing evidence.
-No tests or USB commands run during reinstall.
+`-PrepareImports` explicitly stages NuGet, the native bridge inputs, Python and
+WiX before the build begins. Defender must complete a targeted scan of the new
+archives and extracted inputs without detections. The result stays in memory in
+that PowerShell session. Later phases check the same content and use that result.
+An unavailable scanner, detection or failed scan stops preparation.
+
+For repeated local builds, open the console with `pwsh -NoProfile -File
+./scripts/vibeware.ps1 -PrepareImports` and use **Build package** in that session.
+The console reuses prepared dependencies until it closes. Local builds publish the
+Debug app and MSI directly. CI checks formatting, builds the solution and runs the
+offline checks before publishing the distribution packages.
 
 The sensor library is compiled from the pinned MPL-2.0 source in
 `third_party/LibreHardwareMonitor`. The portable ZIP and MSI include that exact
@@ -41,7 +42,7 @@ CI packaging and an owner-approved exception to the local reinstall rule may cal
 the publishing script directly:
 
 ```powershell
-./scripts/vibeware.ps1 package -Architecture x64
+./scripts/vibeware.ps1 package -Architecture x64 -PrepareImports
 ```
 
 On Windows, do not use that command for an ordinary local compilation. Every local Windows compilation

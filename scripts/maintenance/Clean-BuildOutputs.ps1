@@ -21,9 +21,10 @@
 #requires -Version 7.0
 
 [CmdletBinding()]
-param([string]$KeepMsiPath, [string]$KeepPackagePath)
+param([string]$KeepMsiPath, [string]$KeepPackagePath, [switch]$KeepPreparedWindowsBuild)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($KeepPreparedWindowsBuild -and -not $IsWindows) { throw 'Prepared Windows build cleanup requires Windows.' }
 $repo = [IO.Path]::GetFullPath((Split-Path (Split-Path $PSScriptRoot -Parent) -Parent)).TrimEnd('\', '/')
 $prefix = $repo + [IO.Path]::DirectorySeparatorChar
 $artifacts = Join-Path $repo 'artifacts'
@@ -31,10 +32,24 @@ $packages = Join-Path $artifacts 'packages'
 if ($KeepMsiPath -and $KeepPackagePath) { throw 'Select only one final package to retain.' }
 if ($KeepPackagePath) { $KeepMsiPath = $KeepPackagePath }
 $keep = if ($KeepMsiPath) { (Resolve-Path -LiteralPath $KeepMsiPath).Path } else { $null }
-$tracked = @(git -C $repo ls-files)
-if ($keep -and ([IO.Path]::GetExtension($keep) -notin @('.msi', '.deb') -or [IO.Path]::GetDirectoryName($keep) -ne $packages)) {
-    throw 'The retained path must name the final MSI or DEB directly under this repository artifacts/packages folder.'
+$tracked = @(git -c core.quotePath=false -C $repo ls-files)
+if ($LASTEXITCODE -ne 0) { throw 'Git could not list tracked files. Cleanup stopped.' }
+if ($keep -and ([IO.Path]::GetExtension($keep) -notin @('.msi', '.deb', '.zip') -or [IO.Path]::GetDirectoryName($keep) -ne $packages)) {
+    throw 'The retained path must name the final MSI, DEB or ZIP directly under this repository artifacts/packages folder.'
 }
+
+function Assert-NoRedirectedPath([string]$Path) {
+    for ($current = $Path; ; $current = [IO.Path]::GetDirectoryName($current)) {
+        $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
+        if ($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Refusing to follow a build-folder link: $current"
+        }
+        if ($current -eq $repo) { return }
+    }
+}
+
+Assert-NoRedirectedPath $packages
+if ($keep) { Assert-NoRedirectedPath $keep }
 <#
 .SYNOPSIS
 Removes only a verified generated path inside this repository.
@@ -48,23 +63,27 @@ function Remove-Generated([string]$Path) {
         throw "Refusing to remove a path outside the generated workspace scope: $absolute"
     }
     if (-not (Test-Path -LiteralPath $absolute)) { return }
+    Assert-NoRedirectedPath $absolute
     $relative = [IO.Path]::GetRelativePath($repo, $absolute).Replace('\', '/')
     if ($tracked | Where-Object { $_ -eq $relative -or $_.StartsWith($relative + '/', [StringComparison]::OrdinalIgnoreCase) }) {
         throw "Refusing to remove tracked source files: $absolute"
     }
     $item = Get-Item -LiteralPath $absolute -Force
-    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Refusing to follow a build-folder link: $absolute" }
     if ($item.PSIsContainer -and (Get-ChildItem -LiteralPath $absolute -Force -Recurse |
         Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } | Select-Object -First 1)) {
         throw "Refusing to clean generated output containing a link: $absolute"
     }
     Remove-Item -LiteralPath $absolute -Recurse -Force
 }
-foreach ($item in @(Get-ChildItem -LiteralPath $artifacts -Force -ErrorAction SilentlyContinue)) {
-    if ($item.FullName -ne $packages) { Remove-Generated $item.FullName }
-}
 foreach ($item in @(Get-ChildItem -LiteralPath $packages -Force -ErrorAction SilentlyContinue)) {
     if ($item.FullName -ne $keep) { Remove-Generated $item.FullName }
+}
+if ($KeepPreparedWindowsBuild) {
+    foreach ($folder in @('staging', 'msi', 'pn')) { Remove-Generated (Join-Path $artifacts $folder) }
+    return
+}
+foreach ($item in @(Get-ChildItem -LiteralPath $artifacts -Force -ErrorAction SilentlyContinue)) {
+    if ($item.FullName -ne $packages) { Remove-Generated $item.FullName }
 }
 if (-not $keep) { Remove-Generated $packages; Remove-Generated $artifacts }
 $folders = @(Get-ChildItem -LiteralPath $repo -Directory -Recurse -Force |

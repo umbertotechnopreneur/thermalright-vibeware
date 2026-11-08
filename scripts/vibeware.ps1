@@ -11,6 +11,7 @@ param(
     [ValidateSet('help', 'preflight-check', 'preflight', 'build', 'up', 'launch', 'package', 'clean')]
     [string]$Command,
     [ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64',
+    [switch]$PrepareImports,
     [switch]$Plain
 )
 function Initialize-Winget {
@@ -42,6 +43,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $linuxOutput = Join-Path $repo 'artifacts/linux-debug'
 $linuxRuntime = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'ThermalrightVibeWare/debug'
+$windowsBuildSession = $null
 $linuxPackages = @('libgtk-3-0t64', 'libwebkit2gtk-4.1-0', 'dpkg-dev', 'clamav', 'clamav-freshclam', 'libssl3t64', 'zlib1g', 'libstdc++6', 'libgcc-s1', 'build-essential', 'pkg-config', 'libgtk-3-dev', 'libwebkit2gtk-4.1-dev', 'libnotify-dev', 'libnotify4', 'libayatana-appindicator3-1', 'python3', 'libegl1', 'libgl1', 'libexpat1')
 $catalog = @(
     @{ Name = 'preflight-check'; Title = 'Inspect readiness'; Hint = 'Read-only tools and platform' },
@@ -56,6 +58,29 @@ $catalog = @(
 function Invoke-Checked([string]$Program, [string[]]$Arguments) {
     & $Program @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$Program failed (exit $LASTEXITCODE)." }
+}
+function Test-WindowsBuildTools {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    $components = @('Microsoft.VisualStudio.Component.VC.Tools.x86.x64', 'Microsoft.VisualStudio.Component.Windows11SDK.26100')
+    if ($Architecture -eq 'ARM64') { $components += 'Microsoft.VisualStudio.Component.VC.Tools.ARM64' }
+    if ((Test-Path -LiteralPath $vswhere) -and
+        @(& $vswhere -latest -prerelease -products '*' -requires @components -property installationPath).Count -gt 0) { return $true }
+
+    # The source build also recognizes installations whose component registrations are stale.
+    $sdk = Get-ItemPropertyValue -LiteralPath 'HKLM:/SOFTWARE/Microsoft/Windows Kits/Installed Roots' -Name KitsRoot10 -ErrorAction SilentlyContinue
+    if (-not $sdk -or -not (Test-Path -LiteralPath (Join-Path $sdk 'Include/10.0.26100.0/um/Windows.h'))) { return $false }
+    $instances = Join-Path $env:ProgramData 'Microsoft/VisualStudio/Packages/_Instances'
+    $target = $Architecture.ToLowerInvariant()
+    foreach ($state in (Get-ChildItem -LiteralPath $instances -Filter state.json -Recurse -File -ErrorAction SilentlyContinue)) {
+        $installation = (Get-Content -LiteralPath $state.FullName -Raw | ConvertFrom-Json).installationPath
+        if (-not $installation -or -not (Test-Path -LiteralPath (Join-Path $installation 'MSBuild/Current/Bin/MSBuild.exe'))) { continue }
+        $tools = Join-Path $installation 'VC/Tools/MSVC'
+        foreach ($toolset in (Get-ChildItem -LiteralPath $tools -Directory -ErrorAction SilentlyContinue)) {
+            if ((Test-Path -LiteralPath (Join-Path $toolset.FullName "bin/Hostx64/$target/cl.exe")) -or
+                (Test-Path -LiteralPath (Join-Path $toolset.FullName "bin/Hostarm64/$target/cl.exe"))) { return $true }
+        }
+    }
+    return $false
 }
 function Get-Readiness {
     $checks = [ordered]@{}
@@ -82,13 +107,7 @@ function Get-Readiness {
             & python -m pip --version *> $null
             $checks['Python with pip'] = $LASTEXITCODE -eq 0
         }
-        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-        $checks['C++ tools and Windows SDK'] = $false
-        if (Test-Path $vswhere) {
-            $components = @('Microsoft.VisualStudio.Component.VC.Tools.x86.x64', 'Microsoft.VisualStudio.Component.Windows11SDK.26100')
-            if ($Architecture -eq 'ARM64') { $components += 'Microsoft.VisualStudio.Component.VC.Tools.ARM64' }
-            $checks['C++ tools and Windows SDK'] = @(& $vswhere -latest -products '*' -requires @components -property installationPath).Count -gt 0
-        }
+        $checks['C++ tools and Windows SDK'] = Test-WindowsBuildTools
     } else { throw 'Only Windows and Ubuntu Linux are supported by this console.' }
     return $checks
 }
@@ -164,19 +183,108 @@ function Invoke-LinuxBuild {
     & "$PSScriptRoot/build/Build-PhotinoLinux.ps1" -Destination $linuxOutput
     & "$PSScriptRoot/build/Bundle-LinuxPython.ps1" -Destination $linuxOutput
 }
+function Get-WindowsBuildInputKey {
+    $inputs = @(
+        ':(glob)src/**/*.csproj', ':(glob)third_party/**/*.csproj',
+        '*.props', '*.targets', '*.rsp', '*packages.lock.json', ':(icase,glob)**/nuget.config',
+        'global.json', 'native/photino/**', 'theme-runtime/requirements.txt',
+        'scripts/build/Build-PhotinoNative.ps1', 'scripts/build/Bundle-Python.ps1', 'scripts/build/Build-Msi.ps1'
+    )
+    $files = @(git -c core.quotePath=false -C $repo ls-files --cached --others --exclude-standard -- @inputs)
+    if ($LASTEXITCODE -ne 0) { throw 'Git could not list the Windows build inputs.' }
+    $parts = foreach ($relative in ($files | Sort-Object -Unique)) {
+        $file = Join-Path $repo $relative
+        $hash = if (Test-Path -LiteralPath $file -PathType Leaf) { (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash } else { 'missing' }
+        "$relative $hash"
+    }
+    return ($parts -join "`n")
+}
+
+function Remove-WindowsBuildOutputs($Session, [switch]$KeepPrepared) {
+    $cleanup = @{ KeepPreparedWindowsBuild = $KeepPrepared }
+    if ($Session.KeepPackage -and (Test-Path -LiteralPath $Session.KeepPackage -PathType Leaf)) {
+        $cleanup.KeepPackagePath = $Session.KeepPackage
+    }
+    & "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1" @cleanup
+}
+
+function Close-WindowsBuildSession([switch]$DiscardPackage) {
+    $session = $script:windowsBuildSession
+    if ($null -eq $session) { return }
+    $script:windowsBuildSession = $null
+    $env:NUGET_PACKAGES = $session.PreviousPackages
+    $env:NUGET_HTTP_CACHE_PATH = $session.PreviousHttpCache
+    if ($DiscardPackage) { $session.KeepPackage = $null }
+    Remove-WindowsBuildOutputs $session
+}
+
+function Invoke-PreparedWindowsAction([switch]$Reinstall) {
+    $inputKey = Get-WindowsBuildInputKey
+    if ($null -eq $script:windowsBuildSession) {
+        if (-not $PrepareImports) {
+            throw 'Windows builds require explicit import preparation in the same PowerShell process. Rerun with -PrepareImports.'
+        }
+        Import-Module "$PSScriptRoot/modules/Build.psm1" -Force
+        Assert-WindowsImportPrerequisites
+        & "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1"
+        $script:windowsBuildSession = [pscustomobject]@{
+            Imports = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            InputKey = $inputKey
+            PreviousPackages = $env:NUGET_PACKAGES
+            PreviousHttpCache = $env:NUGET_HTTP_CACHE_PATH
+            KeepPackage = $null
+        }
+        try {
+            $includeMsi = $Reinstall -or -not $Command
+            Initialize-WindowsBuildImports -Architecture $Architecture -ImportSession $windowsBuildSession.Imports -IncludeMsi:$includeMsi
+            Write-Host 'Import preparation completed. Building the native bridge.'
+            & "$PSScriptRoot/build/Build-PhotinoNative.ps1" -Architecture $Architecture -ImportSession $windowsBuildSession.Imports
+            if ((Get-WindowsBuildInputKey) -cne $inputKey) { throw 'Windows build inputs changed during preparation. Run the build again to stage the current inputs.' }
+        }
+        catch { Close-WindowsBuildSession; throw }
+    }
+    else {
+        $preparedFiles = @(
+            "artifacts/native/photino-memory/$Architecture/Photino.Native.dll",
+            'artifacts/obj/ThermalrightVibeWare.Cli/project.assets.json',
+            'artifacts/obj/ThermalrightVibeWare.Photino/project.assets.json'
+        )
+        $missing = $preparedFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $repo $_) -PathType Leaf) } | Select-Object -First 1
+        if ($windowsBuildSession.InputKey -cne $inputKey -or $missing) {
+            throw 'Windows build inputs changed or prepared output is missing. Choose Clean generated files, then build again to prepare the current inputs.'
+        }
+        Write-Host 'Reusing the current console session imports, restore and native bridge.'
+    }
+
+    $keepPackage = $null
+    try {
+        if ($Reinstall) {
+            Invoke-Reinstall -Architecture $Architecture -ImportSession $windowsBuildSession.Imports -CompletedMsiPath ([ref]$keepPackage)
+        } else {
+            Invoke-Package -Architecture $Architecture -Configuration Debug -ImportSession $windowsBuildSession.Imports
+            $runtime = 'win-' + $Architecture.ToLowerInvariant()
+            $keepPackage = Join-Path $repo "artifacts/packages/ThermalrightVibeWare-$runtime-preview.zip"
+        }
+    }
+    finally {
+        if ($keepPackage) { $windowsBuildSession.KeepPackage = $keepPackage }
+        if (-not $Command) { Remove-WindowsBuildOutputs $windowsBuildSession -KeepPrepared }
+    }
+}
 function Invoke-Selection([string]$Name) {
     switch ($Name) {
         'help' {
             Write-Host 'TermalRight VibeWare | Umberto Giacobbi'
-            Write-Host 'pwsh -NoProfile -File ./scripts/vibeware.ps1 <command> [-Architecture x64|ARM64] [-Plain]'
+            Write-Host 'pwsh -NoProfile -File ./scripts/vibeware.ps1 <command> [-Architecture x64|ARM64] [-PrepareImports] [-Plain]'
+            Write-Host 'Windows: omit the command and pass -PrepareImports to reuse prepared inputs across builds in the same menu.'
             foreach ($item in $catalog) { Write-Host ('{0,-18} {1} — {2}' -f $item.Name, $item.Title, $item.Hint) }
             Write-Host 'Linux: local theme preview and sensor diagnostics; USB, audio and media are unavailable. Themes run Python code; use only the official repository.'
         }
         'preflight-check' { Invoke-Preflight }
         'preflight' { Invoke-Preflight -Install }
         { $_ -in 'build', 'up' } {
-            Invoke-Preflight
             if ($IsLinux) {
+                Invoke-Preflight
                 Invoke-LinuxBuild
                 New-Item -ItemType Directory -Path $linuxRuntime -Force | Out-Null
                 # Copy outside the checkout so repository output can be cleaned after launch.
@@ -184,8 +292,7 @@ function Invoke-Selection([string]$Name) {
                 & "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1"
             }
             else {
-                Import-Module "$PSScriptRoot/modules/Build.psm1" -Force
-                Invoke-Reinstall -Architecture $Architecture
+                Invoke-PreparedWindowsAction -Reinstall
             }
             if ($Name -eq 'up' -and $IsLinux) { Invoke-Selection launch }
         }
@@ -208,19 +315,20 @@ function Invoke-Selection([string]$Name) {
             if ($process.WaitForExit(1500) -and $process.ExitCode -ne 0) { throw "Studio startup failed (exit $($process.ExitCode)). See the native startup error above." }
         }
         'package' {
-            Invoke-Preflight
             if ($IsLinux) {
+                Invoke-Preflight
                 Invoke-LinuxBuild
                 & "$PSScriptRoot/build/Build-Deb.ps1" -PayloadPath $linuxOutput
                 $version = (Get-Content "$repo/installer/Version.txt" -Raw).Trim()
                 & "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1" -KeepPackagePath "$repo/artifacts/packages/thermalright-vibeware_${version}_amd64.deb"
             } else {
-                Invoke-Preflight
-                Import-Module "$PSScriptRoot/modules/Build.psm1" -Force
-                Invoke-Package -Architecture $Architecture -Configuration Debug
+                Invoke-PreparedWindowsAction
             }
         }
-        'clean' { & "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1" }
+        'clean' {
+            if ($null -ne $windowsBuildSession) { Close-WindowsBuildSession -DiscardPackage }
+            else { & "$PSScriptRoot/maintenance/Clean-BuildOutputs.ps1" }
+        }
     }
 }
 try {
@@ -241,3 +349,4 @@ try {
         }
     }
 } catch { Write-Error "Action stopped: $($_.Exception.Message)"; exit 1 }
+finally { Close-WindowsBuildSession }

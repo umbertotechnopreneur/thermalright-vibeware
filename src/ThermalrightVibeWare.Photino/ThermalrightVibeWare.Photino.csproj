@@ -43,13 +43,18 @@ VBWR E -->
     <PatchedPhotinoArchitecture Condition="'$(Platform)' == 'ARM64'">ARM64</PatchedPhotinoArchitecture>
     <PatchedPhotinoArchitecture Condition="'$(PatchedPhotinoArchitecture)' == ''">x64</PatchedPhotinoArchitecture>
     <PatchedPhotinoRoot>$(MSBuildProjectDirectory)/../../artifacts/native/photino-memory/$(PatchedPhotinoArchitecture)</PatchedPhotinoRoot>
+    <PatchedPhotinoLibrary>$(PatchedPhotinoRoot)/Photino.Native.dll</PatchedPhotinoLibrary>
+    <PatchedPhotinoRuntime>win-$([System.String]::Copy('$(PatchedPhotinoArchitecture)').ToLowerInvariant())</PatchedPhotinoRuntime>
   </PropertyGroup>
-  <Target Name="BuildPatchedWindowsPhotino" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true'">
-    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/build/Build-PhotinoNative.ps1&quot; -Architecture $(PatchedPhotinoArchitecture)" />
+  <Target Name="VerifyPatchedWindowsPhotino" BeforeTargets="PrepareForBuild" Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(PatchedPhotinoLibrary)')" Text="Build the patched Photino.Native library from the prepared imports in the same PowerShell session before building the Windows studio." />
   </Target>
-  <Target Name="CopyPatchedWindowsPhotino" AfterTargets="CopyFilesToOutputDirectory;Publish" DependsOnTargets="BuildPatchedWindowsPhotino" Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true'">
-    <Copy SourceFiles="$(PatchedPhotinoRoot)/Photino.Native.dll" DestinationFolder="$(TargetDir)" />
-    <Copy SourceFiles="$(PatchedPhotinoRoot)/Photino.Native.dll" DestinationFolder="$(TargetDir)runtimes/win-$([System.String]::Copy('$(PatchedPhotinoArchitecture)').ToLowerInvariant())/native/" Condition="Exists('$(TargetDir)runtimes')" />
-    <Copy SourceFiles="$(PatchedPhotinoRoot)/Photino.Native.dll" DestinationFolder="$(PublishDir)" Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)')" />
+  <Target Name="CopyPatchedWindowsPhotino" AfterTargets="CopyFilesToOutputDirectory" DependsOnTargets="VerifyPatchedWindowsPhotino" Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true'">
+    <Copy SourceFiles="$(PatchedPhotinoLibrary)" DestinationFolder="$(TargetDir)" />
+    <Copy SourceFiles="$(PatchedPhotinoLibrary)" DestinationFolder="$(TargetDir)runtimes/$(PatchedPhotinoRuntime)/native/" Condition="Exists('$(TargetDir)runtimes/$(PatchedPhotinoRuntime)/native')" />
+  </Target>
+  <Target Name="PublishPatchedWindowsPhotino" AfterTargets="Publish" DependsOnTargets="VerifyPatchedWindowsPhotino" Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true' and '$(PublishDir)' != ''">
+    <Copy SourceFiles="$(PatchedPhotinoLibrary)" DestinationFolder="$(PublishDir)" />
+    <Copy SourceFiles="$(PatchedPhotinoLibrary)" DestinationFolder="$(PublishDir)runtimes/$(PatchedPhotinoRuntime)/native/" Condition="Exists('$(PublishDir)runtimes/$(PatchedPhotinoRuntime)/native')" />
   </Target>
 </Project>

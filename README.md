@@ -85,7 +85,7 @@ You are welcome to try it with other screens, use the code and share what you le
 
 I care about what goes into this project. Before I add a third-party library or prebuilt binary, including files supplied without source code, I scan the downloaded package, its extracted files and any dependencies with Microsoft Windows Defender. I keep new imports aside until the scan finishes without detections.
 
-I keep a record of where each new import came from and the scan result. If a scan cannot finish or flags something, I leave it out.
+I check the source, version and scan result during preparation. If the scan fails or flags something, I leave the import out.
 
 ---
 

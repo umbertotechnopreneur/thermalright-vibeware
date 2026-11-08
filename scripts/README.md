@@ -13,7 +13,14 @@ Run `pwsh -NoProfile -File ./scripts/vibeware.ps1` for the menu.
 | `clean` | Remove generated repository output. |
 | `help` | Show usage. |
 
-Example: `pwsh -NoProfile -File ./scripts/vibeware.ps1 up`.
+On Windows, open PowerShell 7 as administrator and use
+`./scripts/vibeware.ps1 build -Architecture x64 -PrepareImports`.
+The flag explicitly prepares and scans new staged imports before compilation.
+The result is held in memory for that command.
+
+For repeated Windows builds, start the menu with `./scripts/vibeware.ps1 -PrepareImports`
+and keep it open between builds. The menu reuses the staged dependencies within
+that session and removes generated material when you exit.
 
 The single console follows Armata's menu wording and command structure. Its
 proprietary code is not copied. Internal modules and build/install helpers remain
