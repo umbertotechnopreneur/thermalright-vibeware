@@ -23,6 +23,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
