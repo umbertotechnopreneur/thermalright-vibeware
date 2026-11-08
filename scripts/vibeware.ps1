@@ -82,6 +82,34 @@ function Test-WindowsBuildTools {
     }
     return $false
 }
+function Test-ClamAvSignatureDatabase {
+    $databases = Get-ChildItem -LiteralPath /var/lib/clamav -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Length -gt 0 -and $_.Extension -in '.cvd', '.cld' } |
+        ForEach-Object { $_.BaseName }
+    return 'main' -in $databases -and 'daily' -in $databases
+}
+function Initialize-ClamAvSignatureDatabase {
+    if (Test-ClamAvSignatureDatabase) { return }
+
+    # apt can start the updater before it returns. The service owns the update log lock.
+    $PSNativeCommandUseErrorActionPreference = $false
+    $serviceState = if (Get-Command systemctl -ErrorAction SilentlyContinue) {
+        & systemctl show --property=ActiveState --value clamav-freshclam.service 2>$null
+    }
+    if ($serviceState -notin 'active', 'activating') {
+        Invoke-Checked sudo @('freshclam')
+        if (-not (Test-ClamAvSignatureDatabase)) { throw 'FreshClam finished without the main and daily signature databases.' }
+        return
+    }
+
+    Write-Host 'Waiting for the ClamAV update service to install signatures.'
+    $wait = [Diagnostics.Stopwatch]::StartNew()
+    while ($wait.Elapsed.TotalSeconds -lt 180) {
+        Start-Sleep -Seconds 2
+        if (Test-ClamAvSignatureDatabase) { return }
+    }
+    throw 'ClamAV signature setup did not finish within 180 seconds. Check the clamav-freshclam service.'
+}
 function Get-Readiness {
     $checks = [ordered]@{}
     $checks['PowerShell 7'] = $PSVersionTable.PSVersion.Major -ge 7
@@ -91,7 +119,7 @@ function Get-Readiness {
         $checks['.NET 10 SDK'] = @(& dotnet --list-sdks | Where-Object { $_ -match '^10\.0\.' }).Count -gt 0
     }
     if ($IsLinux) {
-        $checks['ClamAV signature database'] = @(Get-ChildItem /var/lib/clamav -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.cvd', '.cld' }).Count -gt 0
+        $checks['ClamAV signature database'] = Test-ClamAvSignatureDatabase
         $checks['ICU runtime'] = @(& dpkg-query -W '-f=${db:Status-Status}\n' 'libicu[0-9]*' 2>$null | Where-Object { $_ -eq 'installed' }).Count -gt 0
         foreach ($package in $linuxPackages) {
             $status = & dpkg-query -W '-f=${Status}\n' $package 2>$null
@@ -132,7 +160,7 @@ function Invoke-Preflight([switch]$Install) {
             Invoke-Checked sudo @('apt-get', 'update')
             Invoke-Checked sudo (@('apt-get', '-o', 'DPkg::Lock::Timeout=60', 'install', '-y') + $packages)
         }
-        if (-not $checks['ClamAV signature database']) { Invoke-Checked sudo @('freshclam') }
+        Initialize-ClamAvSignatureDatabase
     } else {
         Initialize-Winget
         $ids = @()

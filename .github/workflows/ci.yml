@@ -16,6 +16,10 @@ jobs:
   build:
     name: Windows ${{ matrix.arch }}
     runs-on: windows-latest
+    env:
+      # OpenSilver loads tasks from the staged NuGet tree, which cleanup removes.
+      MSBUILDDISABLENODEREUSE: '1'
+      DOTNET_CLI_USE_MSBUILD_SERVER: '0'
     strategy:
       fail-fast: false
       matrix:
@@ -57,7 +61,12 @@ jobs:
       - name: Remove generated Windows files
         if: always()
         shell: pwsh
-        run: ./scripts/maintenance/Clean-BuildOutputs.ps1
+        run: |
+          try {
+            dotnet build-server shutdown --msbuild
+            if ($LASTEXITCODE -ne 0) { throw 'Could not shut down the CI MSBuild server.' }
+          }
+          finally { ./scripts/maintenance/Clean-BuildOutputs.ps1 }
   linux-ui:
     name: Linux UI and offline model checks
     runs-on: ubuntu-latest
