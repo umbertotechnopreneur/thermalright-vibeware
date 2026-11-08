@@ -30,6 +30,7 @@ namespace ThermalrightVibeWare.App;
 /// <summary>Typography responsibilities of the studio page.</summary>
 public sealed partial class MainPage
 {
+    private bool applyingFontSelection;
 
     /// <summary>Applies the entered custom font name.</summary>
     /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
@@ -45,9 +46,10 @@ public sealed partial class MainPage
     private void ApplyFont()
     {
         var value = FontBox.Text.Trim();
-        fontFamily = string.IsNullOrWhiteSpace(value) ? "Cascadia Mono" : value[..Math.Min(value.Length, 128)];
-        FontBox.Text = fontFamily;
-        SelectCurrentFont();
+        var family = value.Length == 0 ? "Cascadia Mono" : value[..Math.Min(value.Length, 128)];
+        viewModel.Edit(p => p.FontFamily = family);
+        FontBox.Text = family;
+        SelectCurrentFont(family);
         SaveChoices();
         _ = RefreshAsync();
     }
@@ -55,32 +57,35 @@ public sealed partial class MainPage
     /// <summary>Loads the renderer's font choices into the studio menu.</summary>
     private async Task LoadFontsAsync()
     {
-        try
+        var pending = viewModel.ReadFontsAsync();
+        FontListButton.IsEnabled = !viewModel.Auxiliary.Fonts.Busy;
+        await pending;
+        if (unloaded) { return; }
+
+        var operation = viewModel.Auxiliary.Fonts;
+        FontListButton.IsEnabled = operation.Value?.Families.Count > 0;
+        ToolTipService.SetToolTip(FontListButton, operation.Error is { } error ? "Font list unavailable: " + error : null);
+        if (operation.Value is not { } fonts)
         {
-            var fonts = await viewModel.ReadFontsAsync();
-            if (unloaded) { return; }
-            fontChoices = fonts.Families.Select(name => new PanelChoice(name, name)).Append(new PanelChoice("", "Custom font…")).ToArray();
-            updatingFonts = true;
-            FontsBox.ItemsSource = fontChoices;
-            updatingFonts = false;
-            FontListButton.IsEnabled = fonts.Families.Count > 0;
-            ToolTipService.SetToolTip(FontsBox, fonts.Notice ?? "Installed monospace fonts. Choose Custom font to type a name.");
-            SelectCurrentFont();
-        }
-        catch (Exception error)
-        {
-            ToolTipService.SetToolTip(FontListButton, "Font list unavailable: " + error.Message);
             ShowCustomFont();
+            return;
         }
+
+        applyingFontSelection = true;
+        FontsBox.ItemsSource = fonts.Families.Select(name => new PanelChoice(name, name)).Append(new PanelChoice("", "Custom font…")).ToArray();
+        applyingFontSelection = false;
+        ToolTipService.SetToolTip(FontsBox, fonts.Notice ?? "Installed monospace fonts. Choose Custom font to type a name.");
+        SelectCurrentFont(viewModel.Preferences.FontFamily);
     }
 
     /// <summary>Matches the saved font against the available font menu.</summary>
-    private void SelectCurrentFont()
+    /// <param name="family">Font name chosen in the model.</param>
+    private void SelectCurrentFont(string family)
     {
-        var choice = fontChoices.FirstOrDefault(font => string.Equals(font.Id, fontFamily, StringComparison.OrdinalIgnoreCase));
-        updatingFonts = true;
+        var choice = FontsBox.Items.OfType<PanelChoice>().FirstOrDefault(font => string.Equals(font.Id, family, StringComparison.OrdinalIgnoreCase));
+        applyingFontSelection = true;
         FontsBox.SelectedItem = choice;
-        updatingFonts = false;
+        applyingFontSelection = false;
         if (choice is null) { ShowCustomFont(); return; }
         FontsBox.Visibility = Visibility.Visible;
         FontBox.Visibility = ApplyFontButton.Visibility = FontListButton.Visibility = Visibility.Collapsed;
@@ -100,9 +105,9 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void FontList_Click(object sender, RoutedEventArgs args)
     {
-        updatingFonts = true;
-        FontsBox.SelectedItem = fontChoices.LastOrDefault();
-        updatingFonts = false;
+        applyingFontSelection = true;
+        FontsBox.SelectedItem = FontsBox.Items.OfType<PanelChoice>().LastOrDefault();
+        applyingFontSelection = false;
         FontsBox.Visibility = Visibility.Visible;
         FontBox.Visibility = ApplyFontButton.Visibility = FontListButton.Visibility = Visibility.Collapsed;
         FontLabel.Text = "FONT · MONOSPACE";
@@ -114,7 +119,7 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void FontMenu_Closed(object? sender, EventArgs args)
     {
-        if (!updatingFonts && FontsBox.SelectedItem is PanelChoice { Id.Length: 0 }) { ShowCustomFont(); }
+        if (!applyingFontSelection && FontsBox.SelectedItem is PanelChoice { Id.Length: 0 }) { ShowCustomFont(); }
     }
 
     /// <summary>Applies a selected installed font.</summary>
@@ -122,10 +127,10 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void FontSelection_Changed(object sender, SelectionChangedEventArgs args)
     {
-        if (!ready || updatingFonts || FontsBox.SelectedItem is not PanelChoice choice) { return; }
+        if (!ready || applyingFontSelection || FontsBox.SelectedItem is not PanelChoice choice) { return; }
         if (choice.Id.Length == 0) { ShowCustomFont(); FontBox.Focus(); return; }
-        fontFamily = choice.Id;
-        FontBox.Text = fontFamily;
+        viewModel.Edit(p => p.FontFamily = choice.Id);
+        FontBox.Text = choice.Id;
         SaveChoices(); _ = RefreshAsync();
     }
 
@@ -141,13 +146,21 @@ public sealed partial class MainPage
 
     /// <summary>Applies a bounded text-size step and refreshes the preview.</summary>
     /// <param name="change">Signed font-scale step, clamped to the supported range.</param>
-    private void ChangeFontScale(double change) { fontScale = Math.Round(Math.Clamp(fontScale + change, 0.7, 1.5), 1); UpdateFontScale(); SaveChoices(); _ = RefreshAsync(); }
+    private void ChangeFontScale(double change)
+    {
+        var scale = Math.Round(Math.Clamp(viewModel.Preferences.FontScale + change, 0.7, 1.5), 1);
+        viewModel.Edit(p => p.FontScale = scale);
+        UpdateFontScale(scale);
+        SaveChoices();
+        _ = RefreshAsync();
+    }
 
     /// <summary>Show the applied text scale and make its limits visible on the step buttons.</summary>
-    private void UpdateFontScale()
+    /// <param name="scale">Current font scale from the preference snapshot.</param>
+    private void UpdateFontScale(double scale)
     {
-        FontScaleText.Text = $"{fontScale:P0}";
-        SmallerButton.IsEnabled = fontScale > .7;
-        LargerButton.IsEnabled = fontScale < 1.5;
+        FontScaleText.Text = $"{scale:P0}";
+        SmallerButton.IsEnabled = scale > .7;
+        LargerButton.IsEnabled = scale < 1.5;
     }
 }

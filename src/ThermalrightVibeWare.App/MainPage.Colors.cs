@@ -20,6 +20,7 @@
 
 using System.Windows;
 using System.Windows.Media;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -52,28 +53,28 @@ public sealed partial class MainPage
     {
         if (!ready) { return; }
 
-        colorChanges.Stop();
-        if (pendingColorSettings) { CommitColorControls(); }
-
-        colorFiltersEnabled = FiltersBox.IsChecked == true;
-        UpdateFilterVisibility();
+        var enabled = FiltersBox.IsChecked == true;
+        viewModel.Edit(p => p.ColorFiltersEnabled = enabled);
+        UpdateFilterVisibility(viewModel.Preferences);
         SaveChoices();
         _ = RefreshAsync();
     }
 
     /// <summary>Hide all adjustment controls while leaving their values ready for the next enable.</summary>
-    private void UpdateFilterVisibility()
+    /// <param name="preferences">Detached filter settings, including the enabled flag.</param>
+    private void UpdateFilterVisibility(StudioPreferences preferences)
     {
-        var visibility = colorFiltersEnabled ? Visibility.Visible : Visibility.Collapsed;
+        var visibility = preferences.ColorFiltersEnabled ? Visibility.Visible : Visibility.Collapsed;
         ColorControls.Visibility = visibility;
         ResetColorsButton.Visibility = visibility;
-        FiltersStatus.Text = colorFiltersEnabled ? "On · adjust below" : "Off · original colors";
-        if (colorFiltersEnabled) { UpdateColorRamps(); }
+        FiltersStatus.Text = preferences.ColorFiltersEnabled ? "On · adjust below" : "Off · original colors";
+        if (preferences.ColorFiltersEnabled) { UpdateColorRamps(preferences); }
     }
 
     /// <summary>Reuse the renderer's cached artwork/theme accent without decoding a second image.</summary>
     /// <param name="hex">Hexadecimal theme color; null is allowed where the signature permits it.</param>
-    private void UpdatePreviewAccent(string? hex)
+    /// <param name="preferences">Filter settings associated with the preview projection.</param>
+    private void UpdatePreviewAccent(string? hex, StudioPreferences preferences)
     {
         if (hex is not { Length: 7 } || hex[0] != '#' || !hex[1..].All(Uri.IsHexDigit)) { return; }
 
@@ -81,16 +82,17 @@ public sealed partial class MainPage
         if (accent.Equals(themeAccent)) { return; }
 
         themeAccent = accent;
-        if (colorFiltersEnabled) { UpdateColorRamps(); }
+        if (preferences.ColorFiltersEnabled) { UpdateColorRamps(preferences); }
     }
 
     /// <summary>Update tiny color guides on input or accent changes, never on each unchanged frame.</summary>
-    private void UpdateColorRamps()
+    /// <param name="preferences">Detached color values used to draw the guides.</param>
+    private void UpdateColorRamps(StudioPreferences preferences)
     {
-        var saturation = SaturationSlider.Value;
-        var hue = HueSlider.Value;
-        var brightness = BrightnessSlider.Value;
-        var contrast = ContrastSlider.Value;
+        var saturation = preferences.SaturationPercent;
+        var hue = preferences.HueDegrees;
+        var brightness = preferences.BrightnessPercent;
+        var contrast = preferences.ContrastPercent;
 
         SaturationRamp.Background = CreateColorRamp(position => PreviewTone(themeAccent, position * 200, hue, brightness, contrast));
         BrightnessRamp.Background = CreateColorRamp(position => PreviewTone(themeAccent, saturation, hue, position * 200 - 100, contrast));

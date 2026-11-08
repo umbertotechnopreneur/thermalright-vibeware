@@ -18,82 +18,102 @@
  *
  * VBWR E */
 
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
 public sealed partial class MainPage
 {
-    private bool sensorDriverReading;
-    private string? sensorDriverActionNotice;
-    private bool sensorGuidanceVisible;
-    private IReadOnlyList<SensorSourceDto> sensorSources = [];
+    private (StudioOperation<SensorDriverDto> Status, StudioOperation<bool> Folder, bool GuidanceVisible)? appliedSensorDriver;
 
     /// <summary>Loads driver metadata for the sensor setup disclosure.</summary>
     private async Task RefreshSensorDriverStatusAsync()
     {
-        if (!ready || sensorDriverReading) { return; }
-        sensorDriverReading = true;
-        try { ApplySensorDriverStatus(await viewModel.ReadSensorDriverAsync()); }
-        catch (Exception error)
-        {
-            SensorDriverText.Visibility = Visibility.Visible;
-            SensorDriverText.Text = "Sensor driver status could not be read: " + error.Message;
-            SensorSummaryText.Text = "Access check unavailable";
-            SensorDriverFolderButton.IsEnabled = false;
-        }
-        finally { sensorDriverReading = false; }
+        if (!ready || unloaded) { return; }
+        var pending = viewModel.ReadSensorDriverAsync();
+        RenderSensorDriverStatus();
+        await pending;
+        RenderSensorDriverStatus();
     }
 
-    /// <summary>Shows driver availability and its verified local path.</summary>
-    /// <param name="driver">Driver installation metadata; availability does not prove sensor access.</param>
-    private void ApplySensorDriverStatus(SensorDriverDto driver)
+    /// <summary>Projects the latest driver observation and driver folder operation into the disclosure.</summary>
+    private void RenderSensorDriverStatus()
     {
+        if (unloaded) { return; }
+
+        var auxiliary = viewModel.Auxiliary;
+        var status = auxiliary.SensorDriver;
+        var folder = auxiliary.OpenSensorDriverFolder;
+        var guidanceVisible = auxiliary.SensorGuidanceVisible;
+        if (appliedSensorDriver is { } applied && ReferenceEquals(status, applied.Status)
+            && ReferenceEquals(folder, applied.Folder) && guidanceVisible == applied.GuidanceVisible) { return; }
+        appliedSensorDriver = (status, folder, guidanceVisible);
+
+        if (status.Value is not { } driver)
+        {
+            SensorDriverFolderButton.IsEnabled = false;
+            if (status.Error is { } error)
+            {
+                SensorDriverText.Visibility = Visibility.Visible;
+                SensorDriverText.Text = "Sensor driver status could not be read: " + error;
+                SensorSummaryText.Text = "Access check unavailable";
+            }
+            return;
+        }
+
         var linux = session.Snapshot.Hello?.Platform == "linux";
         SensorSetupHeading.Text = "Driver details";
         SensorSetupHeading.Visibility = linux ? Visibility.Collapsed : Visibility.Visible;
         SensorDriverHelp.Visibility = linux ? Visibility.Collapsed : Visibility.Visible;
         SensorDriverHelp.Text = "Install PawnIO separately, then restart. TermalRight VibeWare does not install drivers.";
-        SensorSummaryText.Text = linux ? driver.Available ? "Readings available" : "Access not confirmed"
-            : sensorDriverActionNotice is not null ? "Driver folder unavailable"
+        SensorSummaryText.Text = status.Error is not null ? "Access check unavailable"
+            : folder.Error is not null ? "Driver folder unavailable"
+            : linux ? driver.Available ? "Readings available" : "Access not confirmed"
             : windowActions?.CanRestartAsAdministrator == true ? "Administrator access needed"
             : driver.Available ? "PawnIO found" : "PawnIO unavailable · see details";
-        SensorDriverText.Text = sensorDriverActionNotice ?? driver.Notice ?? (driver.Available
+        var errorNotice = status.Error is { } statusError ? "Sensor driver status could not be read: " + statusError
+            : folder.Error is { } folderError ? "Could not open the driver folder: " + folderError : null;
+        SensorDriverText.Text = errorNotice ?? driver.Notice ?? (driver.Available
             ? "PawnIO installation found. Individual sensor readings show what this computer exposes."
             : "PawnIO is unavailable. CPU temperature and motherboard/fan readings may be missing.");
-        SensorDriverText.Visibility = linux && driver.Available ? Visibility.Collapsed : Visibility.Visible;
-        sensorSources = driver.Sources?.Where(source => source.Name != "Latest sensor sample").ToArray() ?? [];
-        ShowSensorSources();
+        SensorDriverText.Visibility = linux && driver.Available && errorNotice is null ? Visibility.Collapsed : Visibility.Visible;
+        var sources = driver.Sources?.Where(source => source.Name != "Latest sensor sample").ToArray() ?? [];
+        ShowSensorSources(sources, guidanceVisible);
         SensorGuidanceButton.Visibility = linux && driver.Guidance?.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SensorGuidanceButton.Content = guidanceVisible ? "Back to detected drivers" : "How to get more readings";
         SensorGuidanceText.Text = driver.Guidance is null ? "" : string.Join("\n\n", driver.Guidance);
-        SensorGuidanceText.Visibility = linux && sensorGuidanceVisible ? Visibility.Visible : Visibility.Collapsed;
+        SensorGuidanceText.Visibility = linux && guidanceVisible ? Visibility.Visible : Visibility.Collapsed;
         var path = driver.Path ?? "";
         if (SensorDriverPath.Text != path) { SensorDriverPath.Text = path; }
         SensorDriverPath.Visibility = path.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        SensorDriverFolderButton.IsEnabled = session.Supports("sensors.driver.open") && path.Length > 0;
+        SensorDriverFolderButton.IsEnabled = !folder.Busy && !status.Busy && status.Error is null
+            && session.Supports("sensors.driver.open") && path.Length > 0;
         SensorDriverFolderButton.Visibility = linux ? Visibility.Collapsed : Visibility.Visible;
         ToolTipService.SetToolTip(SensorDriverPath, driver.FileExists ? path : path + " (file not present)");
         ToolTipService.SetToolTip(SensorDriverText, SensorDriverText.Text);
     }
 
     /// <summary>Reveals Linux setup guidance without changing access or saved settings.</summary>
+    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
+    /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void SensorGuidance_Click(object sender, RoutedEventArgs args)
     {
-        sensorGuidanceVisible = !sensorGuidanceVisible;
-        SensorGuidanceText.Visibility = sensorGuidanceVisible ? Visibility.Visible : Visibility.Collapsed;
-        SensorGuidanceButton.Content = sensorGuidanceVisible ? "Back to detected drivers" : "How to get more readings";
-        ShowSensorSources();
+        viewModel.ToggleSensorGuidance();
+        RenderSensorDriverStatus();
     }
 
-    private void ShowSensorSources()
+    /// <summary>Arranges detected sensor sources into two visual columns.</summary>
+    /// <param name="sources">Sensor source metadata from the latest driver observation.</param>
+    /// <param name="guidanceVisible">Whether the guidance disclosure replaces the source list.</param>
+    private void ShowSensorSources(IReadOnlyList<SensorSourceDto> sources, bool guidanceVisible)
     {
-        var split = (sensorSources.Count + 1) / 2;
-        var columns = new[] { sensorSources.Take(split).ToArray(), sensorSources.Skip(split).ToArray() };
+        var split = (sources.Count + 1) / 2;
+        var columns = new[] { sources.Take(split).ToArray(), sources.Skip(split).ToArray() };
         var labels = new[] { SensorSourcesText, SensorSourcesRightText };
-        SensorSourcesPanel.Visibility = sensorSources.Count > 0 && !sensorGuidanceVisible ? Visibility.Visible : Visibility.Collapsed;
+        SensorSourcesPanel.Visibility = sources.Count > 0 && !guidanceVisible ? Visibility.Visible : Visibility.Collapsed;
         for (var index = 0; index < columns.Length; index++)
         {
             labels[index].Text = string.Join("\n", columns[index].Select(source => $"{source.Name} · {source.Status}"));
@@ -106,15 +126,9 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void SensorDriverFolder_Click(object sender, RoutedEventArgs args)
     {
-        SensorDriverFolderButton.IsEnabled = false;
-        sensorDriverActionNotice = null;
-        try
-        {
-            var result = await viewModel.OpenSensorDriverFolderAsync();
-            if (!result.TryGetProperty("accepted", out var accepted) || accepted.ValueKind != JsonValueKind.True)
-            { sensorDriverActionNotice = "The driver location is not available. No folder was opened; nothing was installed or allowed."; }
-        }
-        catch (Exception error) { sensorDriverActionNotice = "Could not open the driver folder: " + error.Message; }
-        finally { await RefreshSensorDriverStatusAsync(); }
+        var pending = viewModel.OpenSensorDriverFolderAsync();
+        RenderSensorDriverStatus();
+        await pending;
+        await RefreshSensorDriverStatusAsync();
     }
 }

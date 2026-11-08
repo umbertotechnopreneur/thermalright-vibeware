@@ -22,6 +22,7 @@
 
 using System.Windows;
 using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -33,46 +34,43 @@ public sealed partial class MainPage
     /// <param name="queueIfBusy">Whether to wake the session worker; repeated wakeups do not build a frame backlog.</param>
     private Task RefreshAsync(bool queueIfBusy = true)
     {
-        session.PreviewVisible = SensorDebugPanel.Visibility != Visibility.Visible && preview?.IsVisible != false;
+        var visible = !unloaded && ready && preview?.IsVisible != false;
+        if (ownsSession) { session.PreviewVisible = visible; }
         if (queueIfBusy) { session.Wake(); }
-        var previewUnavailable = unloaded || !ready || preview?.IsVisible == false;
-        if (previewUnavailable) { lastFrame = null; return Task.CompletedTask; }
+        if (!visible) { lastFrame = null; return Task.CompletedTask; }
 
-        // Observe one published frame revision; the UI never schedules a second engine loop.
         var current = session.Snapshot;
-        ApplyAppearance();
-        if (SensorDebugPanel.Visibility == Visibility.Visible) { ShowSessionStatus(current.Status, current.Frame); return Task.CompletedTask; }
-        if (selectedCategory == "codex") { _ = RefreshCodexStatusAsync(); }
-        ApplyDevices(current.Devices);
-        var p = viewModel.Preferences;
-        if ((CategoriesBox.SelectedItem as CatalogRow)?.Id != p.SelectedCategory || (ThemesBox.SelectedItem as CatalogRow)?.Id != p.SelectedTheme)
-        {
-            updatingChoices = true;
-            CategoriesBox.SelectedItem = categoryRows.FirstOrDefault(row => row.Id == p.SelectedCategory);
-            PopulateThemes();
-            updatingChoices = false;
-        }
-        UpdateDisplayControls();
-        ShowSessionStatus(current.Status, current.Frame);
+        var studio = viewModel.Read();
+        var preferences = studio.Preferences;
+        var workspace = viewModel.Workspace;
+        ApplyAppearance(preferences);
+        ShowSessionStatus(current);
+        if (workspace.SensorDebugOpen) { return Task.CompletedTask; }
+        if (preferences.SelectedCategory == "codex") { _ = RefreshCodexStatusAsync(); }
+        ApplyLibrary(current, preferences);
+        ApplyDevices(current.Devices, preferences.SelectedDeviceId);
+        UpdateDisplayControls(current, preferences);
+        UpdateNavigationState(viewModel.GetPage(preferences, current));
+        RenderSensorDriverStatus();
 
         // Apply metadata only when the worker has published a new frame.
         if (current.Frame is not { } state || current.FrameRevision == appliedFrameRevision && lastFrame is not null) { return Task.CompletedTask; }
+        UpdateProfiles(state.Profiles, preferences.ProfileSelection);
+        if (!workspace.ShowsPreview || current.FrameRequestedThemeId != preferences.SelectedTheme || previewUpdating) { return Task.CompletedTask; }
+
         appliedFrameRevision = current.FrameRevision;
-        UpdateProfiles(state.Profiles);
-        var renderedTheme = state.ActiveThemeId ?? selectedTheme;
-        UpdateFrameHeading(renderedTheme, state.FrameSuppressed);
-        UpdateNavigationState(state);
+        var renderedTheme = state.ActiveThemeId ?? preferences.SelectedTheme;
+        UpdateFrameHeading(renderedTheme, state.FrameSuppressed, current.Catalog, preferences.SelectedTheme);
         UpdateArtistSources(state.ArtistSources);
-        if (state.System.Driver is { } driver) { ApplySensorDriverStatus(driver); }
-        ScreensHelpText.Text = screenEnabled["codex"] && !codexProcessRunning
+        ScreensHelpText.Text = studio.ScreenEnabled["codex"] && !state.CodexProcessRunning
             ? "Codex is closed. Its display screen is skipped."
             : "Preview any theme. Codex appears while running.";
 
         // The engine JPEG is reused as-is; keep at most one preview decode in flight.
         if (!state.FrameSuppressed && state.FrameJpeg is { Length: > 0 } frame)
         {
-            UpdatePreviewAccent(state.AccentColor);
-            if (!previewUpdating && (lastFrame is null || !lastFrame.AsSpan().SequenceEqual(frame))) { _ = UpdatePreviewAsync(frame, renderedTheme); }
+            UpdatePreviewAccent(state.AccentColor, preferences);
+            if (lastFrame is null || !lastFrame.AsSpan().SequenceEqual(frame)) { _ = UpdatePreviewAsync(frame, renderedTheme); }
         }
         else
         {
@@ -85,15 +83,19 @@ public sealed partial class MainPage
 
     /// <summary>Applies a changed device list without overwriting the saved selection.</summary>
     /// <param name="choices">Latest device choices, or null before the first discovery completes.</param>
-    private void ApplyDevices(PanelChoice[]? choices)
+    /// <param name="selectedDeviceId">Saved device identifier, which may currently be absent.</param>
+    private void ApplyDevices(PanelChoice[]? choices, string? selectedDeviceId)
     {
-        if (choices is null || ReferenceEquals(choices, appliedDevices)) { return; }
-        appliedDevices = choices;
-        var wasUpdating = updatingChoices;
+        if (choices is null || ReferenceEquals(choices, appliedDevices) && selectedDeviceId == appliedDeviceId) { return; }
         updatingChoices = true;
-        DevicesBox.ItemsSource = choices;
-        DevicesBox.SelectedItem = choices.FirstOrDefault(item => item.Id == selectedDeviceId);
-        updatingChoices = wasUpdating;
+        try
+        {
+            if (!ReferenceEquals(choices, appliedDevices)) { DevicesBox.ItemsSource = choices; }
+            DevicesBox.SelectedItem = choices.FirstOrDefault(item => item.Id == selectedDeviceId);
+            appliedDevices = choices;
+            appliedDeviceId = selectedDeviceId;
+        }
+        finally { updatingChoices = false; }
     }
 
     /// <summary>Displays a changed JPEG and discards stale preview completions.</summary>
@@ -114,6 +116,7 @@ public sealed partial class MainPage
             previewPixelHeight = size.Height;
             lastFrame = frame;
             lastRenderedTheme = renderedTheme;
+            viewModel.SetOperationNotice(StudioNoticeSource.Preview, null);
             FitPreviewSurface();
             LoadingPanel.Visibility = Visibility.Collapsed;
             PreviewBacking.Visibility = Visibility.Visible;
@@ -121,7 +124,7 @@ public sealed partial class MainPage
         catch (Exception error)
         {
             if (unloaded || generation != previewGeneration || preview?.IsVisible == false) { return; }
-            StatusText.Text = error.Message;
+            viewModel.SetOperationNotice(StudioNoticeSource.Preview, error.Message);
             ClearPreview();
             LoadingTitle.Text = "Preview unavailable.";
             LoadingText.Text = error.Message;
@@ -142,15 +145,21 @@ public sealed partial class MainPage
 
     /// <summary>Updates profile choices while preserving the current selection.</summary>
     /// <param name="profiles">Validated display profile choices returned by the engine.</param>
-    private void UpdateProfiles(IReadOnlyList<PanelChoice> profiles)
+    /// <param name="selection">Persisted Auto or explicit profile identifier.</param>
+    private void UpdateProfiles(IReadOnlyList<PanelChoice> profiles, string selection)
     {
         var choices = new[] { new PanelChoice("auto", "Auto size") }.Concat(profiles.Select(profile => new PanelChoice(profile.Id, ShortProfileName(profile.Id, profile.Name)))).ToArray();
-        if (ProfilesBox.ItemsSource is IEnumerable<PanelChoice> existing && existing.SequenceEqual(choices)) { return; }
         updatingChoices = true;
-        ProfilesBox.ItemsSource = choices;
-        ProfilesBox.SelectedItem = choices.FirstOrDefault(profile => profile.Id == profileSelection) ?? choices.First();
-        profileSelection = ((PanelChoice)ProfilesBox.SelectedItem).Id;
-        updatingChoices = false;
+        try
+        {
+            if (ProfilesBox.ItemsSource is not IEnumerable<PanelChoice> existing || !existing.SequenceEqual(choices))
+            {
+                ProfilesBox.ItemsSource = choices;
+                existing = choices;
+            }
+            ProfilesBox.SelectedItem = existing.FirstOrDefault(profile => profile.Id == selection);
+        }
+        finally { updatingChoices = false; }
     }
 
     /// <summary>Formats known profile dimensions for the studio's compact selector.</summary>

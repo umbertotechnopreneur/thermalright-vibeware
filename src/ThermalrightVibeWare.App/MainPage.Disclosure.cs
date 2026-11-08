@@ -20,7 +20,7 @@
 
 using System.Windows;
 using System.Windows.Controls;
-using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -28,22 +28,27 @@ public sealed partial class MainPage
 {
 
     /// <summary>Shows a brief session status while retaining detailed diagnostics.</summary>
-    /// <param name="status">Available status text shown to the user.</param>
-    private void ShowSessionStatus(string status, PanelState? frame = null)
+    /// <param name="current">Latest session snapshot, including persistent errors and the current frame.</param>
+    private void ShowSessionStatus(StudioSnapshot current)
     {
-        TimingDetailsText.Text = string.Join("\n\n", new[] { status }.Concat(frame?.Notices ?? []).Distinct(StringComparer.Ordinal));
+        var status = current.Status;
+        var frame = current.Frame;
+        var notices = new[] { current.PersistenceError, viewModel.PersistenceNotice }.OfType<string>()
+            .Concat(viewModel.Auxiliary.Notices).Concat(current.Catalog?.Notices ?? []).Distinct(StringComparer.Ordinal).ToArray();
+        TimingDetailsText.Text = string.Join("\n\n", notices.Append(status).Concat(frame?.Notices ?? []).Distinct(StringComparer.Ordinal));
         var routine = status is "Local preview" or "Local preview only. The USB display has not been started."
             or "Linux local preview. USB output, media sessions and audio are unavailable." or "Display running." or "Display running"
             || status.StartsWith("Display · requested ", StringComparison.Ordinal);
-        var outputStatus = frame?.DisplayRunning == true ? frame.FrameSuppressed ? "Display paused." : "Display running." : "";
-        StatusText.Text = viewModel.PersistenceNotice ?? (routine ? outputStatus : status);
-        if (string.IsNullOrEmpty(StatusText.Text) && frame is not null)
+        var outputStatus = current.DisplayActive ? frame?.FrameSuppressed == true ? "Display paused." : "Display running." : "";
+        var summary = routine ? outputStatus : status;
+        if (string.IsNullOrEmpty(summary) && frame is not null)
         {
             if (!frame.FrameSuppressed && frame.FrameJpeg is null && frame.Notices.Count > 0)
-            { StatusText.Text = "Theme preview unavailable. See Diagnostics."; }
+            { summary = "Theme preview unavailable. See Diagnostics."; }
             else if (frame.System.Driver is { Available: false })
-            { StatusText.Text = "Some hardware readings are unavailable. See Diagnostics."; }
+            { summary = "Some hardware readings are unavailable. See Diagnostics."; }
         }
+        StatusText.Text = string.Join(" · ", notices.Append(summary).Where(message => !string.IsNullOrEmpty(message)).Distinct(StringComparer.Ordinal));
     }
 
     private void SessionDetails_Click(object sender, RoutedEventArgs args)
@@ -53,35 +58,45 @@ public sealed partial class MainPage
         SessionDetailsButton.Content = visible ? "Hide details" : "Details";
     }
 
-    private string studioSection = "preview";
-
     /// <summary>Switches the central workspace or the separate raw sensor view.</summary>
     private async void StudioTab_Click(object sender, RoutedEventArgs args)
     {
-        if (sender is not Button { Tag: string section }) { return; }
-        var debug = section == "sensor-debug";
-        if (section != "themes" && !debug) { studioSection = section; }
-        ContentArea.Visibility = debug ? Visibility.Collapsed : Visibility.Visible;
-        SensorDebugPanel.Visibility = debug ? Visibility.Visible : Visibility.Collapsed;
-        AppearancePanel.Visibility = studioSection == "appearance" ? Visibility.Visible : Visibility.Collapsed;
-        DisplayFrame.Visibility = studioSection == "display" ? Visibility.Visible : Visibility.Collapsed;
-        DiagnosticsPanel.Visibility = studioSection == "diagnostics" ? Visibility.Visible : Visibility.Collapsed;
-        PreviewFrame.Visibility = ThemeHeadingArea.Visibility = studioSection == "diagnostics" ? Visibility.Collapsed : Visibility.Visible;
-        NavigationArea.Visibility = studioSection == "preview" ? Visibility.Visible : Visibility.Collapsed;
-        UpdateStudioTabs();
+        if (sender is not Button button || ReadStudioSection(button) is not { } section) { return; }
+        viewModel.SelectSection(section);
+        var workspace = viewModel.Workspace;
+        ApplyWorkspace(workspace);
+        if (!workspace.ShowsPreview) { ClearPreview(); }
         FitPreviewSurface();
-        if (!debug && studioSection == "diagnostics") { await RefreshSensorDriverStatusAsync(); }
+        if (!workspace.SensorDebugOpen && workspace.ThemeSection == StudioSection.Diagnostics) { await RefreshSensorDriverStatusAsync(); }
         await RefreshAsync();
     }
 
-    /// <summary>Marks top-level and central selections with matching palette contrast.</summary>
-    private void UpdateStudioTabs()
+    /// <summary>Applies workspace visibility and signals demand for local preview.</summary>
+    /// <param name="workspace">Selected workspace and central tab.</param>
+    private void ApplyWorkspace(StudioWorkspace workspace)
     {
-        var debug = SensorDebugPanel.Visibility == Visibility.Visible;
+        var debug = workspace.SensorDebugOpen;
+        var section = workspace.ThemeSection;
+        ContentArea.Visibility = debug ? Visibility.Collapsed : Visibility.Visible;
+        SensorDebugPanel.Visibility = debug ? Visibility.Visible : Visibility.Collapsed;
+        AppearancePanel.Visibility = section == StudioSection.Appearance ? Visibility.Visible : Visibility.Collapsed;
+        DisplayFrame.Visibility = section == StudioSection.Display ? Visibility.Visible : Visibility.Collapsed;
+        DiagnosticsPanel.Visibility = section == StudioSection.Diagnostics ? Visibility.Visible : Visibility.Collapsed;
+        PreviewFrame.Visibility = ThemeHeadingArea.Visibility = workspace.ShowsPreview ? Visibility.Visible : Visibility.Collapsed;
+        NavigationArea.Visibility = section == StudioSection.Preview ? Visibility.Visible : Visibility.Collapsed;
+        session.PreviewRequested = workspace.ShowsPreview;
+        UpdateStudioTabs(workspace);
+    }
+
+    /// <summary>Marks top-level and central selections with matching palette contrast.</summary>
+    /// <param name="workspace">Selected workspace and central tab.</param>
+    private void UpdateStudioTabs(StudioWorkspace workspace)
+    {
         foreach (var button in new[] { ThemesTab, SensorsTab, PreviewTab, AppearanceTab, DisplayTab, DiagnosticsTab })
         {
-            var tag = button.Tag as string;
-            var selected = tag == "themes" ? !debug : tag == "sensor-debug" ? debug : tag == studioSection;
+            var section = ReadStudioSection(button);
+            var selected = section == StudioSection.SensorDebug ? workspace.SensorDebugOpen
+                : !workspace.SensorDebugOpen && (section == StudioSection.Themes || section == workspace.ThemeSection);
             button.Background = Brush(selected ? IsLight ? "#E5EEF3" : "#1E303C" : IsLight ? "#F6F7F9" : "#101218");
             button.Foreground = Brush(IsLight ? "#242231" : "#F1F1FA");
             button.BorderBrush = Brush(selected ? IsLight ? "#276C89" : "#7BC8DF" : IsLight ? "#F6F7F9" : "#101218");
@@ -89,4 +104,17 @@ public sealed partial class MainPage
             button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
         }
     }
+
+    /// <summary>Maps a workspace button's XAML tag to its model value.</summary>
+    /// <param name="button">Top-level workspace or central tab button.</param>
+    private static StudioSection? ReadStudioSection(Button button) => button.Tag switch
+    {
+        "themes" => StudioSection.Themes,
+        "sensor-debug" => StudioSection.SensorDebug,
+        "preview" => StudioSection.Preview,
+        "appearance" => StudioSection.Appearance,
+        "display" => StudioSection.Display,
+        "diagnostics" => StudioSection.Diagnostics,
+        _ => null
+    };
 }

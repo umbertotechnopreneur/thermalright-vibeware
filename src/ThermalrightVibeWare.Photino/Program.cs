@@ -92,7 +92,6 @@ internal static class Program
             () => window?.Invoke(() =>
             {
                 if (Interlocked.Exchange(ref exiting, 1) != 0) { return; }
-                session.Save();
                 if (OperatingSystem.IsWindows()) { tray?.Dispose(); }
                 if (OperatingSystem.IsLinux()) { linuxTray?.Dispose(); linuxTray = null; }
                 window?.Close();
@@ -117,7 +116,9 @@ internal static class Program
         var page = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
         window = new PhotinoWindow()
             .SetTitle("TermalRight VibeWare")
+
             // The installer owns the Start entry; Photino toasts create another one.
+
             .SetNotificationsEnabled(false)
             .SetUseOsDefaultSize(false)
             .SetUseOsDefaultLocation(false)
@@ -200,7 +201,7 @@ internal static class Program
                 }, ShowStudio);
             })
             .Load(page);
-        // Native visibility is advisory only. The session never waits for the UI.
+        // Report the native window independently of the selected studio section.
         using var visibility = new System.Threading.Timer(_ => session.PreviewVisible = preview?.IsVisible == true, null, 0, 250);
         DiagnosticLog.Initialization("studio.window");
         try { window.WaitForClose(); }

@@ -23,6 +23,7 @@
 using System.Windows;
 using System.Windows.Media;
 using OpenSilver.Themes.Modern;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -30,22 +31,24 @@ namespace ThermalrightVibeWare.App;
 public sealed partial class MainPage
 {
     private long nextSystemAppearanceRead;
-    private bool IsLight => viewModel.Preferences.Light;
+    private bool IsLight => appliedLight ?? true;
 
     /// <summary>Applies the selected light/dark palette to studio controls.</summary>
-    private void ApplyAppearance()
+    /// <param name="preferences">Detached settings used to apply the current studio appearance.</param>
+    private void ApplyAppearance(StudioPreferences preferences)
     {
         if (Environment.TickCount64 >= nextSystemAppearanceRead)
         {
             nextSystemAppearanceRead = Environment.TickCount64 + 1000;
             var systemLight = !Convert.ToBoolean(OpenSilver.Interop.ExecuteJavaScript("window.matchMedia('(prefers-color-scheme: dark)').matches"));
-            if (viewModel.Preferences.SystemLight != systemLight)
+            if (preferences.SystemLight != systemLight)
             {
+                preferences.SystemLight = systemLight;
                 viewModel.Edit(p => p.SystemLight = systemLight);
-                if (appearance == 0) { session.Wake(); }
+                if (preferences.Appearance == 0) { session.Wake(); }
             }
         }
-        var light = IsLight;
+        var light = preferences.Light;
         if (appliedLight == light) { return; }
         appliedLight = light;
         ((ModernTheme)Application.Current.Theme).CurrentPalette = light ? ModernTheme.Palettes.Light : ModernTheme.Palettes.Dark;
@@ -126,31 +129,33 @@ public sealed partial class MainPage
             button.BorderBrush = line;
             button.BorderThickness = new Thickness(1);
         }
-        UpdateRows();
-        UpdateAppearanceButtons();
-        UpdateDisplayControls();
+        UpdateRows(preferences);
+        UpdateAppearanceButtons(preferences.Appearance);
+        UpdateStudioTabs(viewModel.Workspace);
         ApplySensorDebugAppearance();
     }
 
     /// <summary>Marks the selected appearance mode and clears other button accents.</summary>
-    private void UpdateAppearanceButtons()
+    /// <param name="mode">Selected appearance, where zero follows the operating system.</param>
+    private void UpdateAppearanceButtons(int mode)
     {
         var buttons = new[] { AutoButton, DarkButton, LightButton };
         for (var i = 0; i < buttons.Length; i++)
         {
             buttons[i].Background = new SolidColorBrush(Colors.Transparent);
-            buttons[i].Foreground = Brush(i == appearance ? IsLight ? "#245F78" : "#A9E1EF" : IsLight ? "#596477" : "#AEB9CA");
-            buttons[i].BorderBrush = i == appearance ? Brush(IsLight ? "#276C89" : "#7BC8DF") : new SolidColorBrush(Colors.Transparent);
+            buttons[i].Foreground = Brush(i == mode ? IsLight ? "#245F78" : "#A9E1EF" : IsLight ? "#596477" : "#AEB9CA");
+            buttons[i].BorderBrush = i == mode ? Brush(IsLight ? "#276C89" : "#7BC8DF") : new SolidColorBrush(Colors.Transparent);
             buttons[i].BorderThickness = new Thickness(0, 0, 0, 2);
-            buttons[i].FontWeight = i == appearance ? FontWeights.SemiBold : FontWeights.Normal;
+            buttons[i].FontWeight = i == mode ? FontWeights.SemiBold : FontWeights.Normal;
         }
     }
 
     /// <summary>Refreshes category and theme row selection colors.</summary>
-    private void UpdateRows()
+    /// <param name="preferences">Category and theme selection for these rows.</param>
+    private void UpdateRows(StudioPreferences preferences)
     {
-        foreach (var row in categoryRows) { row.Update(IsLight, row.Id == selectedCategory); }
-        foreach (var row in themeRows) { row.Update(IsLight, row.Id == selectedTheme); }
+        foreach (var row in categoryRows) { row.Update(IsLight, row.Id == preferences.SelectedCategory); }
+        foreach (var row in themeRows) { row.Update(IsLight, row.Id == preferences.SelectedTheme); }
     }
 
     /// <summary>Selects the operating system's appearance mode.</summary>
@@ -170,7 +175,13 @@ public sealed partial class MainPage
 
     /// <summary>Stores an appearance mode and refreshes its visible controls.</summary>
     /// <param name="value">Appearance mode: 0 follows Windows, 1 selects dark, 2 selects light.</param>
-    private void SetAppearance(int value) { appearance = value; ApplyAppearance(); UpdateAppearanceButtons(); SaveChoices(); _ = RefreshAsync(); }
+    private void SetAppearance(int value)
+    {
+        viewModel.Edit(p => p.Appearance = value);
+        SaveChoices();
+        _ = RefreshAsync();
+        UpdateAppearanceButtons(value);
+    }
 
     /// <summary>Converts a hexadecimal color to a solid studio brush.</summary>
     /// <param name="hex">Hexadecimal theme color; null is allowed where the signature permits it.</param>

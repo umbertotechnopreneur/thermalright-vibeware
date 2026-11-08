@@ -18,16 +18,22 @@
  *
  * VBWR E */
 
+using System.Collections.Immutable;
+using System.Text.Json;
 using ThermalrightVibeWare.Contracts;
 namespace ThermalrightVibeWare.Studio;
 
 /// <summary>UI-independent selection commands shared by the view and background session.</summary>
-/// <param name="model">Shared studio state owner; edits and reads pass through its transaction boundary.</param>
+/// <param name="studioModel">Shared studio state owner; edits and reads pass through its transaction boundary.</param>
 /// <param name="client">Optional engine client for typed auxiliary operations; null leaves those operations unavailable.</param>
-public sealed class StudioViewModel(StudioModel model, IPanelClient? client = null)
+/// <param name="cancelPendingStartup">Cancels a saved startup request before an explicit selection changes.</param>
+public sealed partial class StudioViewModel(StudioModel studioModel, IPanelClient? client = null, Action? cancelPendingStartup = null)
 {
+    private readonly StudioModel model = studioModel;
+    private readonly Action? cancelStartup = cancelPendingStartup;
     private readonly object auxiliarySync = new();
     private StudioAuxiliaryState auxiliary = new();
+    private long? lastCodexAttempt;
     public StudioAuxiliaryState Auxiliary => Volatile.Read(ref auxiliary);
     public string? PersistenceNotice => model.PersistenceNotice;
 
@@ -43,41 +49,134 @@ public sealed class StudioViewModel(StudioModel model, IPanelClient? client = nu
     private void Publish(Func<StudioAuxiliaryState, StudioAuxiliaryState> update)
     { lock (auxiliarySync) { Volatile.Write(ref auxiliary, update(auxiliary)); } }
 
-    /// <summary>Reads Codex setup status and optionally prepares the local plugin.</summary>
-    /// <param name="prepare">Whether to prepare the local Codex plugin before reading its status.</param>
-    public async Task<CodexSetupStatus> ReadCodexAsync(bool prepare = false)
+    /// <summary>Publishes one operation's progress and result, retaining its last successful value on failure.</summary>
+    /// <typeparam name="T">Result published by the operation.</typeparam>
+    /// <param name="read">Selects the operation from the latest snapshot.</param>
+    /// <param name="write">Replaces that operation in the latest snapshot.</param>
+    /// <param name="request">Starts the operation after its busy state is published.</param>
+    /// <param name="canStart">Optional guard evaluated under the same lock as the busy state.</param>
+    /// <returns>Whether a request ran, including requests that reported an error.</returns>
+    private async Task<bool> RunAuxiliaryAsync<T>(Func<StudioAuxiliaryState, StudioOperation<T>> read,
+        Func<StudioAuxiliaryState, StudioOperation<T>, StudioAuxiliaryState> write, Func<Task<T>> request,
+        Func<StudioAuxiliaryState, bool>? canStart = null)
     {
-        var value = await RequestAsync<CodexSetupStatus>(prepare ? "codex.prepare" : "codex.status").ConfigureAwait(false);
-        Publish(s => s with { Codex = value }); return value;
+        lock (auxiliarySync)
+        {
+            var state = auxiliary;
+            var operation = read(state);
+            if (operation.Busy || canStart?.Invoke(state) == false) { return false; }
+            Volatile.Write(ref auxiliary, write(state, operation with { Busy = true }));
+        }
+
+        try
+        {
+            var value = await request().ConfigureAwait(false);
+            Publish(s => write(s, new(value)));
+        }
+        catch (Exception error)
+        {
+            Publish(s => write(s, read(s) with { Busy = false, Error = error.Message }));
+        }
+        return true;
+    }
+
+    /// <summary>Reads Codex setup status, spacing automatic attempts even if a request fails.</summary>
+    /// <param name="force">Whether an explicit refresh may bypass the interval.</param>
+    public Task<bool> ReadCodexAsync(bool force = false) => RunAuxiliaryAsync(
+        s => s.Codex, (s, operation) => s with { Codex = operation },
+        () => RequestAsync<CodexSetupStatus>("codex.status"),
+        s => !s.CodexPreparation.Busy && BeginCodexAttempt(force));
+
+    /// <summary>Prepares the local plugin and publishes the status returned by the engine.</summary>
+    public Task<bool> PrepareCodexAsync() => RunAuxiliaryAsync(
+        s => s.CodexPreparation, (s, operation) => s with { CodexPreparation = operation },
+        async () =>
+        {
+            var status = await RequestAsync<CodexSetupStatus>("codex.prepare").ConfigureAwait(false);
+            Publish(s => s with { Codex = new(status) });
+            return true;
+        }, s => !s.Codex.Busy && BeginCodexAttempt(force: true));
+
+    /// <summary>Claims the next Codex attempt while the auxiliary state is locked.</summary>
+    /// <param name="force">Whether to start before the automatic polling interval has elapsed.</param>
+    private bool BeginCodexAttempt(bool force)
+    {
+        var now = Environment.TickCount64;
+        if (!force && lastCodexAttempt is long previous && now - previous < 5000) { return false; }
+        lastCodexAttempt = now;
+        return true;
     }
 
     /// <summary>Reads diagnostic settings, optionally changing their enabled state.</summary>
     /// <param name="enabled">New logging choice, or null to read the current choice without changing it.</param>
-    public async Task<DiagnosticsStatus> ReadDiagnosticsAsync(bool? enabled = null)
-    {
-        var value = await RequestAsync<DiagnosticsStatus>(enabled.HasValue ? "diagnostics.set" : "diagnostics.status",
-            enabled.HasValue ? new SetDiagnosticsOptions(enabled.Value) : null).ConfigureAwait(false);
-        Publish(s => s with { Diagnostics = value }); return value;
-    }
+    public Task<bool> ReadDiagnosticsAsync(bool? enabled = null) => RunAuxiliaryAsync(
+        s => s.Diagnostics, (s, operation) => s with { Diagnostics = operation },
+        () => RequestAsync<DiagnosticsStatus>(enabled.HasValue ? "diagnostics.set" : "diagnostics.status",
+            enabled.HasValue ? new SetDiagnosticsOptions(enabled.Value) : null));
 
     /// <summary>Asks the engine to open its local diagnostic log.</summary>
-    public Task<System.Text.Json.JsonElement> OpenDiagnosticsAsync() => RequestAsync<System.Text.Json.JsonElement>("diagnostics.open");
+    public Task<bool> OpenDiagnosticsAsync() => RunAuxiliaryAsync(
+        s => s.OpenDiagnostics, (s, operation) => s with { OpenDiagnostics = operation },
+        () => OpenLocationAsync("diagnostics.open", "No log file yet. Leave Log errors on, then try again."));
 
     /// <summary>Reads driver installation metadata without opening hardware.</summary>
-    public Task<SensorDriverDto> ReadSensorDriverAsync() => RequestAsync<SensorDriverDto>("sensors.driver.status");
+    public Task<bool> ReadSensorDriverAsync() => RunAuxiliaryAsync(
+        s => s.SensorDriver, (s, operation) => s with { SensorDriver = operation },
+        () => RequestAsync<SensorDriverDto>("sensors.driver.status"));
+
+    /// <summary>Publishes driver metadata from an engine frame without clearing an explicit access check's error.</summary>
+    /// <param name="driver">Driver status observed in the latest engine frame.</param>
+    public void ObserveSensorDriver(SensorDriverDto driver) => Publish(s => s with { SensorDriver = s.SensorDriver with { Value = driver } });
 
     /// <summary>Requests raw read-only sensor diagnostics from the engine.</summary>
-    public Task<SensorDebugDto> ReadSensorDebugAsync() => RequestAsync<SensorDebugDto>("sensors.debug");
+    public Task<bool> ReadSensorDebugAsync() => RunAuxiliaryAsync(
+        s => s.SensorDebug, (s, operation) => s with { SensorDebug = operation },
+        () => RequestAsync<SensorDebugDto>("sensors.debug"));
 
     /// <summary>Asks the engine to show the installed sensor driver location.</summary>
-    public Task<System.Text.Json.JsonElement> OpenSensorDriverFolderAsync() => RequestAsync<System.Text.Json.JsonElement>("sensors.driver.open");
+    public Task<bool> OpenSensorDriverFolderAsync() => RunAuxiliaryAsync(
+        s => s.OpenSensorDriverFolder, (s, operation) => s with { OpenSensorDriverFolder = operation },
+        () => OpenLocationAsync("sensors.driver.open", "The driver location is not available."));
+
+    /// <summary>Asks the engine to open a location and reports an explicit refusal as an operation error.</summary>
+    /// <param name="method">Engine method for the requested location.</param>
+    /// <param name="unavailable">Notice shown if the engine declines the operation.</param>
+    private async Task<bool> OpenLocationAsync(string method, string unavailable)
+    {
+        var result = await RequestAsync<JsonElement>(method).ConfigureAwait(false);
+        if (!result.TryGetProperty("accepted", out var accepted) || accepted.ValueKind != JsonValueKind.True)
+        { throw new IOException(unavailable); }
+        return true;
+    }
 
     /// <summary>Loads the worker's available font families and publishes the result.</summary>
-    public async Task<FontCatalogDto> ReadFontsAsync()
+    public Task<bool> ReadFontsAsync() => RunAuxiliaryAsync(
+        s => s.Fonts, (s, operation) => s with { Fonts = operation },
+        () => RequestAsync<FontCatalogDto>("fonts"));
+
+    /// <summary>Sets or clears a notice for an operation handled by the studio or desktop host.</summary>
+    /// <param name="source">Operation that owns the notice.</param>
+    /// <param name="message">Notice to display, or null after that operation succeeds.</param>
+    public void SetOperationNotice(StudioNoticeSource source, string? message) => Publish(s => s with
     {
-        var value = await RequestAsync<FontCatalogDto>("fonts").ConfigureAwait(false);
-        Publish(s => s with { Fonts = value }); return value;
-    }
+        OperationNotices = message is null ? s.OperationNotices.Remove(source) : s.OperationNotices.SetItem(source, message)
+    });
+
+    /// <summary>Reads the notice owned by one studio or desktop operation.</summary>
+    /// <param name="source">Operation whose current notice is requested.</param>
+    public string? GetOperationNotice(StudioNoticeSource source) => Auxiliary.OperationNotices.GetValueOrDefault(source);
+
+    /// <summary>Toggles Linux sensor guidance for the current studio session.</summary>
+    public void ToggleSensorGuidance() => Publish(s => s with { SensorGuidanceVisible = !s.SensorGuidanceVisible });
+
+    /// <summary>Remembers which raw sensor nodes the user has expanded.</summary>
+    /// <param name="id">Stable device or sensor group identifier.</param>
+    /// <param name="expanded">Whether the group is now expanded.</param>
+    public void SetSensorGroupExpanded(string id, bool expanded) => Publish(s => s with
+    {
+        ExpandedSensorGroups = expanded ? s.ExpandedSensorGroups.Add(id) : s.ExpandedSensorGroups.Remove(id)
+    });
+
     public StudioPreferences Preferences => model.Preferences;
 
     /// <summary>Returns an independent studio state snapshot.</summary>
@@ -111,7 +210,7 @@ public sealed class StudioViewModel(StudioModel model, IPanelClient? client = nu
     public void SelectCategory(string category, ThemeCatalogDto catalog) => model.Update(s =>
     {
         if (!catalog.Categories.Any(c => c.Id == category)) { return; }
-        Select(s, category, s.ScreenThemes.GetValueOrDefault(category, ""));
+        SelectExplicit(s, category, s.ScreenThemes.GetValueOrDefault(category, ""));
     });
 
     /// <summary>Selects a theme and updates the category's saved selection.</summary>
@@ -120,7 +219,7 @@ public sealed class StudioViewModel(StudioModel model, IPanelClient? client = nu
     public void SelectTheme(string theme, ThemeCatalogDto catalog) => model.Update(s =>
     {
         var selected = catalog.Themes.FirstOrDefault(t => t.Id == theme);
-        if (selected is not null) { Select(s, selected.Category, selected.Id); }
+        if (selected is not null) { SelectExplicit(s, selected.Category, selected.Id); }
     });
 
     /// <summary>Stores a category/theme selection and resets its page clock.</summary>
@@ -155,4 +254,22 @@ public sealed class StudioViewModel(StudioModel model, IPanelClient? client = nu
     }
 }
 
-public sealed record StudioAuxiliaryState(CodexSetupStatus? Codex = null, DiagnosticsStatus? Diagnostics = null, FontCatalogDto? Fonts = null);
+public enum StudioNoticeSource { Catalog, Devices, Preview, Restart, Tray }
+
+public sealed record StudioOperation<T>(T? Value = default, bool Busy = false, string? Error = null);
+
+public sealed record StudioAuxiliaryState
+{
+    public StudioOperation<CodexSetupStatus> Codex { get; init; } = new();
+    public StudioOperation<bool> CodexPreparation { get; init; } = new();
+    public StudioOperation<DiagnosticsStatus> Diagnostics { get; init; } = new();
+    public StudioOperation<bool> OpenDiagnostics { get; init; } = new();
+    public StudioOperation<FontCatalogDto> Fonts { get; init; } = new();
+    public StudioOperation<SensorDriverDto> SensorDriver { get; init; } = new();
+    public StudioOperation<bool> OpenSensorDriverFolder { get; init; } = new();
+    public StudioOperation<SensorDebugDto> SensorDebug { get; init; } = new();
+    public bool SensorGuidanceVisible { get; init; }
+    public ImmutableHashSet<string> ExpandedSensorGroups { get; init; } = ImmutableHashSet.Create<string>(StringComparer.Ordinal);
+    internal ImmutableSortedDictionary<StudioNoticeSource, string> OperationNotices { get; init; } = ImmutableSortedDictionary<StudioNoticeSource, string>.Empty;
+    public IReadOnlyList<string> Notices => [.. OperationNotices.Values, .. new[] { Diagnostics.Error, OpenDiagnostics.Error }.OfType<string>()];
+}

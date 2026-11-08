@@ -36,7 +36,7 @@ public sealed class StudioModel
 
     /// <summary>Copies the current studio state while holding its lock.</summary>
     public StudioState Read() { lock (sync) { return state.Copy(); } }
-    public StudioPreferences Preferences => Read().Preferences;
+    public StudioPreferences Preferences { get { lock (sync) { return state.Preferences with { }; } } }
     public IReadOnlyDictionary<string, string> ScreenThemes => Read().ScreenThemes;
     public IReadOnlyDictionary<string, bool> ScreenEnabled => Read().ScreenEnabled;
     public IReadOnlyDictionary<string, ThemePalette> Palettes => Read().Palettes;

@@ -22,7 +22,9 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -30,76 +32,97 @@ namespace ThermalrightVibeWare.App;
 public sealed partial class MainPage
 {
 
-    /// <summary>Loads available themes and reconciles the current selection.</summary>
-    private async Task LoadCatalogAsync()
+    /// <summary>Requests the catalog and reports errors independently of frame updates.</summary>
+    /// <param name="reload">Whether to replace a catalog already loaded by the worker.</param>
+    private async Task LoadCatalogAsync(bool reload = false)
     {
-        if (catalogLoading) { return; }
-        catalogLoading = true;
-        ReloadButton.IsEnabled = false;
+        if (session.Snapshot.CatalogRefreshPending) { return; }
         try
         {
-            if (session.Snapshot.Catalog is null) { await session.ReloadCatalogAsync(); }
-            catalog = session.Snapshot.Catalog ?? throw new IOException("Theme catalog unavailable.");
-            if (unloaded) { return; }
-            updatingChoices = true;
-            categoryRows.Clear();
-            foreach (var category in catalog.Categories) { categoryRows.Add(new(category.Id, category.Name)); }
-            CategoriesBox.ItemsSource = categoryRows.ToArray();
-            CategoriesBox.SelectedItem = categoryRows.FirstOrDefault(row => row.Id == selectedCategory) ?? categoryRows.FirstOrDefault();
-            PopulateThemes();
-            if (catalog.Notices.Count > 0) { StatusText.Text = string.Join(" · ", catalog.Notices); }
+            if (reload || session.Snapshot.Catalog is null) { await session.ReloadCatalogAsync(); }
+            viewModel.SetOperationNotice(StudioNoticeSource.Catalog, null);
         }
-        catch (Exception error)
-        {
-            StatusText.Text = error.Message;
-            LoadingTitle.Text = "Theme library unavailable";
-            LoadingText.Text = error.Message;
-        }
-        finally { updatingChoices = false; catalogLoading = false; ReloadButton.IsEnabled = true; }
+        catch (Exception error) { viewModel.SetOperationNotice(StudioNoticeSource.Catalog, error.Message); }
+        await RefreshAsync(queueIfBusy: false);
     }
 
-    /// <summary>Rebuilds the theme rows for the selected category without reentrant selection events.</summary>
-    private void PopulateThemes()
+    /// <summary>Projects catalog and selection changes into the library controls.</summary>
+    /// <param name="current">Latest catalog, availability and capabilities.</param>
+    /// <param name="preferences">Detached selection and appearance for this update.</param>
+    private void ApplyLibrary(StudioSnapshot current, StudioPreferences preferences)
     {
-        var wasUpdating = updatingChoices;
+        ReloadButton.IsEnabled = !current.CatalogRefreshPending;
+        var catalog = current.Catalog;
+        if (catalog is null)
+        {
+            if (!current.CatalogRefreshPending && viewModel.GetOperationNotice(StudioNoticeSource.Catalog) is { } notice)
+            {
+                LoadingTitle.Text = "Theme library unavailable";
+                LoadingText.Text = notice;
+            }
+            return;
+        }
+        var catalogChanged = !ReferenceEquals(appliedCatalog, catalog);
+        var categoryChanged = catalogChanged || appliedCategory != preferences.SelectedCategory;
+        if (!categoryChanged && appliedTheme == preferences.SelectedTheme) { return; }
+
         updatingChoices = true;
-        themeRows.Clear();
-        foreach (var theme in catalog?.Themes.Where(theme => theme.Category == selectedCategory) ?? [])
-        { themeRows.Add(new(theme.Id, theme.Name, (themeRows.Count + 1).ToString("00"))); }
-        ThemesBox.ItemsSource = themeRows.ToArray();
-        ThemesBox.SelectedItem = themeRows.FirstOrDefault(row => row.Id == selectedTheme) ?? themeRows.FirstOrDefault();
-        UpdateSelection();
-        updatingChoices = wasUpdating;
+        try
+        {
+            if (catalogChanged)
+            {
+                categoryRows.Clear();
+                categoryRows.AddRange(catalog.Categories.Select(category => new CatalogRow(category.Id, category.Name)));
+                CategoriesBox.ItemsSource = categoryRows.ToArray();
+            }
+            if (categoryChanged)
+            {
+                CategoriesBox.SelectedItem = categoryRows.FirstOrDefault(row => row.Id == preferences.SelectedCategory);
+                themeRows.Clear();
+                themeRows.AddRange(catalog.Themes.Where(theme => theme.Category == preferences.SelectedCategory)
+                    .Select((theme, index) => new CatalogRow(theme.Id, theme.Name, (index + 1).ToString("00"))));
+                ThemesBox.ItemsSource = themeRows.ToArray();
+            }
+            var selectedRow = themeRows.FirstOrDefault(row => row.Id == preferences.SelectedTheme);
+            ThemesBox.SelectedItem = selectedRow;
+            if (selectedRow is not null) { ThemesBox.ScrollIntoView(selectedRow); }
+            appliedCatalog = catalog;
+            appliedCategory = preferences.SelectedCategory;
+            appliedTheme = preferences.SelectedTheme;
+            UpdateSelection(current, catalog, preferences);
+        }
+        finally { updatingChoices = false; }
     }
 
     /// <summary>Applies the selected theme's heading, capabilities and library position.</summary>
-    private void UpdateSelection()
+    /// <param name="current">Negotiated capabilities for the current session.</param>
+    /// <param name="catalog">Catalog supplying the selected theme's metadata.</param>
+    /// <param name="preferences">Detached preferences for the current render.</param>
+    private void UpdateSelection(StudioSnapshot current, ThemeCatalogDto catalog, StudioPreferences preferences)
     {
-        SpectrumBox.IsEnabled = session.Supports("levels") && catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme)?.SupportsSpectrum == true;
+        var category = preferences.SelectedCategory;
+        var selected = catalog.Themes.FirstOrDefault(theme => theme.Id == preferences.SelectedTheme);
+        SpectrumBox.IsEnabled = current.Hello?.Supports("levels") == true && selected?.SupportsSpectrum == true;
         SpectrumBox.Visibility = SpectrumBox.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
-        CodexSetupFrame.Visibility = selectedCategory == "codex" ? Visibility.Visible : Visibility.Collapsed;
+        CodexSetupFrame.Visibility = category == "codex" ? Visibility.Visible : Visibility.Collapsed;
 
-        if (selectedCategory == "system") { _ = RefreshSensorDriverStatusAsync(); }
+        if (category == "system") { _ = RefreshSensorDriverStatusAsync(); }
         AdministratorPanel.Visibility = windowActions?.CanRestartAsAdministrator == true
             ? Visibility.Visible : Visibility.Collapsed;
-        CategoryText.Text = (categoryRows.FirstOrDefault(row => row.Id == selectedCategory)?.Name ?? selectedCategory).ToUpperInvariant();
-        var selected = catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme);
-        SelectedThemeText.Text = themeRows.FirstOrDefault(row => row.Id == selectedTheme)?.Name ?? "No themes installed";
-        PagePositionText.Text = selected is null ? "00 / 00" : $"01 / {selected.PageCount:00}";
-        PagePreviousButton.IsEnabled = PageNextButton.IsEnabled = selected?.PageCount > 1;
+        CategoryText.Text = (categoryRows.FirstOrDefault(row => row.Id == category)?.Name ?? category).ToUpperInvariant();
+        SelectedThemeText.Text = selected?.Name ?? "No themes installed";
         UpdateThemeDescription(selected);
         ToolTipService.SetToolTip(SelectedThemeText, null);
-        PositionText.Text = $"{ThemesBox.SelectedIndex + 1:00} / {themeRows.Count:00}";
+        var index = themeRows.FindIndex(row => row.Id == preferences.SelectedTheme);
+        PositionText.Text = $"{index + 1:00} / {themeRows.Count:00}";
         PreviousButton.IsEnabled = NextButton.IsEnabled = themeRows.Count > 1;
-        CycleBox.IsEnabled = (catalog?.Themes.Count ?? 0) > 1;
-        UpdateDisplayControls();
-        UpdateRows();
-        UpdateStudioTabs();
+        CycleBox.IsEnabled = catalog.Themes.Count > 1;
+        UpdateRows(preferences);
         if (themeRows.Count == 0)
         {
             ClearPreview();
-            LoadingTitle.Text = catalog is null ? "Theme library unavailable" : "This category is empty.";
-            LoadingText.Text = catalog is null ? session.Snapshot.Status : "Add a theme pack and reload the library.";
+            LoadingTitle.Text = "This category is empty.";
+            LoadingText.Text = "Add a theme pack and reload the library.";
         }
     }
 
@@ -131,36 +154,27 @@ public sealed partial class MainPage
     /// <param name="direction">Navigation step; negative moves back and positive moves forward.</param>
     private void Navigate(int direction)
     {
-        if (ThemesBox.Items.Count > 0) { ThemesBox.SelectedIndex = (ThemesBox.SelectedIndex + direction + ThemesBox.Items.Count) % ThemesBox.Items.Count; ThemesBox.ScrollIntoView(ThemesBox.SelectedItem); }
+        if (session.Snapshot.Catalog is not { } catalog) { return; }
+        viewModel.NavigateTheme(catalog, direction);
+        SaveChoices();
+        _ = RefreshAsync();
     }
 
     /// <summary>Moves the selected theme's page and resets its page clock.</summary>
     /// <param name="direction">Navigation step; negative moves back and positive moves forward.</param>
     private void NavigatePage(int direction)
     {
-        var state = session.Snapshot.Frame;
-        var count = Math.Max(1, state?.ActivePageCount ?? catalog?.Themes.FirstOrDefault(theme => theme.Id == selectedTheme)?.PageCount ?? 1);
-        var current = Math.Clamp(state?.ActivePageIndex ?? viewModel.Preferences.SelectedPageIndex, 0, count - 1);
-        var target = (current + direction + count) % count;
-        viewModel.Edit(preferences =>
-        {
-            preferences.SelectedPageIndex = target;
-            preferences.PageRevision++;
-            preferences.LastChange = Environment.TickCount64;
-        });
-        session.Wake();
+        viewModel.NavigatePage(session.Snapshot, direction);
         _ = RefreshAsync();
     }
 
-    /// <summary>Applies page counters from the rendered frame.</summary>
-    /// <param name="state">Latest immutable engine frame/status observation used by the studio.</param>
-    private void UpdateNavigationState(PanelState state)
+    /// <summary>Projects the page counter, title and availability.</summary>
+    /// <param name="page">Current navigation data resolved by the model.</param>
+    private void UpdateNavigationState(StudioPage page)
     {
-        var count = Math.Max(1, state.ActivePageCount);
-        var index = Math.Clamp(state.ActivePageIndex, 0, count - 1);
-        PagePositionText.Text = $"{index + 1:00} / {count:00}";
-        ToolTipService.SetToolTip(PagePositionText, state.ActivePageTitle);
-        PagePreviousButton.IsEnabled = PageNextButton.IsEnabled = !state.FrameSuppressed && count > 1;
+        PagePositionText.Text = page.Count == 0 ? "00 / 00" : $"{page.Index + 1:00} / {page.Count:00}";
+        ToolTipService.SetToolTip(PagePositionText, page.Title);
+        PagePreviousButton.IsEnabled = PageNextButton.IsEnabled = page.CanNavigate;
     }
 
     /// <summary>Saves the enabled screen categories and refreshes the preview.</summary>
@@ -168,8 +182,9 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void Screen_Changed(object sender, RoutedEventArgs args)
     {
-        if (!ready || updatingChoices) { return; }
-        viewModel.SetScreens(MusicScreenBox.IsChecked == true, CodexScreenBox.IsChecked == true, SystemScreenBox.IsChecked == true);
+        if (!ready || updatingChoices || sender is not ToggleButton screen) { return; }
+        var category = screen == MusicScreenBox ? "multimedia" : screen == CodexScreenBox ? "codex" : "system";
+        viewModel.SetScreen(category, screen.IsChecked == true);
         SaveChoices();
         _ = RefreshAsync();
     }
@@ -177,7 +192,9 @@ public sealed partial class MainPage
     /// <summary>Label the JPEG actually returned without changing the user's chosen theme.</summary>
     /// <param name="themeId">Stable theme identifier from the current catalog.</param>
     /// <param name="suppressed">Whether the current frame is hidden because no eligible screen is enabled.</param>
-    private void UpdateFrameHeading(string themeId, bool suppressed)
+    /// <param name="catalog">Latest theme metadata for the displayed title.</param>
+    /// <param name="selectedTheme">Theme selected in the studio model.</param>
+    private void UpdateFrameHeading(string themeId, bool suppressed, ThemeCatalogDto? catalog, string selectedTheme)
     {
         if (suppressed)
         {
@@ -202,10 +219,8 @@ public sealed partial class MainPage
     private void Category_Changed(object sender, SelectionChangedEventArgs args)
     {
         if (!ready || updatingChoices) { return; }
-        if (catalog is null) { return; }
-        viewModel.SelectCategory((CategoriesBox.SelectedItem as CatalogRow)?.Id ?? "multimedia", catalog);
-        PopulateThemes();
-        lastChange = Environment.TickCount64;
+        if (session.Snapshot.Catalog is not { } catalog || CategoriesBox.SelectedItem is not CatalogRow category) { return; }
+        viewModel.SelectCategory(category.Id, catalog);
         SaveChoices();
         _ = RefreshAsync();
     }
@@ -216,10 +231,8 @@ public sealed partial class MainPage
     private void Theme_Changed(object sender, SelectionChangedEventArgs args)
     {
         if (!ready || updatingChoices) { return; }
-        if (catalog is null) { return; }
-        viewModel.SelectTheme((ThemesBox.SelectedItem as CatalogRow)?.Id ?? "", catalog);
-        lastChange = Environment.TickCount64;
-        UpdateSelection();
+        if (session.Snapshot.Catalog is not { } catalog || ThemesBox.SelectedItem is not CatalogRow theme) { return; }
+        viewModel.SelectTheme(theme.Id, catalog);
         SaveChoices();
         _ = RefreshAsync();
     }
@@ -229,9 +242,8 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void Profile_Changed(object sender, SelectionChangedEventArgs args)
     {
-        if (!ready || updatingChoices) { return; }
-        var profile = (ProfilesBox.SelectedItem as PanelChoice)?.Id ?? "auto";
-        viewModel.Edit(p => { p.ProfileSelection = profile; if (profile != "auto") { p.SelectedProfile = profile; } });
+        if (!ready || updatingChoices || !session.Snapshot.CanSelectProfile || ProfilesBox.SelectedItem is not PanelChoice profile) { return; }
+        viewModel.SelectProfile(profile.Id);
         SaveChoices();
         _ = RefreshAsync();
     }
@@ -239,11 +251,7 @@ public sealed partial class MainPage
     /// <summary>Reloads the local theme catalog on request.</summary>
     /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
-    private async void Reload_Click(object sender, RoutedEventArgs args)
-    {
-        try { await session.ReloadCatalogAsync(); await LoadCatalogAsync(); await RefreshAsync(); }
-        catch (Exception error) { StatusText.Text = error.Message; }
-    }
+    private async void Reload_Click(object sender, RoutedEventArgs args) => await LoadCatalogAsync(reload: true);
 
     /// <summary>Selects the previous theme.</summary>
     /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
