@@ -23,6 +23,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -31,24 +32,29 @@ public sealed partial class MainPage
 {
 
     /// <summary>Enables display controls according to session activity and pending startup.</summary>
-    private void UpdateDisplayControls()
+    /// <param name="current">Latest session state and negotiated engine capabilities.</param>
+    /// <param name="preferences">Current saved display and theme choices.</param>
+    private void UpdateDisplayControls(StudioSnapshot current, StudioPreferences preferences)
     {
-        StartDisplayButton.IsEnabled = !displayBusy && !displayActive && !devicesLoading && DevicesBox.SelectedItem is PanelChoice && !string.IsNullOrEmpty(selectedTheme);
-        StopDisplayButton.IsEnabled = !displayBusy && (displayActive || startupRestorePending);
-        DevicesBox.IsEnabled = !displayBusy && !displayActive && !devicesLoading;
-        RefreshDevicesButton.IsEnabled = !displayBusy && !displayActive && !devicesLoading;
-        ProfilesBox.IsEnabled = !displayBusy && !displayActive;
-        PreviewBadgeText.Text = displayActive ? frameSuppressed ? "DISPLAY PAUSED" : "LIVE DISPLAY" : "LOCAL PREVIEW";
+        var outputAvailable = current.Hello?.Supports("start") == true;
+        StartDisplayButton.IsEnabled = current.CanStart(preferences);
+        StopDisplayButton.IsEnabled = current.CanStop;
+        DevicesBox.IsEnabled = RefreshDevicesButton.IsEnabled = current.CanSelectDevice;
+        ToolTipService.SetToolTip(StartDisplayButton, outputAvailable ? null : "USB display output is unavailable on this platform. Local preview is available.");
+        ProfilesBox.IsEnabled = current.CanSelectProfile;
     }
 
     /// <summary>Refreshes the available display choices.</summary>
     private async Task RefreshDevicesAsync()
     {
-        if (devicesLoading) { return; }
-        devicesLoading = true;
-        try { await session.RefreshDevicesAsync(); ApplyDevices(session.Snapshot.Devices); }
-        catch (Exception error) { StatusText.Text = error.Message; }
-        finally { devicesLoading = false; UpdateDisplayControls(); }
+        if (session.Snapshot.DeviceRefreshPending) { return; }
+        try
+        {
+            await session.RefreshDevicesAsync();
+            viewModel.SetOperationNotice(StudioNoticeSource.Devices, null);
+        }
+        catch (Exception error) { viewModel.SetOperationNotice(StudioNoticeSource.Devices, error.Message); }
+        await RefreshAsync(queueIfBusy: false);
     }
 
     /// <summary>Starts the explicitly selected display session.</summary>
@@ -56,8 +62,7 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void StartDisplay_Click(object sender, RoutedEventArgs args)
     {
-        if (displayBusy || displayActive || DevicesBox.SelectedItem is not PanelChoice device) { return; }
-        await session.StartAsync(device.Id);
+        await session.StartSelectedAsync();
         await RefreshAsync();
     }
 
@@ -66,7 +71,7 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void StopDisplay_Click(object sender, RoutedEventArgs args)
     {
-        if (displayBusy || !displayActive && !startupRestorePending) { return; }
+        if (!session.Snapshot.CanStop) { return; }
         await session.StopAsync();
         await RefreshAsync();
     }
@@ -82,13 +87,8 @@ public sealed partial class MainPage
     private void Device_Changed(object sender, SelectionChangedEventArgs args)
     {
         if (!ready || updatingChoices) { return; }
-        if (DevicesBox.SelectedItem is PanelChoice device)
-        {
-            session.CancelStartup();
-            selectedDeviceId = device.Id;
-            SaveChoices();
-        }
-        UpdateDisplayControls();
+        if (DevicesBox.SelectedItem is PanelChoice device) { session.SelectDevice(device.Id); }
+        _ = RefreshAsync(queueIfBusy: false);
     }
 
     /// <summary>Saves the selected refresh interval and updates the UI timer.</summary>
@@ -97,8 +97,9 @@ public sealed partial class MainPage
     private void Refresh_Changed(object sender, SelectionChangedEventArgs args)
     {
         if (!ready || RefreshBox.SelectedItem is not PanelChoice choice) { return; }
-        refreshMilliseconds = int.Parse(choice.Id, System.Globalization.CultureInfo.InvariantCulture);
-        refresh.Interval = TimeSpan.FromMilliseconds(refreshMilliseconds);
+        var interval = int.Parse(choice.Id, System.Globalization.CultureInfo.InvariantCulture);
+        viewModel.Edit(p => p.RefreshMilliseconds = interval);
+        refresh.Interval = TimeSpan.FromMilliseconds(interval);
         SaveChoices();
         _ = RefreshAsync();
     }
@@ -109,7 +110,7 @@ public sealed partial class MainPage
     private void Quality_Changed(object sender, SelectionChangedEventArgs args)
     {
         if (!ready || QualityBox.SelectedItem is not PanelChoice choice) { return; }
-        jpegQuality = choice.Id;
+        viewModel.Edit(p => p.JpegQuality = choice.Id);
         SaveChoices();
         _ = RefreshAsync();
     }

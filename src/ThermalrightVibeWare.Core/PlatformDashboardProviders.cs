@@ -33,11 +33,11 @@ public static class PlatformDashboardProviders
         throw new PlatformNotSupportedException("This engine targets Windows. Use the net10.0 Linux sensor engine on Linux.");
 #else
         if (OperatingSystem.IsLinux()) { return new LinuxMetricsService(allowHardwareAccess: true); }
-        throw new PlatformNotSupportedException("Use the Windows-targeted engine on Windows. This engine supports Linux sensor diagnostics only.");
+        throw new PlatformNotSupportedException("Use the Windows-targeted engine on Windows. This engine supports Linux local previews and sensor diagnostics.");
 #endif
     }
 
-    /// <summary>Creates the implemented Windows dashboard. Linux sensor diagnostics use CreateSensors directly.</summary>
+    /// <summary>Creates the host dashboard with explicit availability for unsupported sources.</summary>
     /// <param name="metrics">Optional sensor provider owned by the resulting dashboard service.</param>
     public static DashboardProviders Create(ISensorProvider? metrics = null)
     {
@@ -46,8 +46,8 @@ public static class PlatformDashboardProviders
         throw new PlatformNotSupportedException("This engine targets Windows. Use the net10.0 Linux sensor engine on Linux.");
 #else
         if (!OperatingSystem.IsLinux())
-        { throw new PlatformNotSupportedException("Use the Windows-targeted engine on Windows. This engine supports Linux sensor diagnostics only."); }
-        throw new PlatformNotSupportedException("The Linux engine currently supports sensor diagnostics only. Dashboard, media, audio and theme rendering are not implemented yet.");
+        { throw new PlatformNotSupportedException("Use the Windows-targeted engine on Windows. This engine supports Linux local previews and sensor diagnostics."); }
+        return LinuxDashboardProviders.Create(metrics);
 #endif
     }
 }

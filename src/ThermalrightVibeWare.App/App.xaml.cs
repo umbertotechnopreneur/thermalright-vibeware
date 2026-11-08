@@ -27,6 +27,7 @@ namespace ThermalrightVibeWare.App;
 public sealed partial class App : Application
 {
     private readonly MainPage page;
+    public event Action? Ready;
 
     /// <summary>Creates the OpenSilver application around the supplied studio session and host services.</summary>
     /// <param name="client">Engine request client owned or shared according to the containing session/host.</param>
@@ -39,6 +40,7 @@ public sealed partial class App : Application
     {
         InitializeComponent();
         page = new MainPage(client, windowActions, presentationSettingsPath, preview, restoreLastSession, session);
+        page.Ready += () => Ready?.Invoke();
         RootVisual = page;
     }
 

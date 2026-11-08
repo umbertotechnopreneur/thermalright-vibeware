@@ -21,7 +21,9 @@ flowchart TD
 
 `StudioModel.Update` commits preferences, screen choices and palette overrides under one lock. Editors and readers receive detached copies. A failed edit commits nothing. Each frame takes one copy, including its palette and screen selections. Automatic rotation checks the observed revision before committing, so it cannot overwrite a newer user edit.
 
-`StudioViewModel` owns catalog normalization and selection commands. It also exposes typed font, Codex and diagnostics operations and their latest results. The view keeps native controls, layout and temporary dialogs; it does not send raw protocol method names. `StudioSession` owns output scheduling and engine serialization.
+`StudioViewModel` owns catalog normalization, workspace selection and navigation. Its auxiliary snapshot holds the latest font, Codex and diagnostics results, pending operations and their errors. The view projects those values into controls and owns layout, focus and JPEG presentation.
+
+`StudioSession` owns output scheduling and engine serialization. The saved startup request carries its own device, theme and profile. The running output records the device and profile confirmed by the engine. Host visibility and the selected workspace together determine local preview demand. USB output continues while the window or preview is hidden.
 
 `StudioSettingsStore` reads at most 1 MiB and writes `schemaVersion: 1`. Unversioned settings are rejected and left untouched. A save flushes a temporary file, then atomically replaces the current file and preserves its previous contents as `.bak`. A corrupt file falls back to a valid backup. Recovery does not replace that good backup with corrupt data. Unsupported versions and unrecoverable files are left untouched, with a visible notice; saving remains disabled for that session. Runtime revisions and timestamps are not persisted.
 
@@ -40,10 +42,11 @@ Windows composition and optional artist provider.
 
 `ThermalrightVibeWare.Backends.Linux` reads Linux sensors through procfs and sysfs.
 It has no monitoring-library dependency. Core and CLI have separate `net10.0` and
-Windows targets. The Linux target accepts only sensor commands, help and the
-sensor-only stdio surface. Other operations fail before starting providers. Windows raster conversion
-is excluded. The UI still blocks starting a non-Windows engine: this stage does not
-provide a complete Linux studio. See [Linux sensors](linux-sensors.md).
+Windows targets. The Linux studio starts the bundled `engine/trv` child. It negotiates
+supported methods through `hello`, then loads manifests and Python/Skia previews.
+Linux dashboards use the existing kernel sensor reader; media, audio and network
+sources remain explicitly unavailable. USB requests fail before device access.
+Windows raster conversion is excluded. See [Linux sensors](linux-sensors.md).
 
 Linux sensor coverage depends on kernel drivers and access permissions. Windows
 runtime regression behavior remains unverified for this separation. Tests and

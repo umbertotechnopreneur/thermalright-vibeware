@@ -37,7 +37,10 @@ internal sealed partial class EngineServer : IDisposable
     private readonly CodexProcessMonitor codexProcess = new();
     private readonly Dictionary<string, DisplayDevice> devices = [];
     private HardwareDriverStatus? sensorDriver;
-    private string status = "Local preview only. The USB display has not been started.";
+    private static string PreviewStatus => OperatingSystem.IsLinux()
+        ? "Linux local preview. USB output, media sessions and audio are unavailable."
+        : "Local preview only. The USB display has not been started.";
+    private string status = PreviewStatus;
     private string? previousFingerprint;
     private byte[]? preview;
     private long discoveredAt;
@@ -58,6 +61,7 @@ internal sealed partial class EngineServer : IDisposable
     {
         Console.InputEncoding = Encoding.UTF8;
         Console.OutputEncoding = new UTF8Encoding(false);
+        DiagnosticLog.Initialization("engine.initialize");
         using var engine = new EngineServer();
         try
         {
@@ -105,17 +109,25 @@ internal sealed partial class EngineServer : IDisposable
         return text.Length == 0 ? null : text.ToString();
     }
 
+    private static readonly string[] LinuxMethods = ["hello", "themes", "fonts", "state", "stop", "codex.status",
+        "diagnostics.status", "diagnostics.set", "sensors.debug", "sensors.driver.status"];
+    private static readonly string[] WindowsMethods = ["hello", "themes", "fonts", "state", "present", "devices", "levels", "start", "stop", "media",
+        "codex.status", "codex.prepare", "diagnostics.status", "diagnostics.set", "diagnostics.open", "sensors.debug", "sensors.driver.status", "sensors.driver.open"];
+
     /// <summary>Dispatches an allow-listed engine request.</summary>
     /// <param name="request">Versioned engine request containing a method, correlation ID and optional JSON parameters.</param>
     private async Task<object> HandleAsync(EngineRequest request)
     {
-        if (OperatingSystem.IsLinux() && request.Method is not ("hello" or "sensors.debug" or "sensors.driver.status" or "stop"))
-        { throw new PlatformNotSupportedException("The Linux engine currently supports only hello, sensors.debug, sensors.driver.status and stop. No requested provider or renderer was started."); }
+        if (OperatingSystem.IsLinux() && !LinuxMethods.Contains(request.Method, StringComparer.Ordinal))
+        { throw new PlatformNotSupportedException($"The Linux engine does not support '{request.Method}'. USB output, media sessions and audio are unavailable. No requested provider or USB device was started."); }
         switch (request.Method)
         {
-            case "hello": return new { protocol = PanelContract.Version, platform = PlatformDashboardProviders.PlatformName, usbWritesRequireStart = true, themeMirror = OperatingSystem.IsWindows() };
+            case "hello":
+                return new EngineHelloDto(PanelContract.Version, PlatformDashboardProviders.PlatformName, true,
+                OperatingSystem.IsWindows(), OperatingSystem.IsLinux() ? LinuxMethods : WindowsMethods);
             case "themes":
                 themeCatalog = ThemeCatalog.Read();
+                DiagnosticLog.Initialization("themes.discover");
                 // An explicit refresh can replace a pack at the same ID; discard frames from the previous catalog.
                 previousFingerprint = null;
                 preview = null;
@@ -169,8 +181,9 @@ internal sealed partial class EngineServer : IDisposable
     private SensorDriverDto SensorDriverStatus()
     {
         // Registry/cached metadata only. Opening this panel must not open hardware.
-        var driver = sensorDriver ?? metrics.ReadDriverStatus();
-        return new(driver.Available, driver.Path, driver.Notice, driver.Path is not null && File.Exists(driver.Path));
+        var driver = OperatingSystem.IsLinux() ? metrics.ReadDriverStatus() : sensorDriver ?? metrics.ReadDriverStatus();
+        return new(driver.Available, driver.Path, driver.Notice, driver.Path is not null && File.Exists(driver.Path),
+            driver.Sources?.Select(source => new SensorSourceDto(source.Name, source.Status, source.Detail)).ToArray(), driver.Guidance);
     }
 
     /// <summary>Shows a verified driver path in Windows Explorer.</summary>
@@ -261,7 +274,7 @@ internal sealed partial class EngineServer : IDisposable
     private Task StopAsync()
     {
         CloseThemeOutput();
-        Volatile.Write(ref status, "Display stopped.");
+        Volatile.Write(ref status, OperatingSystem.IsLinux() ? PreviewStatus : "Display stopped.");
         return Task.CompletedTask;
     }
 

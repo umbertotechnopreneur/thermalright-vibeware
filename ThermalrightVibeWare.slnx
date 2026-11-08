@@ -37,4 +37,5 @@
     <Platform Solution="*|x64" Project="x64" />
     <Platform Solution="*|ARM64" Project="ARM64" />
   </Project>
+  <Project Path="tests/ThermalrightVibeWare.LinuxChecks/ThermalrightVibeWare.LinuxChecks.csproj" />
 </Solution>

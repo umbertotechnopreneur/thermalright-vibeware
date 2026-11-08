@@ -36,6 +36,10 @@ public sealed partial class LinuxMetricsService : ISensorProvider
     private HardwareSensorSnapshot snapshot = HardwareSensorSnapshot.Empty;
     private HardwareDriverStatus driverStatus = new(false, null, "Linux sensor access has not been sampled. " + KernelNotice);
     private SensorDebugDto? sensorDebug;
+    private readonly LinuxNvmlSensors nvml = new();
+    private LinuxNvmlSnapshot? nvidiaSample;
+    private HardwareDriverStatus? accessMetadata;
+    private long accessMetadataAt;
     private long lastRead;
     private bool hasRead, disposed, metadataRead;
     private string cpuName = "CPU", boardName = "Motherboard";
@@ -70,8 +74,18 @@ public sealed partial class LinuxMetricsService : ISensorProvider
     /// <summary>Returns cached kernel-access metadata without sampling sensors.</summary>
     public HardwareDriverStatus DriverStatus { get { lock (sync) { return driverStatus; } } }
 
-    /// <summary>Returns cached metadata only; this method opens no procfs, sysfs or device files.</summary>
-    public HardwareDriverStatus ReadDriverStatus() => DriverStatus;
+    /// <summary>Inspects driver metadata at most every five seconds, without sampling hardware values.</summary>
+    public HardwareDriverStatus ReadDriverStatus()
+    {
+        lock (sync)
+        {
+            if (disposed) { return driverStatus; }
+            var now = timestamp();
+            if (accessMetadata is null || now < accessMetadataAt || Stopwatch.GetElapsedTime(accessMetadataAt, now) >= TimeSpan.FromSeconds(5))
+            { accessMetadata = ReadAccessMetadata(); accessMetadataAt = now; }
+            return AccessWithSampleStatus(accessMetadata);
+        }
+    }
 
     /// <summary>Returns a shared sample, refreshing at most once per second and never in the background.</summary>
     public HardwareSensorSnapshot ReadSensors()
@@ -90,7 +104,7 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         var gpu = sensors.Gpus.FirstOrDefault();
         return new(sensors.Cpu?.UsagePercent, sensors.Cpu?.TemperatureC, gpu?.UsagePercent, gpu?.TemperatureC,
             gpu?.Name ?? "GPU", sensors.Cpu?.TemperatureC is null ? "Unavailable" : "Linux hwmon: " + sensors.Cpu.TemperatureLabel,
-            gpu is null ? "Unavailable" : "Linux DRM and hwmon (first detected GPU)");
+            gpu is null ? "Unavailable" : "Linux hwmon / NVIDIA NVML (first detected GPU)");
     }
 
     /// <summary>Returns unfiltered raw channels, including stopped fans and unavailable readings.</summary>
@@ -111,6 +125,7 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         var notices = new List<string>();
         var sampledAt = DateTimeOffset.UtcNow;
         snapshot = HardwareSensorSnapshot.Empty;
+        nvidiaSample = null;
         if (!allowHardwareAccess || (!fixtureRoots && !OperatingSystem.IsLinux()))
         {
             var notice = !allowHardwareAccess ? "Linux hardware reads are disabled: local hardware access has not been authorized."
@@ -143,6 +158,9 @@ public sealed partial class LinuxMetricsService : ISensorProvider
             var cpuUsage = ReadCpuUsage(notices);
             var memory = ReadMemory(notices);
             var devices = ReadHwmon(notices);
+            nvidiaSample = !fixtureRoots && OperatingSystem.IsLinux()
+                && (AccessModulePresent("nvidia") || LinuxNvmlSensors.IsLibraryPresent()) ? nvml.Read() : new([], null);
+            if (nvidiaSample.Notice is { } nvmlNotice) { AddNotice(notices, nvmlNotice); }
             var cpuDevices = devices.Where(device => device.Kind == SensorKind.Cpu).ToArray();
             var cpuReadings = ThemeReadings(cpuDevices).Where(reading => !IsIndividualCpuReading(reading.Name))
                 .Take(MaximumDeviceReadings).ToArray();
@@ -154,16 +172,7 @@ public sealed partial class LinuxMetricsService : ISensorProvider
             HardwareDeviceSensors? cpu = cpuUsage is not null || cpuDevices.Length > 0 || previousCpu is not null
                 ? new(cpuName, cpuUsage, cpuClock?.Value, cpuTemperature?.Value, ClockLabel: cpuClock?.Name, TemperatureLabel: cpuTemperature?.Name,
                     Fans: ThemeFans(cpuReadings), Readings: cpuReadings) : null;
-            var gpuDevices = devices.Where(device => device.Kind == SensorKind.Gpu).GroupBy(device => device.DevicePath, StringComparer.Ordinal);
-            var gpus = new List<HardwareDeviceSensors>();
-            foreach (var group in gpuDevices.Take(8))
-            {
-                var readings = ThemeReadings(group).Take(MaximumDeviceReadings).ToArray();
-                var primary = SelectTemperature(readings);
-                var clock = readings.FirstOrDefault(reading => reading.Type == "Clock");
-                gpus.Add(new(group.First().Name, readings.FirstOrDefault(reading => reading.Type == "Load")?.Value,
-                    clock?.Value, primary?.Value, ClockLabel: clock?.Name, TemperatureLabel: primary?.Name, Fans: ThemeFans(readings), Readings: readings));
-            }
+            var gpus = ComposeGpus(devices, nvidiaSample.Devices);
             var boardDevices = devices.Where(device => device.Kind == SensorKind.Motherboard).ToArray();
             var boardReadings = ThemeReadings(boardDevices).Take(MaximumDeviceReadings).ToArray();
             var boardTemperatures = boardReadings.Where(reading => reading.Type == "Temperature" && reading.Value is not null)
@@ -174,9 +183,11 @@ public sealed partial class LinuxMetricsService : ISensorProvider
             if (devices.Count == 0) { AddNotice(notices, "No supported non-storage hwmon devices were available. CPU load and RAM totals may still be available."); }
             AddNotice(notices, MemoryMetadataNotice);
             AddNotice(notices, KernelNotice);
-            driverStatus = new(devices.Any(device => device.Readings.Any(reading => reading.Value is not null)), null, KernelNotice);
+            var anyMeasurement = devices.Any(device => device.Readings.Any(reading => reading.Value is not null))
+                || nvidiaSample.Devices.Any(device => device.Readings.Any(reading => reading.Value is not null));
+            driverStatus = new(anyMeasurement, null, KernelNotice);
             InitializationFailureDetails = previousCpu is null && memory is null
-                && !devices.Any(device => device.Readings.Any(reading => reading.Value is not null))
+                && !anyMeasurement
                 ? "No Linux CPU counters, physical RAM totals or non-storage hwmon devices could be read. " + string.Join(" ", notices)
                 : null;
             snapshot = new(cpu, gpus, memory, sampledAt, string.Join(" ", notices), board, driverStatus);
@@ -184,7 +195,9 @@ public sealed partial class LinuxMetricsService : ISensorProvider
                 device.Kind switch { SensorKind.Cpu => "Cpu", SensorKind.Gpu => "Gpu", SensorKind.Motherboard => "SuperIO", _ => "Unknown" },
                 device.Readings, device.Notice)).ToList();
             AddProcDebug(debugDevices, cpuUsage, memory);
-            sensorDebug = new("Linux kernel procfs/sysfs", sampledAt, IsRoot(), debugDevices, notices.ToArray());
+            debugDevices.AddRange(nvidiaSample.Devices.Select(device => new HardwareDeviceDto(device.Id, null, device.Name + " (NVML)",
+                "Gpu", device.Readings, device.Notice)));
+            sensorDebug = new(nvidiaSample.Devices.Count > 0 ? "Linux kernel procfs/sysfs + NVIDIA NVML" : "Linux kernel procfs/sysfs", sampledAt, IsRoot(), BoundDebugDevices(debugDevices, notices), notices.ToArray());
         }
         catch (Exception error) when (IsReadFailure(error))
         {
@@ -202,27 +215,26 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         foreach (var reading in devices.SelectMany(device => device.Readings))
         {
             if (reading.Value is not double value) { continue; }
-            if (reading.Type == "Fan" && !ObserveFan(reading.Id, value)) { continue; }
+            if (reading.Type == "Fan" && !activeFans.ContainsKey(reading.Id)) { continue; }
             yield return new(reading.Id, reading.Name, reading.Type, value, reading.Unit);
         }
     }
 
-    private bool ObserveFan(string id, double rpm)
+    private void ObserveFan(string id, double rpm)
     {
         if (activeFans.TryGetValue(id, out var existing))
         {
             activeFanOrder.Remove(existing);
             activeFanOrder.AddLast(existing);
-            return true;
+            return;
         }
-        if (rpm <= 0) { return false; }
+        if (rpm <= 0) { return; }
         activeFans.Add(id, activeFanOrder.AddLast(id));
         if (activeFans.Count > MaximumReadings * 2)
         {
             activeFans.Remove(activeFanOrder.First!.Value);
             activeFanOrder.RemoveFirst();
         }
-        return true;
     }
 
     private static HardwareFanSensors[] ThemeFans(IEnumerable<HardwareReading> readings) => readings
@@ -265,11 +277,11 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         }
     }
 
-    private TextValue ReadText(string path, int maximumCharacters = 256)
+    private TextValue ReadText(string path, int maximumCharacters = 256, MonitorDirectory? monitor = null)
     {
         try
         {
-            using var stream = new FileStream(SafeAttributePath(path), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var stream = new FileStream(SafeAttributePath(path, monitor), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var reader = new StreamReader(stream);
             var buffer = new char[maximumCharacters + 1];
             var count = reader.ReadBlock(buffer, 0, buffer.Length);
@@ -298,15 +310,25 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         catch (Exception error) when (IsReadFailure(error)) { return new(null, "Read unavailable: " + error.GetType().Name + "."); }
     }
 
-    private string SafeAttributePath(string path)
+    private string SafeAttributePath(string path, MonitorDirectory? monitor = null)
     {
         var fullPath = Path.GetFullPath(path);
+        // A pinned monitor supplies only direct child names. Resolving its fd link
+        // back into a pathname here would lose the hotplug protection.
+        var attributePath = fullPath;
         var parent = Path.GetDirectoryName(fullPath);
-        var canonicalParent = parent is null ? null : CanonicalPath(parent);
-        if (canonicalParent is null || !(WithinSysRoot(canonicalParent)
-            || canonicalProcRoot is not null && IsWithinRoot(canonicalParent, canonicalProcRoot)))
-        { throw new IOException("The kernel attribute is outside the configured roots or its parent is unavailable."); }
-        var attributePath = Path.Combine(canonicalParent, Path.GetFileName(fullPath));
+        if (monitor is not null)
+        {
+            if (parent != monitor.DescriptorPath) { throw new IOException("The kernel attribute is outside the pinned hwmon directory."); }
+        }
+        else
+        {
+            var canonicalParent = parent is null ? null : CanonicalPath(parent);
+            if (canonicalParent is null || !(WithinSysRoot(canonicalParent)
+                || canonicalProcRoot is not null && IsWithinRoot(canonicalParent, canonicalProcRoot)))
+            { throw new IOException("The kernel attribute is outside the configured roots or its parent is unavailable."); }
+            attributePath = Path.Combine(canonicalParent, Path.GetFileName(fullPath));
+        }
         // Real hwmon/procfs attributes are regular kernel files. Do not follow an arbitrary leaf link.
         if (new FileInfo(attributePath).LinkTarget is not null)
         { throw new IOException("Symbolic-link kernel attributes are not read."); }
@@ -339,6 +361,7 @@ public sealed partial class LinuxMetricsService : ISensorProvider
         lock (sync)
         {
             disposed = true;
+            nvml.Dispose();
             activeFans.Clear();
             activeFanOrder.Clear();
             snapshot = HardwareSensorSnapshot.Empty;

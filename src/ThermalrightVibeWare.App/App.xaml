@@ -30,20 +30,20 @@ VBWR E -->
             <Setter Property="Padding" Value="0" />
             <Setter Property="Margin" Value="0" />
             <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+            <Setter Property="FontFamily" Value="Segoe UI, Arial, sans-serif" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+            <Setter Property="FontFamily" Value="Segoe UI, Arial, sans-serif" />
         </Style>
         <Style TargetType="ComboBox">
-            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" />
+            <Setter Property="FontFamily" Value="Segoe UI, Arial, sans-serif" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Padding" Value="10,4" />
             <Setter Property="MaxDropDownHeight" Value="280" />
         </Style>
-        <Style TargetType="TextBox"><Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" /></Style>
-        <Style TargetType="CheckBox"><Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace" /></Style>
+        <Style TargetType="TextBox"><Setter Property="FontFamily" Value="Segoe UI, Arial, sans-serif" /></Style>
+        <Style TargetType="CheckBox"><Setter Property="FontFamily" Value="Segoe UI, Arial, sans-serif" /></Style>
     </Application.Resources>
 </Application>

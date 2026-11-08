@@ -1,4 +1,5 @@
 // VBWR B — Thermalright VibeWare. Copyright (c) 2026 Umberto Giacobbi. MIT. VBWR E
+using System.Collections.Concurrent;
 using System.Text.Json;
 using ThermalrightVibeWare.Contracts;
 using ThermalrightVibeWare.Studio;
@@ -91,6 +92,41 @@ await using (var session = new StudioSession(restored, path, restoreLastSession:
     Check(restored.Presents == count, "Shutdown admits no further frames.");
 }
 
+var linux = new FakeClient
+{
+    Hello = new(PanelContract.Version, "linux", true, false, ["hello", "themes", "state", "stop"])
+};
+await using (var session = new StudioSession(linux, path, restoreLastSession: true))
+{
+    session.PreviewVisible = true;
+    await Until(() => session.Snapshot.FrameRevision >= 2);
+    Check(session.Snapshot.Hello?.Platform == "linux" && session.Snapshot.Catalog?.Themes.Count == 2, "Linux negotiation loads the catalog and preview without USB discovery.");
+    Check(!session.Snapshot.StartupPending && !session.Snapshot.DisplayActive, "A saved Windows session cannot schedule unavailable Linux output.");
+    Check(session.Supports("state") && !session.Supports("devices") && !session.Supports("start"), "The studio exposes only negotiated capabilities.");
+    await session.RefreshDevicesAsync();
+    Check(session.Snapshot.Devices is { Length: 0 }, "Unavailable Linux display discovery is represented without a device request.");
+    try { await session.StartAsync("fixture"); Check(false, "Unavailable output must reject explicit Start."); }
+    catch (PlatformNotSupportedException) { checks++; }
+    Check(linux.Requests.All(method => method is "hello" or "themes" or "state"), "Linux scheduling never sends unsupported devices, start or present requests.");
+    Check(linux.Requests.First() == "hello" && linux.Requests.Count(method => method == "hello") == 1, "Capabilities are negotiated once before catalog or preview work.");
+}
+
+foreach (var invalidHello in new EngineHelloDto[]
+{
+    new(PanelContract.Version + 1, "linux", true, false, ["hello", "themes", "state", "stop"]),
+    new(PanelContract.Version, "linux", true, false, ["hello", "themes", "stop"]),
+    new(PanelContract.Version, "linux", true, false, ["hello", "themes", "state", "stop", "state"])
+})
+{
+    var invalid = new FakeClient { Hello = invalidHello };
+    await using var session = new StudioSession(invalid, Path.Combine(output, Guid.NewGuid().ToString("N") + ".json"));
+    session.PreviewVisible = true;
+    await Until(() => session.Snapshot.Status != "Local preview");
+    await Task.Delay(1100);
+    Check(session.Snapshot.Catalog is null && session.Snapshot.Frame is null, "Invalid negotiation cannot initialize catalog or preview.");
+    Check(invalid.Requests.SequenceEqual(["hello"]), "Invalid negotiation stops without repeatedly querying the engine.");
+}
+
 try { new ThemePalette(Accent: "red").Validate(); throw new InvalidOperationException("Invalid color accepted."); }
 catch (ArgumentException) { checks++; }
 FirstRunChecks.Run(output, Check);
@@ -101,6 +137,9 @@ sealed class FakeClient : IPanelClient
 {
     public volatile bool Connected = true, FailPresent, Held;
     public volatile int Starts, Presents, MaximumInFlight;
+    public EngineHelloDto Hello = new(PanelContract.Version, "windows", true, true,
+        ["hello", "themes", "devices", "start", "stop", "state", "present"]);
+    public ConcurrentQueue<string> Requests { get; } = new();
     private int inFlight;
     private bool running;
     public PreviewOptions? LastOptions;
@@ -110,9 +149,12 @@ sealed class FakeClient : IPanelClient
         MaximumInFlight = Math.Max(MaximumInFlight, Interlocked.Increment(ref inFlight));
         try
         {
+            Requests.Enqueue(method);
+            if (method != "hello" && !Hello.SupportedMethods.Contains(method)) { throw new PlatformNotSupportedException("Fixture method unavailable: " + method); }
             object result;
             switch (method)
             {
+                case "hello": result = Hello; break;
                 case "themes": result = new ThemeCatalogDto([new("system", "System")], [new("system.a", "A", "system", "", "fixture", PageCount: 3), new("system.b", "B", "system", "", "fixture", PageCount: 3)], []); break;
                 case "devices": result = Connected ? new[] { new PanelChoice("fixture", "Offline fixture") } : []; break;
                 case "start": Interlocked.Increment(ref Starts); running = true; result = new DisplayStartResult(true, "wide-1280x480"); break;

@@ -14,12 +14,13 @@ VBWR E -->
   <PropertyGroup>
     <ChecksNativeFolder>x64</ChecksNativeFolder>
     <ChecksNativeFolder Condition="'$(PreviewCapture)' == 'true'">x64-preview-capture</ChecksNativeFolder>
+    <ChecksNativeLibrary>$(MSBuildProjectDirectory)/../../artifacts/native/photino-memory/$(ChecksNativeFolder)/Photino.Native.dll</ChecksNativeLibrary>
   </PropertyGroup>
-  <Target Name="BuildPreviewCaptureNative" BeforeTargets="Build" Condition="'$(PreviewCapture)' == 'true'">
-    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../scripts/build/Build-PhotinoNative.ps1&quot; -PreviewCapture" />
+  <Target Name="VerifyPatchedNativeForChecks" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(ChecksNativeLibrary)')" Text="Build the selected patched Photino.Native variant from prepared imports before building the memory checks. Use -PreviewCapture for the capture variant." />
   </Target>
-  <Target Name="CopyPatchedNativeForChecks" AfterTargets="Build" DependsOnTargets="BuildPreviewCaptureNative">
-    <Copy SourceFiles="../../artifacts/native/photino-memory/$(ChecksNativeFolder)/Photino.Native.dll" DestinationFolder="$(TargetDir)" />
-    <Copy SourceFiles="../../artifacts/native/photino-memory/$(ChecksNativeFolder)/Photino.Native.dll" DestinationFolder="$(TargetDir)runtimes/win-x64/native/" />
+  <Target Name="CopyPatchedNativeForChecks" AfterTargets="Build" DependsOnTargets="VerifyPatchedNativeForChecks" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Copy SourceFiles="$(ChecksNativeLibrary)" DestinationFolder="$(TargetDir)" />
+    <Copy SourceFiles="$(ChecksNativeLibrary)" DestinationFolder="$(TargetDir)runtimes/win-x64/native/" />
   </Target>
 </Project>

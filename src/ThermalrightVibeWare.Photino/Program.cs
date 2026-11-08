@@ -24,6 +24,8 @@ using Photino.NET;
 using ThermalrightVibeWare.Contracts;
 using ThermalrightVibeWare.Studio;
 
+using ThermalrightVibeWare.Core;
+
 namespace ThermalrightVibeWare.Photino;
 
 /// <summary>Starts one studio window sized to the current monitor's work area.</summary>
@@ -34,6 +36,9 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        DiagnosticLog.Initialization("studio.start");
+        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+            DiagnosticLog.Initialization("studio.unhandled", false, (eventArgs.ExceptionObject as Exception)?.GetType().Name);
         if (OperatingSystem.IsWindows() && args.FirstOrDefault() == WindowsMemoryGuard.Argument)
         { return WindowsMemoryGuard.Run(args); }
         if (args.FirstOrDefault() == WindowsElevation.Argument)
@@ -60,20 +65,24 @@ internal static class Program
             return 0;
         }
 
+        DiagnosticLog.Initialization("studio.primary");
         using var memoryGuard = StartMemoryGuard();
         if (OperatingSystem.IsWindows() && memoryGuard is null) { return 1; }
         using var client = new StdioPanelClient();
         using var session = new StudioSession(client, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ThermalrightVibeWare", "presentation.json"), restoreLastSession);
+        DiagnosticLog.Initialization("studio.session");
         // First launch always shows the studio, including a launch from the sign-in shortcut.
         // Later Windows launches start in the tray; the icon and activation channel can reopen it.
         var isFirstRun = session.Model.Preferences.IsFirstRun;
         var startMinimized = OperatingSystem.IsWindows() && !isFirstRun;
         PhotinoWindow? window = null;
         WindowsTrayService? tray = null;
+        LinuxTrayService? linuxTray = null;
         WindowsSetupShutdown? setupShutdown = null;
         App.App? application = null;
         PhotinoPreview? preview = null;
         var exiting = 0;
+        var startupNotificationShown = 0;
         var actions = new StudioWindowActions(
             () => OperatingSystem.IsWindows() && tray is { Ready: true },
             () => OperatingSystem.IsWindows() && memoryGuard is not null && !WindowsElevation.IsAdministrator,
@@ -83,8 +92,8 @@ internal static class Program
             () => window?.Invoke(() =>
             {
                 if (Interlocked.Exchange(ref exiting, 1) != 0) { return; }
-                session.Save();
                 if (OperatingSystem.IsWindows()) { tray?.Dispose(); }
+                if (OperatingSystem.IsLinux()) { linuxTray?.Dispose(); linuxTray = null; }
                 window?.Close();
             }));
 
@@ -106,8 +115,10 @@ internal static class Program
 
         var page = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
         window = new PhotinoWindow()
-            .SetTitle("Thermalright VibeWare")
+            .SetTitle("TermalRight VibeWare")
+
             // The installer owns the Start entry; Photino toasts create another one.
+
             .SetNotificationsEnabled(false)
             .SetUseOsDefaultSize(false)
             .SetUseOsDefaultLocation(false)
@@ -117,7 +128,21 @@ internal static class Program
             .SetLogVerbosity(0)
             .SetIconFile(Path.Combine(AppContext.BaseDirectory, "Assets", OperatingSystem.IsWindows() ? "thermalright-vibeware.ico" : "thermalright-vibeware-icon.png"))
             .Center()
-            .ConfigureOpenSilver(() => application = new App.App(client, actions, preview: preview = new PhotinoPreview(window!), restoreLastSession: restoreLastSession, session: session))
+            .ConfigureOpenSilver(() =>
+            {
+                DiagnosticLog.Initialization("studio.webview");
+                application = new App.App(client, actions, preview: preview = new PhotinoPreview(window!), restoreLastSession: restoreLastSession, session: session);
+                application.Ready += () =>
+                {
+                    if (!OperatingSystem.IsLinux()) { return; }
+                    if (Volatile.Read(ref exiting) != 0 || Interlocked.Exchange(ref startupNotificationShown, 1) != 0) { return; }
+                    _ = Task.Run(() =>
+                    {
+                        if (OperatingSystem.IsLinux()) { LinuxTrayService.NotifyStarted(Path.Combine(AppContext.BaseDirectory, "Assets", "thermalright-vibeware-icon.png")); }
+                    });
+                };
+                return application;
+            })
             .RegisterWindowClosingHandler((_, _) =>
             {
                 if (Volatile.Read(ref exiting) != 0 || application is null) { return false; }
@@ -140,12 +165,12 @@ internal static class Program
                             openManifesto: () => OpenWebsite("https://umbertogiacobbi.biz/vibeware/manifesto"),
                             openWebsite: () => OpenWebsite("https://umbertogiacobbi.biz"),
                             openGitHub: () => OpenWebsite("https://github.com/umbertotechnopreneur/thermalright-vibeware"));
-                        tray.Error += error => Console.Error.WriteLine("Thermalright VibeWare tray: " + error.Message);
+                        tray.Error += error => Console.Error.WriteLine("TermalRight VibeWare tray: " + error.Message);
                         if (startMinimized) { tray.HideWindow(); }
                         else if (isFirstRun) { tray.ShowWindow(); }
                     }
                     catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
-                    { Console.Error.WriteLine("Thermalright VibeWare tray: " + error.Message); created.SetMinimized(false); }
+                    { Console.Error.WriteLine("TermalRight VibeWare tray: " + error.Message); created.SetMinimized(false); }
                     try
                     {
                         setupShutdown = new WindowsSetupShutdown(action =>
@@ -158,7 +183,17 @@ internal static class Program
                         });
                     }
                     catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException or InvalidOperationException or UnauthorizedAccessException or WaitHandleCannotBeOpenedException)
-                    { Console.Error.WriteLine("Thermalright VibeWare setup: shutdown listener unavailable: " + error.Message); }
+                    { Console.Error.WriteLine("TermalRight VibeWare setup: shutdown listener unavailable: " + error.Message); }
+                }
+                if (OperatingSystem.IsLinux())
+                {
+                    try
+                    {
+                        linuxTray = new LinuxTrayService(Path.Combine(AppContext.BaseDirectory, "Assets", "thermalright-vibeware-icon.png"),
+                            ShowStudio, () => actions.CloseApplication());
+                    }
+                    catch (Exception error) when (error is DllNotFoundException or EntryPointNotFoundException or IOException or InvalidOperationException)
+                    { Console.Error.WriteLine("TermalRight VibeWare tray: " + error.Message); }
                 }
                 instance.Listen(action =>
                 {
@@ -166,13 +201,16 @@ internal static class Program
                 }, ShowStudio);
             })
             .Load(page);
-        // Native visibility is advisory only. The session never waits for the UI.
+        // Report the native window independently of the selected studio section.
         using var visibility = new System.Threading.Timer(_ => session.PreviewVisible = preview?.IsVisible == true, null, 0, 250);
+        DiagnosticLog.Initialization("studio.window");
         try { window.WaitForClose(); }
         finally
         {
+            DiagnosticLog.Initialization("studio.exit");
             Interlocked.Exchange(ref exiting, 1);
             preview?.Dispose();
+            if (OperatingSystem.IsLinux()) { linuxTray?.Dispose(); }
             if (OperatingSystem.IsWindows()) { setupShutdown?.Dispose(); tray?.Dispose(); }
         }
         return 0;
@@ -261,6 +299,6 @@ internal static class Program
             window.SetLocation(new Point(area.Left + (area.Width - width) / 2, area.Top + (area.Height - height) / 2));
         }
         catch (Exception error) when (error is ApplicationException or InvalidOperationException or ArgumentException or NotSupportedException)
-        { Console.Error.WriteLine("Thermalright VibeWare: automatic window placement unavailable."); }
+        { Console.Error.WriteLine("TermalRight VibeWare: automatic window placement unavailable."); }
     }
 }

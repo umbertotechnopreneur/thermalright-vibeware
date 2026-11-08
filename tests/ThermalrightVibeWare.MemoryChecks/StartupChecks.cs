@@ -163,7 +163,7 @@ internal static class StartupChecks
 
     private static bool Ready(MainPage page) => page.Session.Snapshot.Catalog is not null && !page.Session.Snapshot.Busy
         && (bool)typeof(MainPage).GetField("ready", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!
-        && !(bool)typeof(MainPage).GetField("devicesLoading", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
+        && !page.Session.Snapshot.DeviceRefreshPending;
 
     private static async Task WaitAsync(Func<bool> ready, TimeSpan? timeout = null)
     {

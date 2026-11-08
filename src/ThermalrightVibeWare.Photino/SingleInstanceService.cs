@@ -88,7 +88,7 @@ internal sealed class SingleInstanceService : IDisposable
             catch (InvalidOperationException)
             {
                 // A second launch can race with the primary window closing.
-                Console.Error.WriteLine("Thermalright VibeWare: the previous studio is closing.");
+                Console.Error.WriteLine("TermalRight VibeWare: the previous studio is closing.");
             }
         }, null, Timeout.Infinite, executeOnlyOnce: false);
     }

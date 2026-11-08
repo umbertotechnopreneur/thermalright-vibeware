@@ -293,7 +293,13 @@ public sealed class PythonThemeRenderer : IDisposable
         var runtime = ThemeCatalog.FindContentDirectory("theme-runtime") ?? throw new IOException("The theme-runtime folder is missing beside the engine.");
         var script = Path.Combine(runtime, "worker.py");
         if (!File.Exists(script)) { throw new IOException("The theme-runtime/worker.py file is missing."); }
-        var bundledPython = Path.Combine(AppContext.BaseDirectory, "python", "python.exe");
+        var linux = OperatingSystem.IsLinux();
+        if (!linux && !OperatingSystem.IsWindows()) { throw new PlatformNotSupportedException("The theme worker supports Windows and Linux only."); }
+        var bundledPython = linux ? "/usr/bin/python3" : Path.Combine(AppContext.BaseDirectory, "python", "python.exe");
+        var linuxManifest = Path.Combine(AppContext.BaseDirectory, "python", "linux-runtime.json");
+        var linuxPackages = Path.Combine(AppContext.BaseDirectory, "python", "site-packages");
+        if (linux && (!File.Exists(linuxManifest) || !Directory.Exists(linuxPackages)))
+        { throw new IOException("The packaged Linux Python dependencies are missing. Rebuild the complete Linux payload."); }
         var configured = Environment.GetEnvironmentVariable("THERMALRIGHT_VIBEWARE_PYTHON");
         var executable = !string.IsNullOrWhiteSpace(configured) ? configured : bundledPython;
         if (!Path.IsPathFullyQualified(executable) || !File.Exists(executable))
@@ -310,14 +316,41 @@ public sealed class PythonThemeRenderer : IDisposable
             StandardErrorEncoding = Encoding.UTF8,
             WorkingDirectory = runtime
         };
-        start.ArgumentList.Add("-u");
-        start.ArgumentList.Add(script);
+        if (linux)
+        {
+            // Ignore user Python settings and site packages. Only the packaged wheels
+            // and the selected interpreter's standard library are available to themes.
+            start.ArgumentList.Add("-I");
+            start.ArgumentList.Add("-S");
+            start.ArgumentList.Add("-B");
+            start.ArgumentList.Add("-u");
+            start.ArgumentList.Add("-c");
+            start.ArgumentList.Add("""
+                import json, pathlib, platform, runpy, sys
+                manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+                if manifest.get("version") != 1 or manifest.get("architecture") != "x64":
+                    raise RuntimeError("Unsupported Linux Python dependency manifest")
+                if list(sys.version_info[:2]) != [manifest.get("major"), manifest.get("minor")] or platform.machine() != "x86_64":
+                    raise RuntimeError("Linux Python version or architecture does not match the packaged wheels; rebuild the package for this interpreter")
+                sys.path[:0] = [sys.argv[2], str(pathlib.Path(sys.argv[3]).parent)]
+                sys.argv = [sys.argv[3]]
+                runpy.run_path(sys.argv[0], run_name="__main__")
+                """);
+            start.ArgumentList.Add(linuxManifest);
+            start.ArgumentList.Add(linuxPackages);
+            start.ArgumentList.Add(script);
+        }
+        else
+        {
+            start.ArgumentList.Add("-u");
+            start.ArgumentList.Add(script);
+        }
         start.Environment["PYTHONIOENCODING"] = "utf-8";
         start.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
         lastDiagnostic = "";
         try { worker = Process.Start(start) ?? throw new IOException("Python could not start."); }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or IOException)
-        { throw new IOException("Python theme runtime unavailable. Set THERMALRIGHT_VIBEWARE_PYTHON to Python 3.11+ with skia-python, or include python/python.exe in the portable folder. " + error.Message, error); }
+        { throw new IOException("Python theme runtime unavailable. Rebuild the complete platform payload, or set THERMALRIGHT_VIBEWARE_PYTHON to an absolute compatible interpreter path. " + error.Message, error); }
         _ = ReadDiagnosticsAsync(worker);
     }
 

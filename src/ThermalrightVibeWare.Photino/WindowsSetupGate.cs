@@ -40,7 +40,7 @@ internal static class WindowsSetupGate
 
     /// <summary>Shows why the studio cannot start while setup is changing files.</summary>
     internal static void ShowBusy() => MessageBox(IntPtr.Zero,
-        "Thermalright VibeWare setup is running. Open the app after installation or removal finishes.", "Thermalright VibeWare", 0x40);
+        "TermalRight VibeWare setup is running. Open the app after installation or removal finishes.", "TermalRight VibeWare", 0x40);
 
     /// <summary>Opens an existing named Windows event.</summary>
     /// <param name="access">Requested access mask for the named Windows event.</param>

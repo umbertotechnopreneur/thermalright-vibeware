@@ -38,49 +38,24 @@ public sealed partial class MainPage : Page
     private readonly IStudioPreview? preview;
     private readonly StudioSession session;
     public StudioSession Session => session;
+    public event Action? Ready;
     private readonly bool ownsSession;
     private readonly DispatcherTimer refresh = new() { Interval = TimeSpan.FromMilliseconds(100) };
-    private readonly DispatcherTimer colorChanges = new() { Interval = TimeSpan.FromMilliseconds(150) };
     private readonly List<CatalogRow> categoryRows = [];
     private readonly List<CatalogRow> themeRows = [];
     private StudioViewModel viewModel => session.ViewModel;
-    private IReadOnlyDictionary<string, bool> screenEnabled => viewModel.Read().ScreenEnabled;
     private static readonly int[] RefreshIntervals = [1000, 500, 250, 100, 50, 25];
-    private ThemeCatalogDto? catalog;
-    private bool unloaded, ready, updatingChoices, catalogLoading;
-    private bool displayActive => session.Snapshot.DisplayActive;
-    private bool displayBusy => session.Snapshot.Busy;
-    private bool startupRestorePending => session.Snapshot.StartupPending;
-    private bool devicesLoading;
-    private bool codexLoading, codexPreparing, diagnosticsChanging, diagnosticsEnabled, restartingAsAdministrator;
-    private long codexStatusAt, appliedFrameRevision;
-    private bool codexProcessRunning => session.Snapshot.Frame?.CodexProcessRunning == true;
-    private bool frameSuppressed => session.Snapshot.Frame?.FrameSuppressed == true;
-    private bool updatingColorControls, pendingColorSettings, updatingFonts;
-    private PanelChoice[] fontChoices = [];
+    private ThemeCatalogDto? appliedCatalog;
+    private string? appliedCategory, appliedTheme, appliedDeviceId;
+    private bool unloaded, ready, updatingChoices, restartingAsAdministrator;
+    private long appliedFrameRevision;
+    private bool updatingColorControls;
     private string? lastRenderedTheme;
     private byte[]? lastFrame;
     private bool previewUpdating;
     private int previewGeneration;
     private bool? appliedLight;
     private PanelChoice[]? appliedDevices;
-    private int refreshMilliseconds { get => viewModel.Preferences.RefreshMilliseconds; set => viewModel.Edit(p => p.RefreshMilliseconds = value); }
-    private string jpegQuality { get => viewModel.Preferences.JpegQuality; set => viewModel.Edit(p => p.JpegQuality = value); }
-    private string profileSelection { get => viewModel.Preferences.ProfileSelection; set => viewModel.Edit(p => p.ProfileSelection = value); }
-    private long lastChange { get => viewModel.Preferences.LastChange; set => viewModel.Edit(p => p.LastChange = value); }
-    private string selectedCategory => viewModel.Preferences.SelectedCategory;
-    private string selectedTheme => viewModel.Preferences.SelectedTheme;
-    private string fontFamily { get => viewModel.Preferences.FontFamily; set => viewModel.Edit(p => p.FontFamily = value); }
-    private int appearance { get => viewModel.Preferences.Appearance; set => viewModel.Edit(p => p.Appearance = value); }
-    private double fontScale { get => viewModel.Preferences.FontScale; set => viewModel.Edit(p => p.FontScale = value); }
-    private double saturationPercent { get => viewModel.Preferences.SaturationPercent; set => viewModel.Edit(p => p.SaturationPercent = value); }
-    private double hueDegrees { get => viewModel.Preferences.HueDegrees; set => viewModel.Edit(p => p.HueDegrees = value); }
-    private double brightnessPercent { get => viewModel.Preferences.BrightnessPercent; set => viewModel.Edit(p => p.BrightnessPercent = value); }
-    private double contrastPercent { get => viewModel.Preferences.ContrastPercent; set => viewModel.Edit(p => p.ContrastPercent = value); }
-    private bool colorFiltersEnabled { get => viewModel.Preferences.ColorFiltersEnabled; set => viewModel.Edit(p => p.ColorFiltersEnabled = value); }
-    private bool cycleThemes { get => viewModel.Preferences.CycleThemes; set => viewModel.Edit(p => p.CycleThemes = value); }
-    private string? selectedDeviceId { get => viewModel.Preferences.SelectedDeviceId; set => viewModel.Edit(p => p.SelectedDeviceId = value); }
-    private bool showSpectrum { get => viewModel.Preferences.ShowSpectrum; set => viewModel.Edit(p => p.ShowSpectrum = value); }
 
     /// <summary>Connects studio controls, saved choices and UI events to the shared session.</summary>
     /// <param name="client">Engine request client owned or shared according to the containing session/host.</param>
@@ -108,26 +83,30 @@ public sealed partial class MainPage : Page
     {
         InitializeComponent();
         InitializePreviewAppearance();
+        var studio = viewModel.Read();
+        var preferences = studio.Preferences;
 
         // Populate selectors before ready enables their change handlers.
         RefreshBox.ItemsSource = RefreshIntervals.Select(value => new PanelChoice(value.ToString(), value == 1000 ? "1 s" : $"{value} ms")).ToArray();
-        RefreshBox.SelectedItem = ((PanelChoice[])RefreshBox.ItemsSource).First(item => item.Id == refreshMilliseconds.ToString());
+        RefreshBox.SelectedItem = ((PanelChoice[])RefreshBox.ItemsSource).First(item => item.Id == preferences.RefreshMilliseconds.ToString());
         QualityBox.ItemsSource = new[] { new PanelChoice("poor", "Poor"), new PanelChoice("low", "Low"), new PanelChoice("medium", "Medium"), new PanelChoice("high", "High") };
-        QualityBox.SelectedItem = ((PanelChoice[])QualityBox.ItemsSource).First(item => item.Id == jpegQuality);
-        refresh.Interval = TimeSpan.FromMilliseconds(refreshMilliseconds);
-        FontBox.Text = fontFamily;
-        UpdateFontScale();
-        UpdateColorControls();
-        FiltersBox.IsChecked = colorFiltersEnabled;
-        UpdateFilterVisibility();
-        SpectrumBox.IsChecked = showSpectrum;
-        CycleBox.IsChecked = cycleThemes;
-        MusicScreenBox.IsChecked = screenEnabled["multimedia"];
-        CodexScreenBox.IsChecked = screenEnabled["codex"];
-        SystemScreenBox.IsChecked = screenEnabled["system"];
+        QualityBox.SelectedItem = ((PanelChoice[])QualityBox.ItemsSource).First(item => item.Id == preferences.JpegQuality);
+        refresh.Interval = TimeSpan.FromMilliseconds(preferences.RefreshMilliseconds);
+        FontBox.Text = preferences.FontFamily;
+        UpdateFontScale(preferences.FontScale);
+        UpdateColorControls(preferences);
+        FiltersBox.IsChecked = preferences.ColorFiltersEnabled;
+        UpdateFilterVisibility(preferences);
+        SpectrumBox.IsChecked = preferences.ShowSpectrum;
+        CycleBox.IsChecked = preferences.CycleThemes;
+        MusicScreenBox.IsChecked = studio.ScreenEnabled["multimedia"];
+        CodexScreenBox.IsChecked = studio.ScreenEnabled["codex"];
+        SystemScreenBox.IsChecked = studio.ScreenEnabled["system"];
 
         ready = true;
-        ApplyAppearance();
+        ApplyAppearance(preferences);
+        ApplyWorkspace(viewModel.Workspace);
+        UpdateDisplayControls(session.Snapshot, preferences);
         AboutVersion.Text = $"Display studio · {typeof(App).Assembly.GetName().Version?.ToString(3)}";
     }
 
@@ -138,6 +117,7 @@ public sealed partial class MainPage : Page
         Loaded += async (_, _) =>
         {
             unloaded = false;
+            ApplyWorkspace(viewModel.Workspace);
             await LoadCatalogAsync();
             await RefreshDevicesAsync();
             await LoadDiagnosticsAsync();
@@ -148,25 +128,20 @@ public sealed partial class MainPage : Page
                 // Only a loaded main page consumes first-run visibility; failed/aborted startup does not.
                 this.session.CompleteFirstRun();
                 refresh.Start();
+                Ready?.Invoke();
             }
         };
         Unloaded += (_, _) =>
         {
             unloaded = true;
+            session.PreviewRequested = false;
             if (ownsSession) { _ = this.session.ShutdownAsync(); }
-            refresh.Stop(); colorChanges.Stop();
+            refresh.Stop();
             ClearPreview();
-            if (pendingColorSettings) { CommitColorControls(); }
-            SaveChoices();
         };
 
         // UI timers observe the session; the session owns actual engine scheduling.
         refresh.Tick += async (_, _) => await RefreshAsync(queueIfBusy: false);
-        colorChanges.Tick += async (_, _) =>
-        {
-            colorChanges.Stop(); CommitColorControls();
-            SaveChoices(); await RefreshAsync();
-        };
 
         // Overlays and text/dropdown controls consume navigation before theme shortcuts.
         KeyDown += (_, args) =>
@@ -177,7 +152,7 @@ public sealed partial class MainPage : Page
             { if (args.Key == Key.Escape) { CloseOverlay.Visibility = Visibility.Collapsed; args.Handled = true; } return; }
             if (AboutOverlay.Visibility == Visibility.Visible)
             { if (args.Key == Key.Escape) { CloseAbout(); args.Handled = true; } return; }
-            if (SensorDebugPanel.Visibility == Visibility.Visible) { return; }
+            if (viewModel.Workspace.SensorDebugOpen) { return; }
             if (ProfilesBox.IsDropDownOpen || DevicesBox.IsDropDownOpen || RefreshBox.IsDropDownOpen || QualityBox.IsDropDownOpen || FontsBox.IsDropDownOpen || args.OriginalSource is TextBox) { return; }
             if (args.Key == Key.PageUp) { Navigate(-1); args.Handled = true; }
             if (args.Key == Key.PageDown) { Navigate(1); args.Handled = true; }
@@ -191,7 +166,8 @@ public sealed partial class MainPage : Page
     private void Spectrum_Changed(object sender, RoutedEventArgs args)
     {
         if (!ready) { return; }
-        showSpectrum = SpectrumBox.IsChecked == true;
+        var enabled = SpectrumBox.IsChecked == true;
+        viewModel.Edit(p => p.ShowSpectrum = enabled);
         SaveChoices(); _ = RefreshAsync();
     }
 
@@ -201,8 +177,7 @@ public sealed partial class MainPage : Page
     private void Cycle_Changed(object sender, RoutedEventArgs args)
     {
         if (!ready) { return; }
-        cycleThemes = CycleBox.IsChecked == true;
-        lastChange = Environment.TickCount64;
+        viewModel.SetRotation(CycleBox.IsChecked == true);
         SaveChoices();
     }
 

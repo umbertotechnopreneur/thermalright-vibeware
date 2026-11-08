@@ -22,35 +22,61 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$PayloadPath,
+    [Parameter(Mandatory)][AllowEmptyCollection()][Collections.Generic.HashSet[string]]$ImportSession,
     [ValidateSet('x64', 'ARM64')][string]$Architecture = 'x64',
-    [string]$Version = (Get-Content "$PSScriptRoot/../../installer/Version.txt" -Raw).Trim()
+    [string]$PayloadPath,
+    [string]$Version,
+    [switch]$PrepareImports
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if (-not $IsWindows) { throw 'WiX imports and Windows MSI packaging require Windows.' }
+if (-not $PrepareImports -and [string]::IsNullOrWhiteSpace($PayloadPath)) { throw 'Specify -PayloadPath when packaging the MSI.' }
 $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$toolRoot = Join-Path $repo 'artifacts/tools/wix4/imports'
+$wixVersion = '4.0.6'
+$scan = Join-Path $PSScriptRoot '../maintenance/Assert-DefenderClean.ps1'
+foreach ($id in @('wix', 'wixtoolset.ui.wixext')) {
+    $name = "$id.$wixVersion"
+    $archive = Join-Path $toolRoot "$name.nupkg"
+    $sourceUrl = "https://api.nuget.org/v3-flatcontainer/$id/$wixVersion/$name.nupkg"
+    $extracted = Join-Path $toolRoot $name
+    if (-not (Test-Path -LiteralPath $archive)) {
+        if (-not $PrepareImports) { throw "Missing staged MSI dependency: $name." }
+        New-Item -ItemType Directory -Path $toolRoot -Force | Out-Null
+        $partial = "$archive.$([guid]::NewGuid().ToString('N')).part"
+        try {
+            Invoke-WebRequest -Uri $sourceUrl -OutFile $partial
+            Move-Item -LiteralPath $partial -Destination $archive
+        } finally {
+            if (Test-Path -LiteralPath $partial) { Remove-Item -LiteralPath $partial -Force }
+        }
+    }
+    & $scan -Path $archive -Source $sourceUrl -ImportSession $ImportSession -ScanNewImport:$PrepareImports
+    if ($PrepareImports -and -not (Test-Path -LiteralPath $extracted)) {
+        $temporary = "$extracted.$([guid]::NewGuid().ToString('N')).stage"
+        [IO.Compression.ZipFile]::ExtractToDirectory($archive, $temporary)
+        Move-Item -LiteralPath $temporary -Destination $extracted
+    }
+    & $scan -Path $extracted -Source "Extracted $name from NuGet" -ImportSession $ImportSession -ScanNewImport:$PrepareImports
+    $specs = @(Get-ChildItem -LiteralPath $extracted -Filter '*.nuspec' -File)
+    if ($specs.Count -ne 1) { throw "Missing NuGet package metadata: $name." }
+    $metadata = ([xml](Get-Content -LiteralPath $specs[0].FullName -Raw)).package.metadata
+    if ($metadata.id -ne $id -or $metadata.version -ne $wixVersion) { throw "Unexpected NuGet package identity: $name." }
+}
+$wix = Join-Path $toolRoot "wix.$wixVersion/tools/net6.0/any/wix.dll"
+$uiExtension = Join-Path $toolRoot "wixtoolset.ui.wixext.$wixVersion/wixext4/WixToolset.UI.wixext.dll"
+if (-not (Test-Path -LiteralPath $wix -PathType Leaf) -or -not (Test-Path -LiteralPath $uiExtension -PathType Leaf)) {
+    throw 'The staged WiX tool or UI extension is missing.'
+}
+if ($PrepareImports) { return }
+
+if (-not $Version) { $Version = (Get-Content (Join-Path $repo 'installer/Version.txt') -Raw).Trim() }
 $payload = (Resolve-Path -LiteralPath $PayloadPath).Path
 if (-not (Test-Path -LiteralPath (Join-Path $payload 'ThermalrightVibeWare.exe'))) { throw 'The published studio is missing.' }
 & (Join-Path $PSScriptRoot 'Build-SetupActions.ps1') -Architecture $Architecture
 $setupHelper = Join-Path $repo "artifacts/native/msi/$($Architecture.ToLowerInvariant())/ThermalrightVibeWare.SetupActions.exe"
 if (-not (Test-Path -LiteralPath $setupHelper)) { throw 'The native installer cleanup helper is missing.' }
-$toolRoot = Join-Path $repo 'artifacts/tools/wix4'
-$wix = Join-Path $toolRoot 'wix.exe'
-if (-not (Test-Path -LiteralPath $wix)) {
-    dotnet tool install wix --version 4.0.6 --tool-path $toolRoot --allow-roll-forward
-    if ($LASTEXITCODE -ne 0) { throw 'Could not restore the pinned MSI build tool.' }
-}
-& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $toolRoot -Source 'https://api.nuget.org/v3/index.json; wix 4.0.6'
-# Download and scan the extension before WiX loads its DLL.
-$extensionArchive = Join-Path $toolRoot 'wixtoolset.ui.wixext.4.0.6.nupkg'
-$extensionUrl = 'https://api.nuget.org/v3-flatcontainer/wixtoolset.ui.wixext/4.0.6/wixtoolset.ui.wixext.4.0.6.nupkg'
-Invoke-WebRequest -Uri $extensionUrl -OutFile $extensionArchive
-& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $extensionArchive -Source $extensionUrl
-$extensionRoot = Join-Path $toolRoot '.wix/extensions/WixToolset.UI.wixext/4.0.6'
-if (-not (Test-Path -LiteralPath $extensionRoot)) {
-    [IO.Compression.ZipFile]::ExtractToDirectory($extensionArchive, $extensionRoot)
-}
-& "$PSScriptRoot/../maintenance/Assert-DefenderClean.ps1" -Path $extensionRoot -Source $extensionUrl
 $generated = Join-Path $repo ('artifacts/msi/' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $generated -Force | Out-Null
 [IO.File]::WriteAllText((Join-Path $generated 'ThermalrightVibeWare.cmd'), "@echo off`r`nstart `"`" `"%~dp0MSI\ThermalrightVibeWare.exe`" %*`r`n", [Text.Encoding]::ASCII)
@@ -115,12 +141,7 @@ $source = Join-Path $generated 'Payload.wxs'
 $document.Save($source)
 $revision = (git -C $repo rev-parse --short HEAD).Trim()
 $output = Join-Path $repo "artifacts/packages/ThermalrightVibeWare-win-$($Architecture.ToLowerInvariant())-$Version.msi"
-# Keep the extension cache with the generated tools, not in the user profile or source tree.
-Push-Location $toolRoot
-try {
-    # Build only. Do not invoke MSI validation, tests or the cleanup helper.
-    & $wix build (Join-Path $repo 'installer/Package.wxs') $source -arch $Architecture.ToLowerInvariant() -ext WixToolset.UI.wixext -culture en-US -d "PayloadRoot=$payload" -d "GeneratedRoot=$generated" -d "InstallerRoot=$(Join-Path $repo 'installer')" -d "SetupHelper=$setupHelper" -d "SetupGate=$(Join-Path (Split-Path $setupHelper) 'ThermalrightVibeWare.SetupGate.dll')" -d "ProductVersion=$Version" -d "SourceRevision=$revision" -intermediatefolder (Join-Path $generated 'intermediate') -pdbtype none -out $output
-    if ($LASTEXITCODE -ne 0) { throw 'MSI compilation failed.' }
-}
-finally { Pop-Location }
+# Pass the verified extension path so WiX does not consult its extension cache.
+& dotnet --roll-forward Major $wix build (Join-Path $repo 'installer/Package.wxs') $source -arch $Architecture.ToLowerInvariant() -ext $uiExtension -culture en-US -d "PayloadRoot=$payload" -d "GeneratedRoot=$generated" -d "InstallerRoot=$(Join-Path $repo 'installer')" -d "SetupHelper=$setupHelper" -d "SetupGate=$(Join-Path (Split-Path $setupHelper) 'ThermalrightVibeWare.SetupGate.dll')" -d "ProductVersion=$Version" -d "SourceRevision=$revision" -intermediatefolder (Join-Path $generated 'intermediate') -pdbtype none -out $output
+if ($LASTEXITCODE -ne 0) { throw 'MSI compilation failed.' }
 Write-Host "MSI: $output"

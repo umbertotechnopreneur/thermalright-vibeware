@@ -33,7 +33,8 @@ public sealed partial class MainPage
     private void Palette_Click(object sender, RoutedEventArgs args)
     {
         // Editing a palette must not follow automatic theme rotation mid-edit.
-        editingPaletteKey = selectedTheme + (IsLight ? "@light" : "@dark");
+        var preferences = viewModel.Preferences;
+        editingPaletteKey = preferences.SelectedTheme + (preferences.Light ? "@light" : "@dark");
         UpdatePaletteEditor();
         PaletteOverlay.Visibility = Visibility.Visible;
     }
@@ -42,7 +43,7 @@ public sealed partial class MainPage
     private void UpdatePaletteEditor()
     {
         if (editingPaletteKey is null) { return; }
-        var palette = session.Model.Palettes.GetValueOrDefault(editingPaletteKey) ?? new ThemePalette();
+        var palette = viewModel.Read().Palettes.GetValueOrDefault(editingPaletteKey) ?? new ThemePalette();
         PaletteHeading.Text = "Theme colors · " + editingPaletteKey;
         PalettePrimary.Text = palette.TextPrimary ?? "";
         PaletteSecondary.Text = palette.TextSecondary ?? "";

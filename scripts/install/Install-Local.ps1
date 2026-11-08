@@ -205,7 +205,7 @@ $launcherPath = Join-Path $installRoot 'ThermalrightVibeWare.cmd'
 $launcherIcon = Join-Path $installRoot 'ThermalrightVibeWare.ico'
 $backupRoot = Join-Path $roamingAppData 'Umberto Giacobbi.biz\ThermalrightVibeWare\Startup backups'
 $startupShortcut = Join-Path $startupDirectory 'ThermalrightVibeWare.lnk'
-$startShortcut = Join-Path $programsDirectory 'Thermalright VibeWare.lnk'
+$startShortcut = Join-Path $programsDirectory 'TermalRight VibeWare.lnk'
 $startupMarker = 'ThermalrightVibeWare auto-start managed by Install-ThermalrightVibeWare.ps1'
 $startMarker = 'ThermalrightVibeWare Start menu managed by Install-ThermalrightVibeWare.ps1'
 $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ThermalrightVibeWare'
@@ -297,7 +297,7 @@ try {
     $uninstallCommand = '"' + $powershellPath + '" -NoProfile -ExecutionPolicy Bypass -File "' + $uninstaller + '"'
     New-Item -Path $uninstallKey -Force | Out-Null
     foreach ($property in @{
-        DisplayName = 'Thermalright VibeWare'; Publisher = 'Umberto Giacobbi'; DisplayIcon = $installedIcon
+        DisplayName = 'TermalRight VibeWare'; Publisher = 'Umberto Giacobbi'; DisplayIcon = $installedIcon
         InstallLocation = $releasePath; UninstallString = $uninstallCommand
         DisplayVersion = (Get-Item -LiteralPath $installedExecutable).VersionInfo.ProductVersion
         InstallDate = (Get-Date).ToString('yyyyMMdd'); URLInfoAbout = 'https://github.com/umbertotechnopreneur/thermalright-vibeware'
@@ -307,7 +307,7 @@ try {
     foreach ($name in @('NoModify', 'NoRepair', 'ThermalrightVibeWareManaged')) {
         New-ItemProperty -LiteralPath $uninstallKey -Name $name -Value 1 -PropertyType DWord -Force | Out-Null
     }
-    Write-Host "Thermalright VibeWare is installed at: $releasePath"
+    Write-Host "TermalRight VibeWare is installed at: $releasePath"
     Write-Host "Stable launcher: $launcherPath"
     Write-Host "Open it from Start: $startShortcut"
     Write-Host 'At Windows sign-in, it starts in the tray and starts the saved USB display and theme. Stop cancels output for the current run.'

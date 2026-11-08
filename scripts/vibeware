@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# VBWR B
+# TermalRight VibeWare | Umberto Giacobbi | SPDX-License-Identifier: MIT
+# Linux entry point: prepare PowerShell only for an explicit preflight command.
+# VBWR E
+set -euo pipefail
+if ! command -v pwsh >/dev/null 2>&1; then
+    if [[ "${1:-}" != preflight ]]; then
+        echo 'PowerShell 7 is missing. Run ./scripts/vibeware preflight to install it.' >&2
+        exit 1
+    fi
+    . /etc/os-release
+    if [[ "$ID" != ubuntu ]]; then
+        echo 'Automatic shell preparation requires Ubuntu.' >&2
+        exit 1
+    fi
+    # Use Ubuntu snapd and the official PowerShell classic snap.
+    sudo apt-get update
+    sudo apt-get install -y snapd
+    sudo snap install powershell --classic
+    export PATH="$PATH:/snap/bin"
+fi
+exec pwsh -NoProfile -File "$(dirname -- "$(realpath -- "$0")")/vibeware.ps1" "$@"

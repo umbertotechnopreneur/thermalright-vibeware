@@ -52,7 +52,11 @@ public sealed record HardwareMotherboardSensors(string Name, double? Temperature
 public sealed record HardwareTemperatureSensors(string Name, double TemperatureC);
 
 /// <summary>Platform sensor-access metadata; availability alone does not prove usable sensor readings.</summary>
-public sealed record HardwareDriverStatus(bool Available, string? Path, string? Notice = null);
+public sealed record HardwareDriverStatus(bool Available, string? Path, string? Notice = null,
+    IReadOnlyList<HardwareSensorSource>? Sources = null, IReadOnlyList<string>? Guidance = null);
+
+/// <summary>Detected software and access metadata; detection does not prove a usable sensor reading.</summary>
+public sealed record HardwareSensorSource(string Name, string Status, string Detail);
 
 /// <summary>Physical memory in GiB (2^30 bytes); excludes swap and committed virtual memory.</summary>
 public sealed record HardwareMemorySensors(double? TotalGiB, double? UsedGiB, double? UsagePercent,

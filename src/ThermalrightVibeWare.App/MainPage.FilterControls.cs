@@ -21,25 +21,26 @@
 
 
 using System.Windows;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
 public sealed partial class MainPage
 {
     /// <summary>Copies saved filter values to sliders and labels without triggering edits.</summary>
-    private void UpdateColorControls()
+    /// <param name="preferences">Current filter settings from a detached model read.</param>
+    private void UpdateColorControls(StudioPreferences preferences)
     {
         updatingColorControls = true;
-        SaturationSlider.Value = saturationPercent;
-        HueSlider.Value = hueDegrees;
-        BrightnessSlider.Value = brightnessPercent;
-        ContrastSlider.Value = contrastPercent;
-        SaturationText.Text = $"{saturationPercent:0}%";
-        HueText.Text = $"{hueDegrees:0}°";
-        BrightnessText.Text = $"{brightnessPercent:+0;-0;0}%";
-        ContrastText.Text = $"{contrastPercent:0}%";
-        updatingColorControls = false;
-        UpdateColorRamps();
+        try
+        {
+            SaturationSlider.Value = preferences.SaturationPercent;
+            HueSlider.Value = preferences.HueDegrees;
+            BrightnessSlider.Value = preferences.BrightnessPercent;
+            ContrastSlider.Value = preferences.ContrastPercent;
+        }
+        finally { updatingColorControls = false; }
+        UpdateColorLabels(preferences);
     }
 
     /// <summary>Saves current slider values and debounces persistence and preview wakeups.</summary>
@@ -48,29 +49,23 @@ public sealed partial class MainPage
     private void Color_Changed(object sender, RoutedPropertyChangedEventArgs<double> args)
     {
         if (!ready || updatingColorControls) { return; }
-        // Keep current choices in the model immediately, including during native
-        // tray/setup shutdown. Debounce only disk persistence and preview wakeups.
-        CommitColorControls();
-        SaturationText.Text = $"{Math.Round(SaturationSlider.Value):0}%";
-        HueText.Text = $"{Math.Round(HueSlider.Value):0}°";
-        BrightnessText.Text = $"{Math.Round(BrightnessSlider.Value):+0;-0;0}%";
-        ContrastText.Text = $"{Math.Round(ContrastSlider.Value):0}%";
-        UpdateColorRamps();
-        pendingColorSettings = true;
-        colorChanges.Stop(); colorChanges.Start();
+        var control = sender == SaturationSlider ? StudioColorControl.Saturation
+            : sender == HueSlider ? StudioColorControl.Hue
+            : sender == BrightnessSlider ? StudioColorControl.Brightness : StudioColorControl.Contrast;
+        viewModel.SetColor(control, args.NewValue);
+        UpdateColorLabels(viewModel.Preferences);
+        session.ScheduleSave();
     }
 
-    /// <summary>Copies current slider values into the model before persistence is debounced.</summary>
-    private void CommitColorControls()
+    /// <summary>Projects the model's filter values into the labels and color guides.</summary>
+    /// <param name="preferences">Current filter values including any edit just applied.</param>
+    private void UpdateColorLabels(StudioPreferences preferences)
     {
-        viewModel.Edit(p =>
-        {
-            p.SaturationPercent = Math.Round(SaturationSlider.Value);
-            p.HueDegrees = Math.Round(HueSlider.Value);
-            p.BrightnessPercent = Math.Round(BrightnessSlider.Value);
-            p.ContrastPercent = Math.Round(ContrastSlider.Value);
-        });
-        pendingColorSettings = false;
+        SaturationText.Text = $"{preferences.SaturationPercent:0}%";
+        HueText.Text = $"{preferences.HueDegrees:0}°";
+        BrightnessText.Text = $"{preferences.BrightnessPercent:+0;-0;0}%";
+        ContrastText.Text = $"{preferences.ContrastPercent:0}%";
+        UpdateColorRamps(preferences);
     }
 
     /// <summary>Restores neutral runtime filter values.</summary>
@@ -78,9 +73,9 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private void ResetColors_Click(object sender, RoutedEventArgs args)
     {
-        colorChanges.Stop(); pendingColorSettings = false;
-        saturationPercent = contrastPercent = 100;
-        hueDegrees = brightnessPercent = 0;
-        UpdateColorControls(); SaveChoices(); _ = RefreshAsync();
+        viewModel.ResetColors();
+        UpdateColorControls(viewModel.Preferences);
+        SaveChoices();
+        _ = RefreshAsync();
     }
 }

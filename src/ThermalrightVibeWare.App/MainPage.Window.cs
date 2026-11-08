@@ -21,6 +21,7 @@
 
 
 using System.Windows;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -77,21 +78,18 @@ public sealed partial class MainPage
         // Keep the existing session alive until Windows accepts the elevated launch.
         try
         {
-            colorChanges.Stop();
-            if (pendingColorSettings) { CommitColorControls(); }
+            viewModel.SetOperationNotice(StudioNoticeSource.Restart, null);
             SaveChoices();
             if (await windowActions.RestartAsAdministratorAsync()) { ExitApplication(); }
-            else { StatusText.Text = "Administrator restart canceled. The current session is still running."; }
+            else { viewModel.SetOperationNotice(StudioNoticeSource.Restart, "Administrator restart canceled. The current session is still running."); }
         }
-        catch (Exception error) { StatusText.Text = "Could not reopen as administrator: " + error.Message; }
+        catch (Exception error) { viewModel.SetOperationNotice(StudioNoticeSource.Restart, "Could not reopen as administrator: " + error.Message); }
         finally { restartingAsAdministrator = false; AdministratorButton.IsEnabled = SensorDebugAdministrator.IsEnabled = true; }
     }
 
     /// <summary>Flush pending choices before asking the desktop host to stop.</summary>
     public void ExitApplication()
     {
-        colorChanges.Stop();
-        if (pendingColorSettings) { CommitColorControls(); }
         SaveChoices();
         windowActions?.CloseApplication();
     }
@@ -104,13 +102,12 @@ public sealed partial class MainPage
         if (windowActions?.CanMinimizeToTray != true) { return; }
         try
         {
-            colorChanges.Stop();
-            if (pendingColorSettings) { CommitColorControls(); }
+            viewModel.SetOperationNotice(StudioNoticeSource.Tray, null);
             SaveChoices();
             CloseOverlay.Visibility = Visibility.Collapsed;
             windowActions.MinimizeToTray();
         }
-        catch (Exception error) { StatusText.Text = "Could not minimize to tray: " + error.Message; }
+        catch (Exception error) { viewModel.SetOperationNotice(StudioNoticeSource.Tray, "Could not minimize to tray: " + error.Message); }
     }
 
     /// <summary>Hides the product overlay and restores keyboard focus.</summary>

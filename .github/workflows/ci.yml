@@ -17,8 +17,9 @@ jobs:
     name: Windows ${{ matrix.arch }}
     runs-on: windows-latest
     env:
-      NUGET_PACKAGES: ${{ github.workspace }}\artifacts\nuget-stage
-      NUGET_HTTP_CACHE_PATH: ${{ github.workspace }}\artifacts\nuget-http
+      # OpenSilver loads tasks from the staged NuGet tree, which cleanup removes.
+      MSBUILDDISABLENODEREUSE: '1'
+      DOTNET_CLI_USE_MSBUILD_SERVER: '0'
     strategy:
       fail-fast: false
       matrix:
@@ -28,25 +29,28 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-      - run: dotnet restore ThermalrightVibeWare.slnx -p:Platform=${{ matrix.arch }}
-      - name: Verify restored dependency scan evidence
-        shell: pwsh
-        run: ./scripts/maintenance/Assert-DefenderClean.ps1 -Path $env:NUGET_PACKAGES -Source 'https://api.nuget.org/v3/index.json; restored package archives and extracted dependencies'
-      # The vendored LibreHardwareMonitor source follows its upstream formatting.
-      - run: dotnet format ThermalrightVibeWare.slnx --verify-no-changes --no-restore --exclude third_party/LibreHardwareMonitor
-      - run: dotnet build ThermalrightVibeWare.slnx --configuration Release --no-restore --warnaserror -p:Platform=${{ matrix.arch }}
-      - name: Offline state and provider checks
-        if: matrix.arch == 'x64'
-        run: dotnet run --project tests/ThermalrightVibeWare.StudioChecks -c Release
-      - name: Publish portable folders (no tests)
-        shell: pwsh
-        run: ./scripts/Publish.ps1 -Architecture ${{ matrix.arch }}
-      - name: Build Windows installer
+      - name: Prepare Windows imports, then build and package
         shell: pwsh
         run: |
+          $architecture = '${{ matrix.arch }}'
+          Import-Module ./scripts/modules/Build.psm1 -Force
+          $imports = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          Initialize-WindowsBuildImports -Architecture $architecture -ImportSession $imports -IncludeSolution -IncludeMsi
+
+          ./scripts/build/Build-PhotinoNative.ps1 -Architecture $architecture -ImportSession $imports
+          # The vendored LibreHardwareMonitor source follows its upstream formatting.
+          dotnet format ThermalrightVibeWare.slnx --verify-no-changes --no-restore --exclude third_party/LibreHardwareMonitor
+          if ($LASTEXITCODE -ne 0) { throw 'Format verification failed.' }
+          dotnet build ThermalrightVibeWare.slnx --configuration Release --no-restore --warnaserror -p:Platform=$architecture
+          if ($LASTEXITCODE -ne 0) { throw 'Windows solution build failed.' }
+          if ($architecture -eq 'x64') {
+            dotnet run --project tests/ThermalrightVibeWare.StudioChecks -c Release --no-restore
+            if ($LASTEXITCODE -ne 0) { throw 'Offline studio checks failed.' }
+          }
+          Invoke-Package -Architecture $architecture -Configuration Debug -ImportSession $imports
           $payloads = @(Get-ChildItem -LiteralPath artifacts/staging -Directory)
           if ($payloads.Count -ne 1) { throw 'Expected exactly one fresh published payload.' }
-          ./scripts/build/Build-Msi.ps1 -PayloadPath $payloads[0].FullName -Architecture ${{ matrix.arch }}
+          ./scripts/build/Build-Msi.ps1 -PayloadPath $payloads[0].FullName -Architecture $architecture -ImportSession $imports
       - uses: actions/upload-artifact@v7
         with:
           name: ThermalrightVibeWare-win-${{ matrix.arch }}
@@ -54,6 +58,15 @@ jobs:
             artifacts/packages/*.zip
             artifacts/packages/*.msi
           if-no-files-found: error
+      - name: Remove generated Windows files
+        if: always()
+        shell: pwsh
+        run: |
+          try {
+            dotnet build-server shutdown --msbuild
+            if ($LASTEXITCODE -ne 0) { throw 'Could not shut down the CI MSBuild server.' }
+          }
+          finally { ./scripts/maintenance/Clean-BuildOutputs.ps1 }
   linux-ui:
     name: Linux UI and offline model checks
     runs-on: ubuntu-latest
@@ -66,13 +79,35 @@ jobs:
       - run: dotnet build src/ThermalrightVibeWare.Photino/ThermalrightVibeWare.Photino.csproj --configuration Release --no-restore --warnaserror
       - name: Offline state and provider checks (no hardware)
         run: dotnet run --project tests/ThermalrightVibeWare.StudioChecks -c Release
+      - name: Offline Linux sensors and NVML checks (no hardware)
+        run: dotnet run --project tests/ThermalrightVibeWare.LinuxChecks -c Debug
+  linux-deb:
+    name: Linux Debian package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Prepare Linux build prerequisites
+        shell: pwsh
+        run: |
+          ./scripts/vibeware.ps1 preflight
+      - name: Build Debug UI and Debian package
+        shell: pwsh
+        run: ./scripts/vibeware.ps1 package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ThermalrightVibeWare-linux-amd64
+          path: artifacts/packages/*.deb
+          if-no-files-found: error
   required:
     name: Build
     if: always()
-    needs: [build, linux-ui]
+    needs: [build, linux-ui, linux-deb]
     runs-on: windows-latest
     steps:
       - name: Require both Windows builds
         shell: pwsh
         run: |
-          if ('${{ needs.build.result }}' -ne 'success' -or '${{ needs.linux-ui.result }}' -ne 'success') { throw 'A required Windows or Linux build failed or was cancelled.' }
+          if ('${{ needs.build.result }}' -ne 'success' -or '${{ needs.linux-ui.result }}' -ne 'success' -or '${{ needs.linux-deb.result }}' -ne 'success') { throw 'A required Windows or Linux build failed or was cancelled.' }

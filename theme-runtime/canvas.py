@@ -331,6 +331,8 @@ class ThemeContext:
 
     def playback_status(self):
         """Describe the actual media session state without inferring playback."""
+        if self.playback_state == "unavailable":
+            return "UNAVAILABLE"
         if self.playing:
             return "PLAYING"
         if not self.has_media:

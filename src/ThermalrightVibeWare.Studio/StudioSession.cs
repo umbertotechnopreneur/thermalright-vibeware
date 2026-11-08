@@ -24,8 +24,25 @@ namespace ThermalrightVibeWare.Studio;
 
 /// <summary>One immutable observation, replaced atomically; views never hold up the worker.</summary>
 public sealed record StudioSnapshot(ThemeCatalogDto? Catalog = null, PanelChoice[]? Devices = null,
-    PanelState? Frame = null, string Status = "Local preview", bool DisplayActive = false,
-    bool Busy = false, bool StartupPending = false, long Revision = 0, long FrameRevision = 0);
+    PanelState? Frame = null, string Status = "Local preview", StudioOutput? ActiveOutput = null,
+    bool Busy = false, bool StartupPending = false, long Revision = 0, long FrameRevision = 0,
+    EngineHelloDto? Hello = null, bool DeviceRefreshPending = false, bool CatalogRefreshPending = false,
+    string? PersistenceError = null, string? FrameRequestedThemeId = null, long FramePageRevision = 0)
+{
+    public bool DisplayActive => ActiveOutput is not null;
+    public bool CanStop => !Busy && (DisplayActive || StartupPending);
+    public bool CanSelectDevice => Hello?.Supports("devices") == true && CanSelectProfile && !DeviceRefreshPending;
+    public bool CanSelectProfile => !Busy && !DisplayActive;
+
+    /// <summary>Checks whether the selected theme and a connected device can be used for explicit output.</summary>
+    /// <param name="preferences">The studio selection to evaluate against this engine observation.</param>
+    public bool CanStart(StudioPreferences preferences) => Hello?.Supports("start") == true
+        && CanSelectProfile && !DeviceRefreshPending && !string.IsNullOrEmpty(preferences.SelectedTheme)
+        && Devices?.Any(device => device.Id == preferences.SelectedDeviceId) == true;
+}
+
+/// <summary>The device and resolved profile currently open in the engine.</summary>
+public sealed record StudioOutput(string DeviceId, string ProfileId);
 
 /// <summary>Owns output scheduling and startup independently of every window/dispatcher.</summary>
 public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
@@ -34,17 +51,47 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     private readonly SemaphoreSlim operation = new(1, 1), wake = new(0, 1);
     private readonly CancellationTokenSource lifetime = new();
     private readonly object snapshotSync = new();
+    private readonly object persistenceSync = new();
+    private readonly object shutdownSync = new();
     private StudioSnapshot snapshot = new();
     private readonly Task worker;
-    private readonly string? startupDevice, startupTheme;
-    private int stopping, previewVisible, stopRequests;
+    private readonly StartupSelection? startup;
+    private int stopping, previewVisible, previewRequested = 1, stopRequests;
     private bool outputFaulted;
     private long devicesAt;
+    private const int SaveDelayMilliseconds = 150;
+    private Timer? saveTimer;
+    private long? saveAt;
     private Task? shutdown;
+    private Exception? initializationError;
     public StudioModel Model { get; }
     public StudioViewModel ViewModel { get; }
     public StudioSnapshot Snapshot => Volatile.Read(ref snapshot);
-    public bool PreviewVisible { set { Interlocked.Exchange(ref previewVisible, value ? 1 : 0); } }
+    public bool Supports(string method) => Snapshot.Hello?.Supports(method) == true;
+
+    /// <summary>Native window visibility, independent of the selected studio section.</summary>
+    public bool PreviewVisible
+    {
+        set
+        {
+            var visible = value ? 1 : 0;
+            if (Interlocked.Exchange(ref previewVisible, visible) != visible) { Wake(); }
+        }
+    }
+
+    /// <summary>Whether the selected studio section needs an on-screen preview.</summary>
+    public bool PreviewRequested
+    {
+        set
+        {
+            var requested = value ? 1 : 0;
+            if (Interlocked.Exchange(ref previewRequested, requested) != requested) { Wake(); }
+        }
+    }
+
+    private bool WantsPreview => Volatile.Read(ref previewVisible) != 0 && Volatile.Read(ref previewRequested) != 0;
+
+    private sealed record StartupSelection(string DeviceId, string ProfileId, string ThemeId);
 
     /// <summary>Starts the UI-independent worker and optionally schedules saved-device restoration.</summary>
     /// <param name="client">Engine request client owned or shared according to the containing session/host.</param>
@@ -54,37 +101,59 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     {
         this.client = client;
         Model = new(settingsPath);
-        ViewModel = new(Model, this);
-        if (Model.PersistenceNotice is { } notice) { snapshot = snapshot with { Status = notice }; }
-        var p = Model.Preferences;
+        ViewModel = new(Model, this, CancelStartup);
         if (restoreLastSession)
         {
-            startupDevice = p.SelectedDeviceId; startupTheme = p.SelectedTheme;
-            snapshot = snapshot with { StartupPending = true };
+            var preferences = Model.Preferences;
+            if (preferences.SelectedDeviceId is { Length: > 0 } device && preferences.SelectedTheme.Length > 0)
+            {
+                startup = new(device, preferences.ProfileSelection, preferences.SelectedTheme);
+                snapshot = snapshot with { StartupPending = true };
+            }
         }
         worker = Task.Run(RunAsync);
     }
 
     /// <summary>Publishes the next observation while protecting shared state.</summary>
-    /// <param name="edit">Mutation applied while the owning model or snapshot lock is held.</param>
-    private void Publish(Func<StudioSnapshot, StudioSnapshot> edit)
-    {
-        lock (snapshotSync) { var current = snapshot; Volatile.Write(ref snapshot, edit(current) with { Revision = current.Revision + 1 }); }
-    }
-
-    /// <summary>Claims a pending startup restore unless Stop has already been requested.</summary>
-    private bool ConsumeStartup()
+    /// <param name="edit">Returns the new observation, or null to leave the current observation unchanged.</param>
+    private bool Publish(Func<StudioSnapshot, StudioSnapshot?> edit)
     {
         lock (snapshotSync)
         {
-            if (!snapshot.StartupPending || Volatile.Read(ref stopRequests) != 0) { return false; }
-            Volatile.Write(ref snapshot, snapshot with { StartupPending = false, Revision = snapshot.Revision + 1 });
+            var next = edit(snapshot);
+            if (next is null) { return false; }
+            Volatile.Write(ref snapshot, next with { Revision = snapshot.Revision + 1 });
             return true;
         }
     }
 
+    /// <summary>Negotiates once before scheduling provider work; an invalid handshake needs a deliberate restart.</summary>
+    private async Task EnsureHelloAsync()
+    {
+        if (initializationError is not null) { throw new IOException("Engine initialization failed. Reopen the studio after fixing the engine package.", initializationError); }
+        if (Snapshot.Hello is not null) { return; }
+        try
+        {
+            var hello = await client.RequestAsync<EngineHelloDto>("hello", cancellationToken: lifetime.Token).ConfigureAwait(false);
+            if (hello is null) { throw new IOException("The engine returned no capability declaration."); }
+            hello.Validate();
+            Publish(s => s with { Hello = hello, StartupPending = s.StartupPending && hello.Supports("start") });
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        { initializationError = error; throw; }
+    }
+
+    private void RequireSupported(string method)
+    {
+        if (!Supports(method)) { throw new PlatformNotSupportedException($"The {Snapshot.Hello?.Platform ?? "unavailable"} engine does not support '{method}'."); }
+    }
+
+    /// <summary>Claims a pending startup restore unless Stop has already been requested.</summary>
+    private bool ConsumeStartup() => Publish(s => s.StartupPending && Volatile.Read(ref stopRequests) == 0
+        ? s with { StartupPending = false, Busy = true } : null);
+
     /// <summary>Cancels the saved-device wait without opening a display.</summary>
-    public void CancelStartup() => Publish(s => s with { StartupPending = false });
+    public void CancelStartup() => Publish(s => s.StartupPending ? s with { StartupPending = false, Status = "Local preview" } : null);
 
     /// <summary>Signals the worker once without accumulating queued wakeups.</summary>
     public void Wake() { if (wake.CurrentCount == 0) { try { wake.Release(); } catch (SemaphoreFullException) { } } }
@@ -101,6 +170,8 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
         try
         {
             if (Volatile.Read(ref stopping) != 0) { throw new OperationCanceledException("The studio is closing."); }
+            await EnsureHelloAsync().ConfigureAwait(false);
+            RequireSupported(method);
             return await client.RequestAsync<T>(method, parameters, linked.Token).ConfigureAwait(false);
         }
         finally { operation.Release(); }
@@ -109,14 +180,20 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     /// <summary>Reloads the theme catalog while holding the engine operation gate.</summary>
     public async Task ReloadCatalogAsync()
     {
-        await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
-        try { await LoadCatalogAsync().ConfigureAwait(false); }
-        finally { operation.Release(); Wake(); }
+        if (!Publish(s => s.CatalogRefreshPending ? null : s with { CatalogRefreshPending = true })) { return; }
+        try
+        {
+            await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
+            try { await LoadCatalogAsync().ConfigureAwait(false); }
+            finally { operation.Release(); }
+        }
+        finally { Publish(s => s with { CatalogRefreshPending = false }); Wake(); }
     }
 
     /// <summary>Loads available themes and reconciles the current selection.</summary>
     private async Task LoadCatalogAsync()
     {
+        await EnsureHelloAsync().ConfigureAwait(false);
         var catalog = await client.RequestAsync<ThemeCatalogDto>("themes", cancellationToken: lifetime.Token).ConfigureAwait(false);
         ViewModel.NormalizeCatalog(catalog);
         Publish(s => s with { Catalog = catalog });
@@ -125,57 +202,115 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
     /// <summary>Refreshes the available display choices.</summary>
     public async Task RefreshDevicesAsync()
     {
-        await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
-        try { await DiscoverAsync().ConfigureAwait(false); }
-        finally { operation.Release(); Wake(); }
+        if (!Publish(s => s.DeviceRefreshPending ? null : s with { DeviceRefreshPending = true })) { return; }
+        try
+        {
+            await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
+            try { await DiscoverAsync().ConfigureAwait(false); }
+            finally { operation.Release(); }
+        }
+        finally { Publish(s => s with { DeviceRefreshPending = false }); Wake(); }
     }
 
     /// <summary>Refreshes device metadata and records the discovery time.</summary>
     private async Task DiscoverAsync()
     {
+        await EnsureHelloAsync().ConfigureAwait(false);
+        if (!Supports("devices"))
+        { devicesAt = Environment.TickCount64; Publish(s => s with { Devices = [] }); return; }
         var devices = await client.RequestAsync<PanelChoice[]>("devices", cancellationToken: lifetime.Token).ConfigureAwait(false);
         devicesAt = Environment.TickCount64;
-        var p = Model.Preferences;
-        var lost = Snapshot.DisplayActive && !devices.Any(d => d.Id == p.SelectedDeviceId);
-        if (!Snapshot.StartupPending && !devices.Any(d => d.Id == p.SelectedDeviceId) && (string.IsNullOrEmpty(p.SelectedDeviceId) || devices.Length == 1))
-        { Model.Edit(next => next.SelectedDeviceId = devices.FirstOrDefault()?.Id); }
+        var current = Snapshot;
+        var lost = current.ActiveOutput is { } output && !devices.Any(device => device.Id == output.DeviceId);
+        if (lost) { outputFaulted = true; }
+        if (!current.StartupPending && !current.DisplayActive && devices.FirstOrDefault() is { } first
+            && string.IsNullOrEmpty(Model.Preferences.SelectedDeviceId))
+        {
+            Model.Edit(preferences =>
+            {
+                if (string.IsNullOrEmpty(preferences.SelectedDeviceId)) { preferences.SelectedDeviceId = first.Id; }
+            });
+        }
         Publish(s => s with
         {
             Devices = devices,
-            DisplayActive = lost ? false : s.DisplayActive,
+            ActiveOutput = lost ? null : s.ActiveOutput,
             Status = lost ? "USB display disconnected. Press Show on display to reconnect." : s.Status
         });
     }
 
+    /// <summary>Records an explicit selection and cancels deferred startup.</summary>
+    /// <param name="device">Stable identifier of a currently discovered device.</param>
+    public void SelectDevice(string device)
+    {
+        if (!Publish(s => s.CanSelectDevice && s.Devices?.Any(choice => choice.Id == device) == true
+            ? s with { StartupPending = false, Status = s.StartupPending ? "Local preview" : s.Status } : null)) { return; }
+        Model.Edit(preferences => preferences.SelectedDeviceId = device);
+        Save();
+        Wake();
+    }
+
+    /// <summary>Starts output on the device and theme selected in the studio model.</summary>
+    public Task StartSelectedAsync()
+    {
+        var preferences = Model.Preferences;
+        return Snapshot.CanStart(preferences) ? StartAsync(preferences.SelectedDeviceId!, preferences) : Task.CompletedTask;
+    }
+
     /// <summary>Starts output on the explicitly selected device.</summary>
     /// <param name="device">Stable device-choice identifier returned by the engine discovery request.</param>
-    public async Task StartAsync(string device)
+    public Task StartAsync(string device) => StartAsync(device, Model.Preferences);
+
+    /// <summary>Serializes the captured display request with other engine operations.</summary>
+    /// <param name="device">Stable identifier of the requested device.</param>
+    /// <param name="preferences">The selection snapshot taken when the request was made.</param>
+    private async Task StartAsync(string device, StudioPreferences preferences)
     {
-        Publish(s => s with { StartupPending = false });
+        var options = new StartOptions(device, preferences.ProfileSelection, ThemeId: preferences.SelectedTheme);
+        CancelStartup();
         await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
         try
         {
-            if (Volatile.Read(ref stopping) != 0 || Snapshot.DisplayActive) { return; }
-            await StartCoreAsync(device).ConfigureAwait(false);
+            await EnsureHelloAsync().ConfigureAwait(false);
+            RequireSupported("start");
+            if (Volatile.Read(ref stopping) != 0 || Volatile.Read(ref stopRequests) != 0
+                || Snapshot.DisplayActive || string.IsNullOrEmpty(options.ThemeId)) { return; }
+            Publish(s => s with { Busy = true });
+            await StartCoreAsync(options, preferences).ConfigureAwait(false);
         }
         finally { operation.Release(); Wake(); }
     }
 
-    /// <summary>Resolves the saved theme/profile and requests display output.</summary>
-    /// <param name="device">Stable device-choice identifier returned by the engine discovery request.</param>
-    private async Task StartCoreAsync(string device)
+    /// <summary>Starts the captured request and publishes the output identity confirmed by the engine.</summary>
+    /// <param name="options">The device, profile choice and theme reserved for this start.</param>
+    /// <param name="preferences">Selection values observed before starting, used to preserve newer edits.</param>
+    private async Task StartCoreAsync(StartOptions options, StudioPreferences preferences)
     {
-        var p = Model.Preferences;
-        if (string.IsNullOrEmpty(p.SelectedTheme)) { return; }
-        Publish(s => s with { Busy = true });
         try
         {
-            var result = await client.RequestAsync<DisplayStartResult>("start", new StartOptions(device, p.ProfileSelection, ThemeId: p.SelectedTheme), lifetime.Token).ConfigureAwait(false);
-            if (result.Accepted) { outputFaulted = false; Model.Edit(next => { next.SelectedDeviceId = device; next.SelectedProfile = result.ProfileId ?? next.SelectedProfile; }); Save(); }
-            Publish(s => s with { DisplayActive = result.Accepted, Status = result.Accepted ? "Display running." : "The display could not start." });
+            var result = await client.RequestAsync<DisplayStartResult>("start", options, lifetime.Token).ConfigureAwait(false);
+            if (!result.Accepted) { throw new IOException("The display could not start."); }
+            var profile = result.ProfileId;
+            if (string.IsNullOrEmpty(profile))
+            {
+                await client.RequestAsync<object>("stop", cancellationToken: lifetime.Token).ConfigureAwait(false);
+                throw new IOException("The engine did not identify the display profile.");
+            }
+
+            outputFaulted = false;
+            Publish(s => s with { ActiveOutput = new(options.DeviceId, profile), Status = "Display running." });
+            Model.Edit(next =>
+            {
+                if (next.SelectedDeviceId == preferences.SelectedDeviceId) { next.SelectedDeviceId = options.DeviceId; }
+                // The last resolved size is a preview preference. The active profile lives in ActiveOutput.
+                if (next.ProfileSelection == options.ProfileId && next.SelectedProfile == preferences.SelectedProfile)
+                { next.SelectedProfile = profile; }
+                if (next.SelectedTheme == options.ThemeId) { next.LastChange = Environment.TickCount64; }
+            });
+            Save();
         }
-        catch (Exception error) { Publish(s => s with { DisplayActive = false, Status = error.Message }); }
-        finally { Publish(s => s with { Busy = false }); }
+        catch (Exception error) { outputFaulted = true; Publish(s => s with { ActiveOutput = null, Status = error.Message }); }
+        finally { Publish(s => s with { Busy = Volatile.Read(ref stopRequests) != 0 }); }
     }
 
     /// <summary>Stops output and cancels any pending startup restore.</summary>
@@ -189,37 +324,87 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
         {
             await operation.WaitAsync(lifetime.Token).ConfigureAwait(false);
             acquired = true;
+            await EnsureHelloAsync().ConfigureAwait(false);
             await client.RequestAsync<object>("stop", cancellationToken: lifetime.Token).ConfigureAwait(false);
-            Publish(s => s with { DisplayActive = false, Status = "Display stopped." });
+            outputFaulted = false;
+            Publish(s => s with { ActiveOutput = null, Status = "Display stopped." });
         }
-        catch (Exception error) { Publish(s => s with { DisplayActive = false, Status = error.Message }); }
-        finally { Interlocked.Decrement(ref stopRequests); Publish(s => s with { Busy = false }); if (acquired) { operation.Release(); } Wake(); }
+        catch (Exception error) { outputFaulted = true; Publish(s => s with { ActiveOutput = null, Status = error.Message }); }
+        finally { Interlocked.Decrement(ref stopRequests); Publish(s => s with { Busy = Volatile.Read(ref stopRequests) != 0 }); if (acquired) { operation.Release(); } Wake(); }
     }
 
     /// <summary>Persists the current settings snapshot.</summary>
     public void Save()
     {
-        try { Model.Save(); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { Publish(s => s with { Status = "The preference changed but could not be saved." }); }
+        lock (persistenceSync)
+        {
+            saveAt = null;
+            saveTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+            try
+            {
+                Model.Save();
+                Publish(s => s.PersistenceError is null ? null : s with { PersistenceError = null });
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { Publish(s => s with { PersistenceError = "The preference changed but could not be saved." }); }
+        }
+    }
+
+    /// <summary>Debounces persistence and a preview wake after rapid preference edits.</summary>
+    public void ScheduleSave()
+    {
+        lock (persistenceSync)
+        {
+            if (Volatile.Read(ref stopping) != 0) { return; }
+            saveAt = Environment.TickCount64 + SaveDelayMilliseconds;
+            saveTimer ??= new(_ => SaveWhenDue(), null, Timeout.Infinite, Timeout.Infinite);
+            saveTimer.Change(SaveDelayMilliseconds, Timeout.Infinite);
+        }
+    }
+
+    /// <summary>Flushes the latest edit only after its full debounce interval.</summary>
+    private void SaveWhenDue()
+    {
+        lock (persistenceSync)
+        {
+            if (saveAt is not { } due || Volatile.Read(ref stopping) != 0) { return; }
+            var remaining = due - Environment.TickCount64;
+            if (remaining > 0)
+            {
+                saveTimer!.Change(remaining, Timeout.Infinite);
+                return;
+            }
+            Save();
+        }
+        Wake();
     }
 
     /// <summary>Persists a completed first UI load and reports an unavailable settings store.</summary>
     public void CompleteFirstRun()
     {
-        try { Model.CompleteFirstRun(); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { Publish(s => s with { Status = "First-launch settings could not be saved. The main window will open again next time." }); }
+        lock (persistenceSync)
+        {
+            if (!Model.Preferences.IsFirstRun) { return; }
+            try
+            {
+                Model.CompleteFirstRun();
+                Publish(s => s.PersistenceError is null ? null : s with { PersistenceError = null });
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { Publish(s => s with { PersistenceError = "First-launch settings could not be saved. The main window will open again next time." }); }
+        }
     }
 
     /// <summary>Advances enabled screens after the saved rotation interval.</summary>
     private void Rotate()
     {
+        var current = Snapshot;
+        if (current.StartupPending || current.Catalog is not { } catalog) { return; }
         var state = Model.Read();
         var p = state.Preferences;
-        if (!p.CycleThemes || Environment.TickCount64 - p.LastChange < 20000 || Snapshot.Catalog is not { } catalog) { return; }
+        if (!p.CycleThemes || Environment.TickCount64 - p.LastChange < 20000) { return; }
         var screens = state.Screens().Where(s => s.Enabled && !string.IsNullOrEmpty(s.ThemeId)
-            && (!Snapshot.DisplayActive || s.Category != "codex" || Snapshot.Frame?.CodexProcessRunning == true)).ToArray();
+            && (!current.DisplayActive || s.Category != "codex" || current.Frame?.CodexProcessRunning == true)).ToArray();
         if (screens.Length == 0) { return; }
         var index = Array.FindIndex(screens, s => s.Category == p.SelectedCategory);
         var next = screens[(index + 1) % screens.Length];
@@ -228,8 +413,8 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
             var themes = catalog.Themes.Where(t => t.Category == next.Category).ToArray();
             if (themes.Length > 0)
             {
-                var current = Array.FindIndex(themes, t => t.Id == p.SelectedTheme);
-                next = next with { ThemeId = themes[(current + 1) % themes.Length].Id };
+                var themeIndex = Array.FindIndex(themes, t => t.Id == p.SelectedTheme);
+                next = next with { ThemeId = themes[(themeIndex + 1) % themes.Length].Id };
             }
         }
         Model.Update(latest =>
@@ -239,6 +424,30 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
             StudioViewModel.Select(latest, next.Category, next.ThemeId);
         });
         Save();
+    }
+
+    /// <summary>Attempts the captured startup request once its saved device is present.</summary>
+    private async Task RestoreStartupAsync()
+    {
+        var current = Snapshot;
+        if (!current.StartupPending || startup is null) { return; }
+
+        var preferences = Model.Preferences;
+        if (current.Catalog?.Themes.Any(choice => choice.Id == startup.ThemeId) != true || preferences.SelectedTheme != startup.ThemeId)
+        {
+            if (Publish(s => s.StartupPending ? s with { StartupPending = false, Status = "The saved startup theme changed or is unavailable." } : null))
+            { outputFaulted = true; }
+            return;
+        }
+
+        if (current.Devices?.Any(choice => choice.Id == startup.DeviceId) == true)
+        {
+            // Consume before I/O; an ambiguous start is never replayed.
+            if (ConsumeStartup()) { await StartCoreAsync(new(startup.DeviceId, startup.ProfileId, ThemeId: startup.ThemeId), preferences).ConfigureAwait(false); }
+            return;
+        }
+
+        Publish(s => s.StartupPending ? s with { Status = "Waiting for the selected USB display. Stop cancels automatic output for this run." } : null);
     }
 
     /// <summary>Serializes discovery, startup restoration and frame scheduling without a frame backlog.</summary>
@@ -253,24 +462,13 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
                 try
                 {
                     if (Volatile.Read(ref stopping) != 0) { break; }
+                    await EnsureHelloAsync().ConfigureAwait(false);
                     if (Snapshot.Catalog is null) { await LoadCatalogAsync().ConfigureAwait(false); }
-                    if (devicesAt == 0 || Environment.TickCount64 - devicesAt >= 10000) { await DiscoverAsync().ConfigureAwait(false); }
+                    if (devicesAt == 0 || Supports("devices") && Environment.TickCount64 - devicesAt >= 10000) { await DiscoverAsync().ConfigureAwait(false); }
 
-                    // The saved-session exception may wait for one device; Stop always cancels that wait.
-                    if (Snapshot.StartupPending)
-                    {
-                        var startupThemeId = string.IsNullOrEmpty(startupTheme) ? Model.Preferences.SelectedTheme : startupTheme;
-                        var device = startupDevice ?? (Snapshot.Devices is { Length: 1 } choices ? choices[0].Id : null);
-                        if (!Snapshot.Catalog!.Themes.Any(t => t.Id == startupThemeId) || Model.Preferences.SelectedTheme != startupThemeId)
-                        { Publish(s => s with { StartupPending = false, Status = "The saved startup theme changed or is unavailable." }); }
-                        else if (device is not null && Snapshot.Devices!.Any(d => d.Id == device))
-                        {
-                            // Consume before I/O; an ambiguous start is never replayed.
-                            if (ConsumeStartup()) { await StartCoreAsync(device).ConfigureAwait(false); }
-                        }
-                        else { Publish(s => s with { Status = "Waiting for the selected USB display. Stop cancels automatic output for this run." }); }
-                    }
-                    if (Volatile.Read(ref stopRequests) != 0 || Snapshot.Busy || !Snapshot.DisplayActive && Volatile.Read(ref previewVisible) == 0) { goto WaitForNext; }
+                    await RestoreStartupAsync().ConfigureAwait(false);
+                    var current = Snapshot;
+                    if (Volatile.Read(ref stopRequests) != 0 || current.Busy || !current.DisplayActive && !WantsPreview) { goto WaitForNext; }
 
                     // Take a detached preference snapshot so one frame uses one coherent configuration.
                     Rotate();
@@ -285,7 +483,7 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
                         .SelectMany(id => new[] { id, id + appearanceSuffix }).ToHashSet(StringComparer.Ordinal);
                     var palettes = state.Palettes.Where(pair => activePaletteKeys.Contains(pair.Key)).ToDictionary();
 
-                    var options = new PreviewOptions(ProfileId: p.SelectedProfile, Light: light, ThemeId: theme,
+                    var options = new PreviewOptions(ProfileId: current.ActiveOutput?.ProfileId ?? p.SelectedProfile, Light: light, ThemeId: theme,
                         FontFamily: p.FontFamily, FontScale: p.FontScale, RefreshIntervalMilliseconds: p.RefreshMilliseconds,
                         JpegQuality: p.JpegQuality, SaturationPercent: p.SaturationPercent, HueDegrees: p.HueDegrees,
                         ShowSpectrum: p.ShowSpectrum, BrightnessPercent: p.BrightnessPercent, ContrastPercent: p.ContrastPercent,
@@ -293,13 +491,21 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
                         PageIndex: p.SelectedPageIndex, PageRevision: p.PageRevision);
 
                     // Only the explicitly active display uses present; preview state remains USB-free.
-                    var active = Snapshot.DisplayActive;
-                    var frame = await client.RequestAsync<PanelState>(active ? "present" : "state", options, lifetime.Token).ConfigureAwait(false);
+                    var frame = await client.RequestAsync<PanelState>(current.DisplayActive ? "present" : "state", options, lifetime.Token).ConfigureAwait(false);
                     delay = frame.NextFrameMilliseconds is >= 25 and <= 1000 ? Math.Min(delay, frame.NextFrameMilliseconds.Value) : delay;
-                    Publish(s => s with { Frame = frame, FrameRevision = s.FrameRevision + 1, DisplayActive = active && !outputFaulted && frame.DisplayRunning, Status = outputFaulted || s.StartupPending ? s.Status : frame.Status });
+                    if (frame.System.Driver is { } driver) { ViewModel.ObserveSensorDriver(driver); }
+                    Publish(s => s with
+                    {
+                        Frame = frame,
+                        FrameRevision = s.FrameRevision + 1,
+                        FrameRequestedThemeId = theme,
+                        FramePageRevision = p.PageRevision,
+                        ActiveOutput = frame.DisplayRunning ? current.ActiveOutput : null,
+                        Status = outputFaulted || s.StartupPending ? s.Status : frame.Status
+                    });
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
-                { if (Snapshot.DisplayActive) { outputFaulted = true; } Publish(s => s with { DisplayActive = false, Status = error.Message }); delay = 1000; }
+                { if (Snapshot.DisplayActive) { outputFaulted = true; } Publish(s => s with { ActiveOutput = null, Status = error.Message }); if (initializationError is not null) { return; } delay = 1000; }
                 finally { operation.Release(); }
             WaitForNext:
                 // Native thread-pool wait: never depends on WebView, XAML or window events.
@@ -307,13 +513,13 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
             }
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-        catch (Exception error) { Publish(s => s with { DisplayActive = false, Status = error.Message }); }
+        catch (Exception error) { Publish(s => s with { ActiveOutput = null, Status = error.Message }); }
     }
 
     /// <summary>Returns the shared task that saves settings and drains the worker.</summary>
     public Task ShutdownAsync()
     {
-        lock (snapshotSync) { return shutdown ??= ShutdownCoreAsync(); }
+        lock (shutdownSync) { return shutdown ??= ShutdownCoreAsync(); }
     }
 
     /// <summary>Saves settings and waits a bounded time for worker shutdown.</summary>
@@ -322,6 +528,11 @@ public sealed class StudioSession : IPanelClient, IAsyncDisposable, IDisposable
         Interlocked.Exchange(ref stopping, 1);
         Wake();
         Save();
+        lock (persistenceSync)
+        {
+            saveTimer?.Dispose();
+            saveTimer = null;
+        }
         try { await worker.WaitAsync(TimeSpan.FromSeconds(40)).ConfigureAwait(false); }
         catch (TimeoutException) { lifetime.Cancel(); }
         finally { lifetime.Cancel(); }

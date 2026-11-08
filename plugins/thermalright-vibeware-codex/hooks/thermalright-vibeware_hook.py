@@ -26,10 +26,11 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
-from uuid import uuid4
 
 MAX_INPUT_BYTES = 1_048_576
 MAX_SESSIONS = 64
@@ -154,7 +155,12 @@ def read_timestamp(path: Path) -> int:
         path: Local state or marketplace JSON file path.
     """
     try:
-        with path.open("rb") as stream:
+        if not stat.S_ISREG(path.lstat().st_mode):
+            raise ValueError("Expected a regular activity file.")
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        with os.fdopen(os.open(path, flags), "rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise ValueError("Expected a regular activity file.")
             previous = json.loads(stream.read(4096))
         value = previous.get("atUnixNs") if isinstance(previous, dict) else None
         return value if isinstance(value, int) else 0
@@ -168,15 +174,15 @@ def atomic_json(path: Path, value: dict[str, object]) -> None:
         path: Local state or marketplace JSON file path.
         value: JSON-compatible state object written to a temporary sibling before atomic replacement.
     """
-    temporary = path.with_name(path.name + "." + uuid4().hex + ".tmp")
+    fd, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
     try:
-        with temporary.open("x", encoding="utf-8") as stream:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
             json.dump(value, stream, ensure_ascii=True, separators=(",", ":"))
             stream.write("\n")
         os.replace(temporary, path)
     finally:
         try:
-            temporary.unlink(missing_ok=True)
+            Path(temporary).unlink(missing_ok=True)
         except OSError:
             pass
 
@@ -190,7 +196,7 @@ def acquire_lock(root: Path) -> Path | None:
     deadline = time.monotonic() + 0.2
     while time.monotonic() < deadline:
         try:
-            lock.mkdir()
+            lock.mkdir(mode=0o700)
             return lock
         except FileExistsError:
             try:
@@ -207,12 +213,45 @@ def retain_recent_sessions(directory: Path) -> None:
     Args:
         directory: Local session-state directory subject to bounded retention.
     """
-    files = list(directory.glob("*.json"))
+    files = [path for path in directory.glob("*.json")
+             if len(path.stem) == 20 and all(c in "0123456789abcdef" for c in path.stem)
+             and stat.S_ISREG(path.lstat().st_mode)]
     if len(files) <= MAX_SESSIONS:
         return
-    files.sort(key=lambda path: path.stat().st_mtime_ns)
+    files.sort(key=lambda path: path.lstat().st_mtime_ns)
     for old in files[: len(files) - MAX_SESSIONS]:
         old.unlink(missing_ok=True)
+
+def prepare_private_directories(sessions: Path) -> Path:
+    """Create state directories beneath ancestors that other users cannot replace."""
+    if not sessions.is_absolute():
+        raise ValueError("The activity directory must have an absolute path.")
+    sessions = Path(os.path.abspath(sessions))
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    uid = os.geteuid()
+    fd = os.open(sessions.anchor, flags)
+    try:
+        root_info = os.fstat(fd)
+        if root_info.st_uid != 0 or root_info.st_mode & 0o022:
+            raise PermissionError("The filesystem root is unsafe for private activity files.")
+        parts = sessions.parts[1:]
+        for index, name in enumerate(parts):
+            try:
+                os.mkdir(name, mode=0o700, dir_fd=fd)
+            except FileExistsError:
+                pass
+            parent = fd
+            fd = os.open(name, flags, dir_fd=parent)
+            os.close(parent)
+            info = os.fstat(fd)
+            private = index >= len(parts) - 3
+            if info.st_mode & 0o022 or info.st_uid not in (0, uid) or (private and info.st_uid != uid):
+                raise PermissionError("The activity path contains an unsafe directory.")
+            if private and stat.S_IMODE(info.st_mode) != 0o700:
+                os.fchmod(fd, 0o700)
+    finally:
+        os.close(fd)
+    return sessions
 
 def store_event(value: dict[str, object]) -> None:
     """Persist a bounded sanitized event and update the latest session observation.
@@ -222,7 +261,11 @@ def store_event(value: dict[str, object]) -> None:
     """
     root = state_directory()
     sessions = root / "sessions"
-    sessions.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if os.name == "posix":
+        sessions = prepare_private_directories(sessions)
+        root = sessions.parent
+    else:
+        sessions.mkdir(parents=True, exist_ok=True, mode=0o700)
     lock = acquire_lock(root)
     if lock is None:
         return

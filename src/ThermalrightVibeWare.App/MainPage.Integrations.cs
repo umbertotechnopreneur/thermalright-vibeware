@@ -20,10 +20,10 @@
  * VBWR E */
 
 
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using ThermalrightVibeWare.Contracts;
+using ThermalrightVibeWare.Studio;
 
 namespace ThermalrightVibeWare.App;
 
@@ -31,38 +31,49 @@ namespace ThermalrightVibeWare.App;
 public sealed partial class MainPage
 {
 
-    /// <summary>Refreshes local Codex setup status with a bounded polling interval.</summary>
-    /// <param name="force">Whether to bypass the cached Codex status polling interval.</param>
+    private (StudioOperation<CodexSetupStatus> Status, StudioOperation<bool> Preparation)? appliedCodex;
+
+    /// <summary>Refreshes local Codex setup status when the model permits another check.</summary>
+    /// <param name="force">Whether an explicit refresh may bypass the automatic polling interval.</param>
     private async Task RefreshCodexStatusAsync(bool force = false)
     {
-        if (codexLoading || codexPreparing || !force && Environment.TickCount64 - codexStatusAt < 5000) { return; }
-        codexLoading = true;
-        CodexRefreshButton.IsEnabled = false;
-        try
-        {
-            var status = await viewModel.ReadCodexAsync();
-            if (unloaded) { return; }
-            ShowCodexStatus(status);
-            codexStatusAt = Environment.TickCount64;
-        }
-        catch (Exception error) { CodexStatusText.Text = error.Message; CodexSummaryText.Text = "Connection check unavailable"; }
-        finally { codexLoading = false; CodexRefreshButton.IsEnabled = !codexPreparing; }
+        var pending = viewModel.ReadCodexAsync(force);
+        ApplyCodexState();
+        if (await pending) { ApplyCodexState(); }
     }
 
-    /// <summary>Applies local Codex setup and event details to the studio.</summary>
-    /// <param name="status">Latest local plugin preparation, listing and activity observation.</param>
-    private void ShowCodexStatus(CodexSetupStatus status)
+    /// <summary>Applies the current status and preparation operation to the Codex controls.</summary>
+    private void ApplyCodexState()
     {
-        CodexStatusText.Text = status.Status;
-        CodexSummaryText.Text = status.ActivitySeen ? "Activity received" : status.Prepared && status.Listed ? "Plugin ready · waiting for activity" : "Plugin setup needed";
-        CodexEventText.Text = status.LastEvent is { } last ? $"Last event: {last}\n{status.LastEventUtc}" : "No events received yet.";
-        CodexHelpText.Text = status.Instructions;
-        ToolTipService.SetToolTip(CodexStatusText, status.Status);
-        ToolTipService.SetToolTip(CodexEventText, CodexEventText.Text);
-        ToolTipService.SetToolTip(CodexPrepareButton, status.Instructions);
-        ToolTipService.SetToolTip(CodexSetupFrame, status.Instructions);
-        CodexPrepareButton.Content = status.Prepared && status.Listed ? "Plugin prepared" : "Prepare Codex plugin";
-        CodexPrepareButton.IsEnabled = !codexPreparing && !(status.Prepared && status.Listed);
+        if (unloaded) { return; }
+
+        var auxiliary = viewModel.Auxiliary;
+        var status = auxiliary.Codex;
+        var preparation = auxiliary.CodexPreparation;
+        if (appliedCodex is { } applied && ReferenceEquals(status, applied.Status) && ReferenceEquals(preparation, applied.Preparation)) { return; }
+        appliedCodex = (status, preparation);
+
+        var busy = status.Busy || preparation.Busy;
+        CodexRefreshButton.IsEnabled = !busy && session.Supports("codex.status");
+        CodexPrepareButton.IsEnabled = !busy && session.Supports("codex.prepare");
+
+        if (status.Value is { } current)
+        {
+            CodexSummaryText.Text = current.ActivitySeen ? "Activity received" : current.Prepared && current.Listed
+                ? "Plugin ready · waiting for activity" : "Plugin setup needed";
+            CodexEventText.Text = current.LastEvent is { } last ? $"Last event: {last}\n{current.LastEventUtc}" : "No events received yet.";
+            CodexHelpText.Text = current.Instructions;
+            CodexPrepareButton.Content = current.Prepared && current.Listed ? "Prepare plugin again" : "Prepare Codex plugin";
+            ToolTipService.SetToolTip(CodexEventText, CodexEventText.Text);
+            ToolTipService.SetToolTip(CodexPrepareButton, current.Instructions);
+            ToolTipService.SetToolTip(CodexSetupFrame, current.Instructions);
+        }
+
+        var error = preparation.Error ?? status.Error;
+        if (preparation.Busy) { CodexSummaryText.Text = "Preparing the local plugin…"; }
+        else if (error is not null) { CodexSummaryText.Text = preparation.Error is null ? "Connection check unavailable" : "Plugin setup failed"; }
+        CodexStatusText.Text = preparation.Busy ? "Preparing the local plugin…" : error ?? status.Value?.Status ?? "Checking the local plugin…";
+        ToolTipService.SetToolTip(CodexStatusText, CodexStatusText.Text);
     }
 
     /// <summary>Prepares the local Codex plugin after the user's button click.</summary>
@@ -70,24 +81,10 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void CodexPrepare_Click(object sender, RoutedEventArgs args)
     {
-        if (codexPreparing) { return; }
-        string? preparationError = null;
-        codexPreparing = true;
-        CodexPrepareButton.IsEnabled = CodexRefreshButton.IsEnabled = false;
-        CodexStatusText.Text = "Preparing the local plugin…";
-        try
-        {
-            var status = await viewModel.ReadCodexAsync(prepare: true);
-            if (!unloaded) { ShowCodexStatus(status); codexStatusAt = Environment.TickCount64; }
-        }
-        catch (Exception error) { preparationError = error.Message; }
-        finally
-        {
-            codexPreparing = false;
-            CodexRefreshButton.IsEnabled = true;
-            await RefreshCodexStatusAsync(force: true);
-            if (preparationError is not null) { CodexStatusText.Text = preparationError; }
-        }
+        var pending = viewModel.PrepareCodexAsync();
+        ApplyCodexState();
+        await pending;
+        ApplyCodexState();
     }
 
     /// <summary>Forces a refresh of Codex setup status.</summary>
@@ -95,40 +92,42 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void CodexRefresh_Click(object sender, RoutedEventArgs args) => await RefreshCodexStatusAsync(force: true);
 
-    /// <summary>Loads the saved diagnostic logging choice.</summary>
-    private async Task LoadDiagnosticsAsync()
+    /// <summary>Loads the current diagnostic logging choice from the engine.</summary>
+    private Task LoadDiagnosticsAsync() => UpdateDiagnosticsAsync();
+
+    /// <summary>Loads or updates diagnostic logging and applies the latest operation state.</summary>
+    /// <param name="enabled">New choice, or null to read the current one.</param>
+    private async Task UpdateDiagnosticsAsync(bool? enabled = null)
     {
-        diagnosticsChanging = true;
-        try
-        {
-            var status = await viewModel.ReadDiagnosticsAsync();
-            diagnosticsEnabled = status.Enabled;
-            LogErrorsBox.IsChecked = status.Enabled;
-            OpenLogButton.IsEnabled = status.Enabled;
-            ToolTipService.SetToolTip(OpenLogButton, status.LogPath);
-        }
-        catch (Exception error) { StatusText.Text = error.Message; }
-        finally { diagnosticsChanging = false; }
+        var pending = viewModel.ReadDiagnosticsAsync(enabled);
+        ApplyDiagnosticsState();
+        await pending;
+        ApplyDiagnosticsState();
     }
 
-    /// <summary>Saves the user's diagnostic logging choice.</summary>
+    /// <summary>Projects diagnostic logging and open-log availability into the controls.</summary>
+    private void ApplyDiagnosticsState()
+    {
+        if (unloaded) { return; }
+
+        var auxiliary = viewModel.Auxiliary;
+        var diagnostics = auxiliary.Diagnostics;
+        var enabled = diagnostics.Value?.Enabled == true;
+        if (!diagnostics.Busy) { LogErrorsBox.IsChecked = enabled; }
+        LogErrorsBox.IsEnabled = !diagnostics.Busy && session.Supports("diagnostics.set");
+        OpenLogButton.IsEnabled = enabled && !diagnostics.Busy && !auxiliary.OpenDiagnostics.Busy && session.Supports("diagnostics.open");
+        ToolTipService.SetToolTip(OpenLogButton, auxiliary.OpenDiagnostics.Error ?? diagnostics.Value?.LogPath);
+    }
+
+    /// <summary>Sends an explicit logging choice to the model, ignoring updates from the current snapshot.</summary>
     /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void Diagnostics_Changed(object sender, RoutedEventArgs args)
     {
-        if (!ready || diagnosticsChanging) { return; }
-        diagnosticsChanging = true;
-        LogErrorsBox.IsEnabled = false;
-        try
-        {
-            var status = await viewModel.ReadDiagnosticsAsync(LogErrorsBox.IsChecked == true);
-            diagnosticsEnabled = status.Enabled;
-            LogErrorsBox.IsChecked = status.Enabled;
-            OpenLogButton.IsEnabled = status.Enabled;
-            ToolTipService.SetToolTip(OpenLogButton, status.LogPath);
-        }
-        catch (Exception error) { LogErrorsBox.IsChecked = diagnosticsEnabled; StatusText.Text = error.Message; }
-        finally { diagnosticsChanging = false; LogErrorsBox.IsEnabled = true; }
+        var diagnostics = viewModel.Auxiliary.Diagnostics;
+        var enabled = LogErrorsBox.IsChecked == true;
+        if (!ready || diagnostics.Busy || enabled == (diagnostics.Value?.Enabled == true)) { return; }
+        await UpdateDiagnosticsAsync(enabled);
     }
 
     /// <summary>Opens the local diagnostic log on request.</summary>
@@ -136,12 +135,9 @@ public sealed partial class MainPage
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
     private async void OpenLog_Click(object sender, RoutedEventArgs args)
     {
-        try
-        {
-            var result = await viewModel.OpenDiagnosticsAsync();
-            if (!result.TryGetProperty("accepted", out var accepted) || accepted.ValueKind != JsonValueKind.True)
-            { StatusText.Text = "No log file yet. Leave Log errors on, then try again."; }
-        }
-        catch (Exception error) { StatusText.Text = error.Message; }
+        var pending = viewModel.OpenDiagnosticsAsync();
+        ApplyDiagnosticsState();
+        await pending;
+        ApplyDiagnosticsState();
     }
 }

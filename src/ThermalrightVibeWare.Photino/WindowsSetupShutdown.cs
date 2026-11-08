@@ -62,7 +62,7 @@ internal sealed class WindowsSetupShutdown : IDisposable
                 catch (Exception error) when (error is InvalidOperationException or ApplicationException or Win32Exception)
                 {
                     // A setup request can race with the user closing the native window.
-                    Console.Error.WriteLine("Thermalright VibeWare setup: shutdown request unavailable: " + error.Message);
+                    Console.Error.WriteLine("TermalRight VibeWare setup: shutdown request unavailable: " + error.Message);
                 }
             }, null, Timeout.Infinite, executeOnlyOnce: true);
         }

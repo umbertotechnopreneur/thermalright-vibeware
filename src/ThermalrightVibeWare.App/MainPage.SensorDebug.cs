@@ -28,32 +28,6 @@ namespace ThermalrightVibeWare.App;
 
 public sealed partial class MainPage
 {
-    private bool sensorDebugReading;
-    private SensorDebugDto? lastSensorDebug;
-
-    /// <summary>Returns from sensor diagnostics to the theme preview.</summary>
-    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
-    /// <param name="args">Event data supplied by the UI or capture framework.</param>
-    private void ThemesTab_Click(object sender, RoutedEventArgs args)
-    {
-        SensorDebugPanel.Visibility = Visibility.Collapsed;
-        ContentArea.Visibility = Visibility.Visible;
-        session.PreviewVisible = preview?.IsVisible != false;
-        ApplySensorDebugAppearance();
-    }
-
-    /// <summary>Opens the raw sensor diagnostic view and refreshes its observation.</summary>
-    /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
-    /// <param name="args">Event data supplied by the UI or capture framework.</param>
-    private async void SensorsTab_Click(object sender, RoutedEventArgs args)
-    {
-        ContentArea.Visibility = Visibility.Collapsed;
-        SensorDebugPanel.Visibility = Visibility.Visible;
-        session.PreviewVisible = false;
-        ApplySensorDebugAppearance();
-        await RefreshSensorDebugAsync();
-    }
-
     /// <summary>Refreshes raw sensor diagnostics on request.</summary>
     /// <param name="sender">Event source supplied by the UI or capture framework; it may be unused.</param>
     /// <param name="args">Event data supplied by the UI or capture framework.</param>
@@ -62,49 +36,39 @@ public sealed partial class MainPage
     /// <summary>Requests raw sensor diagnostics while preventing overlapping refreshes.</summary>
     private async Task RefreshSensorDebugAsync()
     {
-        if (!ready || sensorDebugReading) { return; }
-        sensorDebugReading = true;
-        SensorDebugRefresh.IsEnabled = false;
-        SensorDebugNotice.Text = "Reading hardware sensors…";
-        try
-        {
-            var result = await viewModel.ReadSensorDebugAsync();
-            if (unloaded) { return; }
-            lastSensorDebug = result;
-            RenderSensorDebug();
-        }
-        catch (Exception error)
-        {
-            SensorDebugNotice.Text = "Refresh failed. Previous readings are stale: " + error.Message;
-        }
-        finally { sensorDebugReading = false; SensorDebugRefresh.IsEnabled = true; }
+        if (!ready || unloaded) { return; }
+        var previous = viewModel.Auxiliary.SensorDebug.Value;
+        var pending = viewModel.ReadSensorDebugAsync();
+        ApplySensorDebugState(renderRows: false);
+        await pending;
+        ApplySensorDebugState(renderRows: !ReferenceEquals(previous, viewModel.Auxiliary.SensorDebug.Value));
+    }
+
+    /// <summary>Shows the latest sensor operation and marks retained readings stale after a failed refresh.</summary>
+    /// <param name="renderRows">Whether the sample or its visual style changed.</param>
+    private void ApplySensorDebugState(bool renderRows)
+    {
+        if (unloaded) { return; }
+        var auxiliary = viewModel.Auxiliary;
+        var operation = auxiliary.SensorDebug;
+        var sample = operation.Value;
+        SensorDebugRefresh.IsEnabled = !operation.Busy;
+        if (renderRows && sample is not null) { RenderSensorDebug(sample, auxiliary.ExpandedSensorGroups); }
+        SensorDebugNotice.Text = operation.Busy ? "Reading hardware sensors…"
+            : operation.Error is { } error ? (sample is null ? "Refresh failed: " : "Refresh failed. Previous readings are stale: ") + error
+            : sample is null ? "" : string.Join("\n", sample.Notices);
     }
 
     /// <summary>Projects the latest diagnostic snapshot into grouped UI rows.</summary>
-    private void RenderSensorDebug()
+    /// <param name="sample">Most recent raw sensor sample received from the engine.</param>
+    /// <param name="expanded">Stable IDs of nodes currently expanded in the studio.</param>
+    private void RenderSensorDebug(SensorDebugDto sample, IReadOnlySet<string> expanded)
     {
-        if (lastSensorDebug is not { } sample) { return; }
-        var expanded = new Dictionary<string, bool>();
-        // items are the current tree rows; retain expansion state before rebuilding their observations.
-        void Remember(ItemCollection items)
-        {
-            foreach (var item in items.OfType<TreeViewItem>())
-            {
-                if (item.Tag is string key) { expanded[key] = item.IsExpanded; }
-                Remember(item.Items);
-            }
-        }
-        Remember(SensorDebugTree.Items);
         SensorDebugTree.Items.Clear();
         var nodes = new Dictionary<string, TreeViewItem>();
         foreach (var device in sample.Devices)
         {
-            var node = new TreeViewItem
-            {
-                Header = DebugText($"{device.Name} · {device.Type}", true),
-                Tag = device.Id,
-                IsExpanded = expanded.GetValueOrDefault(device.Id, false)
-            };
+            var node = ExpandableSensorNode("device:" + device.Id, $"{device.Name} · {device.Type}", expanded);
             ToolTipService.SetToolTip(node, device.Id);
             nodes.TryAdd(device.Id, node);
         }
@@ -117,13 +81,8 @@ public sealed partial class MainPage
             if (device.Notice is { } notice) { node.Items.Add(new TreeViewItem { Header = DebugText(notice) }); }
             foreach (var group in device.Sensors.GroupBy(sensor => sensor.Type))
             {
-                var groupId = device.Id + "::" + group.Key;
-                var category = new TreeViewItem
-                {
-                    Header = DebugText($"{group.Key} · {group.Count()}"),
-                    Tag = groupId,
-                    IsExpanded = expanded.GetValueOrDefault(groupId, false)
-                };
+                var groupId = "group:" + device.Id + "::" + group.Key;
+                var category = ExpandableSensorNode(groupId, $"{group.Key} · {group.Count()}", expanded, heading: false);
                 category.Items.Add(new TreeViewItem { Header = SensorDebugRow("Sensor", "Current", "Minimum", "Maximum", true) });
                 foreach (var sensor in group)
                 {
@@ -145,9 +104,27 @@ public sealed partial class MainPage
             }
         }
         var total = sample.Devices.Sum(device => device.Sensors.Count);
-        SensorDebugSummary.Text = $"LibreHardwareMonitor {sample.LibraryVersion} · {sample.Devices.Count} devices · {total} sensors · " +
+        SensorDebugSummary.Text = $"Sensor provider {sample.LibraryVersion} · {sample.Devices.Count} devices · {total} sensors · " +
             $"{(sample.Administrator ? "Administrator" : "Standard user")} · sampled {sample.SampledAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
-        SensorDebugNotice.Text = string.Join("\n", sample.Notices);
+    }
+
+    /// <summary>Creates a diagnostic row that writes user expansion changes to presentation state.</summary>
+    /// <param name="id">Stable identifier for a device or a sensor group.</param>
+    /// <param name="label">Text displayed in the row.</param>
+    /// <param name="expanded">Stable IDs of currently expanded rows.</param>
+    /// <param name="heading">Whether to style the text as a device heading.</param>
+    private TreeViewItem ExpandableSensorNode(string id, string label, IReadOnlySet<string> expanded, bool heading = true)
+    {
+        var node = new TreeViewItem { Header = DebugText(label, heading), IsExpanded = expanded.Contains(id) };
+        node.Expanded += (_, args) =>
+        {
+            if (args.OriginalSource is null || ReferenceEquals(args.OriginalSource, node)) { viewModel.SetSensorGroupExpanded(id, true); }
+        };
+        node.Collapsed += (_, args) =>
+        {
+            if (args.OriginalSource is null || ReferenceEquals(args.OriginalSource, node)) { viewModel.SetSensorGroupExpanded(id, false); }
+        };
+        return node;
     }
 
     /// <summary>Creates a diagnostic text control using the current studio palette.</summary>
@@ -194,19 +171,15 @@ public sealed partial class MainPage
     private void ApplySensorDebugAppearance()
     {
         var ink = Brush(IsLight ? "#242231" : "#F1F1FA");
-        var muted = Brush(IsLight ? "#716B80" : "#9C9CAF");
+        var muted = Brush(IsLight ? "#596477" : "#AEB9CA");
         var transparent = new SolidColorBrush(Colors.Transparent);
-        var debug = SensorDebugPanel.Visibility == Visibility.Visible;
-        foreach (var button in new[] { ThemesTab, SensorsTab, SensorDebugRefresh, SensorDebugAdministrator })
+        foreach (var button in new[] { SensorDebugRefresh, SensorDebugAdministrator })
         { button.Background = transparent; button.Foreground = ink; button.BorderThickness = new Thickness(0); }
-        var selected = debug ? SensorsTab : ThemesTab;
-        selected.BorderThickness = new Thickness(0, 0, 0, 2);
-        selected.BorderBrush = Brush(IsLight ? "#7854B5" : "#C9AEF3");
-        SensorDebugHeading.Foreground = ink;
+        UpdateStudioTabs(viewModel.Workspace);
         SensorDebugSummary.Foreground = SensorDebugNotice.Foreground = SensorDebugHelp.Foreground = muted;
         SensorDebugTree.Background = transparent;
         SensorDebugTree.Foreground = ink;
         SensorDebugAdministrator.Visibility = windowActions?.CanRestartAsAdministrator == true ? Visibility.Visible : Visibility.Collapsed;
-        if (lastSensorDebug is not null) { RenderSensorDebug(); }
+        ApplySensorDebugState(renderRows: true);
     }
 }
