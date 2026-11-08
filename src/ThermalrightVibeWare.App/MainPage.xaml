@@ -530,24 +530,109 @@ VBWR E -->
             </Border>
         </Grid>
         <Grid x:Name="AboutOverlay" Grid.RowSpan="4" Background="#B0000000" Visibility="Collapsed">
-            <Border x:Name="AboutFrame" Width="550" MaxWidth="600" Padding="30" CornerRadius="20" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20">
-                <StackPanel>
-                    <TextBlock x:Name="AboutHeading" Text="TermalRight VibeWare" FontSize="28" FontWeight="SemiBold"/>
-                    <TextBlock x:Name="AboutVersion" Text="Display studio" FontSize="14" Margin="0,7,0,20"/>
-                    <TextBlock x:Name="AboutAuthor" Text="I am Umberto Giacobbi. I created TermalRight VibeWare to make my small display useful, personal and beautiful." TextWrapping="Wrap" FontSize="13"/>
-                    <TextBlock x:Name="AboutDisclosureHeading" Text="This is VibeWare" FontSize="16" FontWeight="SemiBold" Margin="0,22,0,10"/>
-                    <TextBlock x:Name="AboutDisclosure" Text="I created this software with AI assistance. I define its purpose, guide the implementation, and take responsibility for checking functionality, performance, and security." TextWrapping="Wrap" FontSize="14"/>
-                    <TextBlock x:Name="AboutInitiative" Text="An independent hobby project, provided as is without warranty. I do not work for Thermalright and am not affiliated with or sponsored by it. All trademarks and registered trademarks belong to their respective owners." TextWrapping="Wrap" FontSize="14" Margin="0,12,0,14"/>
-                    <HyperlinkButton x:Name="AboutManifesto" Content="Read the VibeWare manifesto" NavigateUri="https://umbertogiacobbi.biz/vibeware/manifesto" TargetName="_blank" HorizontalAlignment="Left" FontSize="14"/>
-                    <HyperlinkButton x:Name="ProjectLink" Content="TermalRight VibeWare on GitHub" NavigateUri="https://github.com/umbertotechnopreneur/thermalright-vibeware" TargetName="_blank" HorizontalAlignment="Left" FontSize="14" Margin="0,10,0,0"/>
-                    <HyperlinkButton x:Name="InitiativeLink" Content="VibeWare on GitHub" NavigateUri="https://github.com/umbertotechnopreneur/VibeWare" TargetName="_blank" HorizontalAlignment="Left" FontSize="14" Margin="0,6,0,0"/>
-                    <HyperlinkButton x:Name="WebsiteLink" Content="umbertogiacobbi.biz" NavigateUri="https://umbertogiacobbi.biz" TargetName="_blank" HorizontalAlignment="Left" FontSize="14" Margin="0,6,0,0"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,22,0,16">
-                        <HyperlinkButton x:Name="AboutTerms" Content="Terms" NavigateUri="https://umbertogiacobbi.biz/terms/" TargetName="_blank" FontSize="14" Margin="0,0,14,0"/>
-                        <HyperlinkButton x:Name="AboutPrivacy" Content="Privacy" NavigateUri="https://umbertogiacobbi.biz/privacy/" TargetName="_blank" FontSize="14"/>
-                    </StackPanel>
-                    <Button x:Name="CloseAboutButton" Content="Close" Click="CloseAbout_Click" Height="36"/>
-                </StackPanel>
+            <Grid.Resources>
+                <Style x:Key="AboutText" TargetType="TextBlock">
+                    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace"/>
+                    <Setter Property="FontSize" Value="13"/>
+                    <Setter Property="TextAlignment" Value="Center"/>
+                    <Setter Property="TextWrapping" Value="Wrap"/>
+                </Style>
+                <Style x:Key="AboutLinkStyle" TargetType="HyperlinkButton">
+                    <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, monospace"/>
+                    <Setter Property="FontSize" Value="13"/>
+                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                    <Setter Property="Padding" Value="5,4"/>
+                </Style>
+                <Style x:Key="AboutLinkIcon" TargetType="Path">
+                    <Setter Property="Width" Value="15"/>
+                    <Setter Property="Height" Value="15"/>
+                    <Setter Property="Stretch" Value="Uniform"/>
+                    <Setter Property="StrokeThickness" Value="1.5"/>
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                    <Setter Property="Margin" Value="0,0,5,0"/>
+                    <Setter Property="IsHitTestVisible" Value="False"/>
+                </Style>
+            </Grid.Resources>
+            <Border x:Name="AboutFrame" MaxWidth="640" MaxHeight="620" Padding="18,20,18,10" CornerRadius="16"
+                    BorderThickness="1" VerticalAlignment="Center" Margin="20">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="4,8,4,12">
+                            <Image Source="/ThermalrightVibeWare.UI;component/Assets/thermalright-vibeware-icon.png"
+                                   Width="64" Height="64" Stretch="Uniform" HorizontalAlignment="Center" IsHitTestVisible="False"/>
+                            <TextBlock x:Name="AboutHeading" Style="{StaticResource AboutText}" Text="TermalRight VibeWare"
+                                       FontSize="26" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="AboutVersion" Style="{StaticResource AboutText}" Text="Display studio" Margin="0,8,0,0"/>
+                            <TextBlock x:Name="AboutAuthor" Style="{StaticResource AboutText}" FontSize="15" Margin="0,22,0,0"
+                                       Text="I built TermalRight VibeWare to put my own themes and system readings on a small USB display."/>
+                            <TextBlock x:Name="AboutInitiative" Style="{StaticResource AboutText}" Margin="0,12,0,0"
+                                       Text="I provide this independent hobby project as is, without warranty. I do not work for Thermalright and am not affiliated with or sponsored by it."/>
+                            <TextBlock x:Name="AboutDisclosure" Style="{StaticResource AboutText}" Margin="0,8,0,0"
+                                       Text="I built it with AI assistance. I guide the implementation and take responsibility for it."/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                                <TextBlock x:Name="AboutDisclosureHeading" Style="{StaticResource AboutText}" Text="Umberto Giacobbi ·"
+                                           VerticalAlignment="Center"/>
+                                <HyperlinkButton Style="{StaticResource AboutLinkStyle}" Content="MIT" AutomationProperties.Name="MIT license"
+                                                 Foreground="{Binding Foreground, ElementName=ProjectLink}"
+                                                 NavigateUri="https://github.com/umbertotechnopreneur/thermalright-vibeware/blob/main/LICENSE" TargetName="_blank"/>
+                            </StackPanel>
+                            <HyperlinkButton x:Name="AboutManifesto" Style="{StaticResource AboutLinkStyle}" Margin="0,12,0,0"
+                                             NavigateUri="https://umbertogiacobbi.biz/vibeware/manifesto" TargetName="_blank"
+                                             AutomationProperties.Name="VibeWare manifesto" ToolTipService.ToolTip="VibeWare manifesto">
+                                <Image Source="/ThermalrightVibeWare.UI;component/Assets/vibeware-logo.png" Width="64" Height="64"
+                                       Stretch="Uniform" IsHitTestVisible="False"/>
+                            </HyperlinkButton>
+                            <HyperlinkButton x:Name="InitiativeLink" Style="{StaticResource AboutLinkStyle}" Content="VibeWare on GitHub"
+                                             NavigateUri="https://github.com/umbertotechnopreneur/VibeWare" TargetName="_blank"/>
+                            <Grid MaxWidth="480" Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <HyperlinkButton x:Name="WebsiteLink" Style="{StaticResource AboutLinkStyle}" AutomationProperties.Name="UmbertoGiacobbi.biz"
+                                                 NavigateUri="https://umbertogiacobbi.biz" TargetName="_blank">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource AboutLinkIcon}" Stroke="{Binding Foreground, ElementName=WebsiteLink}"
+                                              Data="M12,2 A10,10 0 1 0 12,22 A10,10 0 1 0 12,2 M2,12 H22 M12,2 C6,7 6,17 12,22 M12,2 C18,7 18,17 12,22"/>
+                                        <TextBlock Text="Website" Foreground="{Binding Foreground, ElementName=WebsiteLink}"/>
+                                    </StackPanel>
+                                </HyperlinkButton>
+                                <HyperlinkButton x:Name="ProjectLink" Grid.Column="1" Style="{StaticResource AboutLinkStyle}" AutomationProperties.Name="Source on GitHub"
+                                                 NavigateUri="https://github.com/umbertotechnopreneur/thermalright-vibeware" TargetName="_blank">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource AboutLinkIcon}" Stroke="{Binding Foreground, ElementName=ProjectLink}"
+                                              Data="M6,6 V18 M18,6 V8 C18,12 14,13 6,13 M4,4 A2,2 0 1 0 8,4 A2,2 0 1 0 4,4 M4,20 A2,2 0 1 0 8,20 A2,2 0 1 0 4,20 M16,4 A2,2 0 1 0 20,4 A2,2 0 1 0 16,4"/>
+                                        <TextBlock Text="Source" Foreground="{Binding Foreground, ElementName=ProjectLink}"/>
+                                    </StackPanel>
+                                </HyperlinkButton>
+                                <HyperlinkButton x:Name="AboutTerms" Grid.Column="2" Style="{StaticResource AboutLinkStyle}" AutomationProperties.Name="Terms"
+                                                 NavigateUri="https://umbertogiacobbi.biz/terms/" TargetName="_blank">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource AboutLinkIcon}" Stroke="{Binding Foreground, ElementName=AboutTerms}"
+                                              Data="M5,2 H14 L19,7 V22 H5 Z M14,2 V8 H19 M8,12 H16 M8,16 H16"/>
+                                        <TextBlock Text="Terms" Foreground="{Binding Foreground, ElementName=AboutTerms}"/>
+                                    </StackPanel>
+                                </HyperlinkButton>
+                                <HyperlinkButton x:Name="AboutPrivacy" Grid.Column="3" Style="{StaticResource AboutLinkStyle}" AutomationProperties.Name="Privacy"
+                                                 NavigateUri="https://umbertogiacobbi.biz/privacy/" TargetName="_blank">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource AboutLinkIcon}" Stroke="{Binding Foreground, ElementName=AboutPrivacy}"
+                                              Data="M5,10 H19 V22 H5 Z M8,10 V6 A4,4 0 0 1 16,6 V10 M12,14 V18"/>
+                                        <TextBlock Text="Privacy" Foreground="{Binding Foreground, ElementName=AboutPrivacy}"/>
+                                    </StackPanel>
+                                </HyperlinkButton>
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Button x:Name="CloseAboutButton" Grid.Row="1" Content="Close" Click="CloseAbout_Click" Height="36"
+                            MinWidth="88" HorizontalAlignment="Center" AutomationProperties.Name="Close About"/>
+                </Grid>
             </Border>
         </Grid>
         <Grid x:Name="CloseOverlay" Grid.RowSpan="4" Background="#B0000000" Visibility="Collapsed">
